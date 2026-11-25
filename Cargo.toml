@@ -26,7 +26,6 @@ members = [
     "packages/rimelight_update",
     "packages/gallery",
     "packages/ui_check",
-    "xtask-rs",
 ]
 
 # Spikes are independent workspaces and vendored third-party crates are not
@@ -57,22 +56,47 @@ spin_on = "0.1"
 rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight.git", rev = "d4420e634ee65c11f1e46666a4a1ccf3f713f653" }
 
 # ── Shared packages (local path, formerly pulled from rimelight-rs by tag) ──
-rimelight_content    = { path = "packages/rimelight_content" }
-rimelight_editor     = { path = "packages/rimelight_editor" }
-rimelight_media      = { path = "packages/rimelight_media" }
-rimelight_picture    = { path = "packages/rimelight_picture" }
-rimelight_platform   = { path = "packages/rimelight_platform" }
-rimelight_shell      = { path = "packages/rimelight_shell" }
-rimelight_sound      = { path = "packages/rimelight_sound" }
-rimelight_ui         = { path = "packages/rimelight_ui" }
-rimelight_ui_kit     = { path = "packages/rimelight_ui_kit" }
+rimelight_content       = { path = "packages/rimelight_content" }
+rimelight_editor        = { path = "packages/rimelight_editor" }
+rimelight_media         = { path = "packages/rimelight_media", features = ["slint"] }
+rimelight_picture       = { path = "packages/rimelight_picture" }
+rimelight_platform      = { path = "packages/rimelight_platform" }
+rimelight_shell         = { path = "packages/rimelight_shell" }
+rimelight_sound         = { path = "packages/rimelight_sound" }
+rimelight_ui            = { path = "packages/rimelight_ui" }
+rimelight_ui_kit        = { path = "packages/rimelight_ui_kit" }
 rimelight_ui_test_slint = { path = "packages/rimelight_ui_test_slint" }
-rimelight_update     = { path = "packages/rimelight_update" }
-rimelight_gallery    = { path = "packages/gallery" }
+rimelight_update        = { path = "packages/rimelight_update" }
+rimelight_gallery       = { path = "packages/gallery" }
+
+# ── Personal app crates (formerly in apps/rimelight-personal/Cargo.toml) ────
+ehttp = "0.7.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+idantity_core              = { path = "apps/rimelight-personal/crates/core" }
+idantity_nav               = { path = "apps/rimelight-personal/crates/idantity_nav" }
+idantity_ui_slint          = { path = "apps/rimelight-personal/crates/idantity_ui_slint" }
+idantity_feature_overview  = { path = "apps/rimelight-personal/crates/features/overview" }
+idantity_feature_todos     = { path = "apps/rimelight-personal/crates/features/todos" }
+idantity_feature_focus     = { path = "apps/rimelight-personal/crates/features/focus" }
+idantity_feature_notes     = { path = "apps/rimelight-personal/crates/features/notes" }
+idantity_feature_habits    = { path = "apps/rimelight-personal/crates/features/habits" }
+idantity_feature_watchlist = { path = "apps/rimelight-personal/crates/features/watchlist" }
+idantity_feature_music     = { path = "apps/rimelight-personal/crates/features/music" }
+idantity_feature_notebooks = { path = "apps/rimelight-personal/crates/features/notebooks" }
+idantity_feature_projects  = { path = "apps/rimelight-personal/crates/features/projects" }
+idantity_feature_finances  = { path = "apps/rimelight-personal/crates/features/finances" }
+idantity_feature_housing   = { path = "apps/rimelight-personal/crates/features/housing" }
+idantity_feature_health    = { path = "apps/rimelight-personal/crates/features/health" }
+idantity_feature_inbox     = { path = "apps/rimelight-personal/crates/features/inbox" }
+idantity_feature_storage   = { path = "apps/rimelight-personal/crates/features/storage" }
 
 [workspace.lints.rust]
 future_incompatible = { level = "deny", priority = -1 }
 unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
 
 # ffmpeg-sys-next bindings are checked in under vendor/ffmpeg-sys-next
 # so building needs neither clang nor FFmpeg headers (decision 0046).

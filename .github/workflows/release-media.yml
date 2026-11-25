@@ -1,31 +1,29 @@
-name: Release
+name: Release Rimelight Media
 
-# Pushing a version tag such as v0.2.0 builds the installer and update package and publishes them as a GitHub release.
-# Installed copies check this repository's latest release and update themselves (Velopack, as rimelight-space).
-# The tag must equal `version` in Cargo.toml. Uses only the built-in GITHUB_TOKEN: no secrets to set up.
+# Pushing a version tag such as media-v0.3.0 builds the Windows installer and update package and publishes them as a GitHub release.
+# The tag version (without `media-v`) must equal `version` in apps/rimelight-media/Cargo.toml.
 
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
-  # Also runnable by hand (Actions > Release > Run workflow), choosing the tag to release under "Use workflow from".
+      - "media-v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release
+  group: release-media
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  # The Velopack CLI version. Keep in step with tools/pack.ps1 ($vpkVersion).
+  # The Velopack CLI version. Keep in step with apps/rimelight-media/tools/pack.ps1 ($vpkVersion).
   VPK_VERSION: "1.2.161"
 
 jobs:
   windows:
-    name: Windows installer and update package
+    name: Windows installer and update package (Media)
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -37,14 +35,17 @@ jobs:
         run: dotnet tool install --global vpk --version $env:VPK_VERSION
         shell: pwsh
       - name: Fetch the previous release (for small delta updates)
+        working-directory: apps/rimelight-media
         run: vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --outputDir releases
         continue-on-error: true # the first release has nothing to fetch
       - name: Build and pack
+        working-directory: apps/rimelight-media
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          $version = "${{ github.ref_name }}" -replace '^media-v', ''
           ./tools/pack.ps1 -Version $version -Repo "${{ github.repository }}"
       - name: Publish the GitHub release
+        working-directory: apps/rimelight-media
         run: >
           vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
           --token "${{ secrets.GITHUB_TOKEN }}" --publish

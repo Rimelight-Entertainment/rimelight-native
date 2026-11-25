@@ -62,7 +62,6 @@ rimelight_shell         = { path = "packages/ui/rimelight_shell" }
 rimelight_sound         = { path = "packages/media/rimelight_sound" }
 rimelight_ui            = { path = "packages/ui/rimelight_ui" }
 rimelight_ui_kit        = { path = "packages/ui/rimelight_ui_kit" }
-rimelight_ui_test_slint = { path = "packages/ui/rimelight_ui_test_slint" }
 rimelight_update        = { path = "packages/rimelight_update" }
 rimelight_gallery       = { path = "packages/gallery" }
 

@@ -1,0 +1,14 @@
+[package]
+name = "idantity_feature_overview"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Plain Rust: no slint dependency and no build.rs. The page markup is in ui/overview.slint and is compiled by the shell.
+[lints]
+workspace = true
+
+[dependencies]
+idantity_core.workspace = true

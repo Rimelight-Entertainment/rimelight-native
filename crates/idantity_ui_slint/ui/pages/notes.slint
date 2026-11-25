@@ -1,0 +1,145 @@
+// The Notes route. The feature page (NotesPage) owns the markup; this file mirrors its properties and callbacks in the
+// NotesState global, so Rust reaches them as ui.global::<NotesState>().
+import { NotesPage, NoteCard } from "@idantity_feature_notes/notes.slint";
+
+export { NoteCard } from "@idantity_feature_notes/notes.slint";
+
+export global NotesState {
+    in property <[string]> tab-labels;
+    in property <int> tab;
+    in-out property <string> search;
+    in property <[string]> tags;
+    in property <string> tag-filter;
+    in property <int> selected-count;
+    in property <bool> loading;
+    in property <bool> no-notes;
+    in property <string> error;
+    in property <[NoteCard]> pinned;
+    in property <[NoteCard]> others;
+    in property <bool> editor-visible;
+    in property <bool> editor-existing;
+    in property <bool> editor-trashed;
+    in-out property <string> editor-title;
+    in-out property <string> editor-content;
+    in property <[string]> editor-tags;
+    in-out property <string> editor-tag-input;
+    in property <string> editor-color;
+    in property <bool> editor-color-open;
+    in property <bool> editor-pinned;
+    in property <bool> editor-archived;
+    in property <string> editor-status;
+    in property <bool> quick-open;
+    in property <bool> quick-creating;
+    in-out property <string> quick-title;
+    in-out property <string> quick-content;
+    in-out property <string> quick-tags;
+    in property <bool> confirm-open;
+    in property <string> confirm-title;
+    in property <string> confirm-message;
+    in property <string> confirm-action;
+
+    callback tab-requested(int);
+    callback search-edited(string);
+    callback tag-requested(string);
+    callback new-note-requested();
+    callback clear-selection-requested();
+    callback archive-selected-requested();
+    callback trash-selected-requested();
+    callback restore-selected-requested();
+    callback ask-batch-delete-requested();
+    callback select-requested(string);
+    callback open-requested(string);
+    callback pin-requested(string, bool);
+    callback archive-requested(string, bool);
+    callback trash-requested(string);
+    callback delete-requested(string);
+    callback dismiss-error-requested();
+    callback editor-title-edited(string);
+    callback editor-content-edited(string);
+    callback editor-tag-input-edited(string);
+    callback editor-tag-added();
+    callback editor-tag-removed(int);
+    callback editor-color-toggled();
+    callback editor-color-picked(string);
+    callback editor-pin-toggled();
+    callback editor-archive-toggled();
+    callback editor-trash-requested();
+    callback editor-restore-requested();
+    callback editor-delete-requested();
+    callback editor-dismissed();
+    callback quick-submit-requested(string, string, string);
+    callback quick-cancel-requested();
+    callback confirm-accepted();
+    callback confirm-cancelled();
+}
+
+export component NotesRoute inherits VerticalLayout {
+    NotesPage {
+        tab-labels: NotesState.tab-labels;
+        tab: NotesState.tab;
+        search <=> NotesState.search;
+        tags: NotesState.tags;
+        tag-filter: NotesState.tag-filter;
+        selected-count: NotesState.selected-count;
+        loading: NotesState.loading;
+        no-notes: NotesState.no-notes;
+        error: NotesState.error;
+        pinned: NotesState.pinned;
+        others: NotesState.others;
+        editor-visible: NotesState.editor-visible;
+        editor-existing: NotesState.editor-existing;
+        editor-trashed: NotesState.editor-trashed;
+        editor-title <=> NotesState.editor-title;
+        editor-content <=> NotesState.editor-content;
+        editor-tags: NotesState.editor-tags;
+        editor-tag-input <=> NotesState.editor-tag-input;
+        editor-color: NotesState.editor-color;
+        editor-color-open: NotesState.editor-color-open;
+        editor-pinned: NotesState.editor-pinned;
+        editor-archived: NotesState.editor-archived;
+        editor-status: NotesState.editor-status;
+        quick-open: NotesState.quick-open;
+        quick-creating: NotesState.quick-creating;
+        quick-title <=> NotesState.quick-title;
+        quick-content <=> NotesState.quick-content;
+        quick-tags <=> NotesState.quick-tags;
+        confirm-open: NotesState.confirm-open;
+        confirm-title: NotesState.confirm-title;
+        confirm-message: NotesState.confirm-message;
+        confirm-action: NotesState.confirm-action;
+
+        tab-requested(index) => { NotesState.tab-requested(index); }
+        search-edited(text) => { NotesState.search-edited(text); }
+        tag-requested(tag) => { NotesState.tag-requested(tag); }
+        new-note-requested => { NotesState.new-note-requested(); }
+        clear-selection-requested => { NotesState.clear-selection-requested(); }
+        archive-selected-requested => { NotesState.archive-selected-requested(); }
+        trash-selected-requested => { NotesState.trash-selected-requested(); }
+        restore-selected-requested => { NotesState.restore-selected-requested(); }
+        ask-batch-delete-requested => { NotesState.ask-batch-delete-requested(); }
+        select-requested(id) => { NotesState.select-requested(id); }
+        open-requested(id) => { NotesState.open-requested(id); }
+        pin-requested(id, pinned) => { NotesState.pin-requested(id, pinned); }
+        archive-requested(id, archived) => { NotesState.archive-requested(id, archived); }
+        trash-requested(id) => { NotesState.trash-requested(id); }
+        delete-requested(id) => { NotesState.delete-requested(id); }
+        dismiss-error-requested => { NotesState.dismiss-error-requested(); }
+        editor-title-edited(text) => { NotesState.editor-title-edited(text); }
+        editor-content-edited(text) => { NotesState.editor-content-edited(text); }
+        editor-tag-input-edited(text) => { NotesState.editor-tag-input-edited(text); }
+        editor-tag-added => { NotesState.editor-tag-added(); }
+        editor-tag-removed(index) => { NotesState.editor-tag-removed(index); }
+        editor-color-toggled => { NotesState.editor-color-toggled(); }
+        editor-color-picked(name) => { NotesState.editor-color-picked(name); }
+        editor-pin-toggled => { NotesState.editor-pin-toggled(); }
+        editor-archive-toggled => { NotesState.editor-archive-toggled(); }
+        editor-trash-requested => { NotesState.editor-trash-requested(); }
+        editor-restore-requested => { NotesState.editor-restore-requested(); }
+        editor-delete-requested => { NotesState.editor-delete-requested(); }
+        editor-dismissed => { NotesState.editor-dismissed(); }
+        quick-submit-requested(title, content, tags) => { NotesState.quick-submit-requested(title, content, tags); }
+        quick-cancel-requested => { NotesState.quick-cancel-requested(); }
+        confirm-accepted => { NotesState.confirm-accepted(); }
+        confirm-cancelled => { NotesState.confirm-cancelled(); }
+    }
+}

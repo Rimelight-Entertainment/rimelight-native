@@ -1,0 +1,64 @@
+// The Habits route. The feature page (HabitsPage) owns the markup; this file mirrors its properties and callbacks in the
+// HabitsState global, so Rust reaches them as ui.global::<HabitsState>().
+import { HabitsPage, HabitYearTab, HabitDay, HabitWeek, HabitRow, HabitCategoryRow } from "@idantity_feature_habits/habits.slint";
+import { SelectOption } from "@rimelight_ui/components/select.slint";
+
+export { HabitYearTab, HabitDay, HabitWeek, HabitRow, HabitCategoryRow } from "@idantity_feature_habits/habits.slint";
+
+export global HabitsState {
+    in property <[HabitYearTab]> years;
+    in property <[SelectOption]> month-options;
+    in property <string> month;
+    in property <bool> has-year;
+    in property <string> year-label;
+    in property <bool> streaks-mode;
+    in property <[HabitCategoryRow]> categories;
+    in property <bool> loading;
+    in property <string> error;
+    in property <string> pending-delete;
+    in-out property <string> new-year;
+    in-out property <string> new-category;
+
+    callback year-requested(int);
+    callback month-requested(string);
+    callback streaks-mode-requested(bool);
+    callback add-year-requested(string);
+    callback add-category-requested(string);
+    callback delete-category-requested(string);
+    callback confirm-delete-category-requested();
+    callback cancel-delete-category-requested();
+    callback add-habit-requested(string, string);
+    callback delete-habit-requested(string, string);
+    callback toggle-day-requested(string, string, string);
+    callback dismiss-error-requested();
+}
+
+export component HabitsRoute inherits VerticalLayout {
+    HabitsPage {
+        years: HabitsState.years;
+        month-options: HabitsState.month-options;
+        month: HabitsState.month;
+        has-year: HabitsState.has-year;
+        year-label: HabitsState.year-label;
+        streaks-mode: HabitsState.streaks-mode;
+        categories: HabitsState.categories;
+        loading: HabitsState.loading;
+        error: HabitsState.error;
+        pending-delete: HabitsState.pending-delete;
+        new-year <=> HabitsState.new-year;
+        new-category <=> HabitsState.new-category;
+
+        year-requested(year) => { HabitsState.year-requested(year); }
+        month-requested(month) => { HabitsState.month-requested(month); }
+        streaks-mode-requested(on) => { HabitsState.streaks-mode-requested(on); }
+        add-year-requested(text) => { HabitsState.add-year-requested(text); }
+        add-category-requested(name) => { HabitsState.add-category-requested(name); }
+        delete-category-requested(id) => { HabitsState.delete-category-requested(id); }
+        confirm-delete-category-requested => { HabitsState.confirm-delete-category-requested(); }
+        cancel-delete-category-requested => { HabitsState.cancel-delete-category-requested(); }
+        add-habit-requested(cat, name) => { HabitsState.add-habit-requested(cat, name); }
+        delete-habit-requested(cat, habit) => { HabitsState.delete-habit-requested(cat, habit); }
+        toggle-day-requested(cat, habit, date) => { HabitsState.toggle-day-requested(cat, habit, date); }
+        dismiss-error-requested => { HabitsState.dismiss-error-requested(); }
+    }
+}

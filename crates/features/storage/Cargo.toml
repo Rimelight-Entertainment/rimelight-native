@@ -1,0 +1,19 @@
+[package]
+name = "idantity_feature_storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Plain Rust: no slint dependency and no build.rs. The page markup is in ui/storage.slint and is compiled by the shell.
+# rimelight_picture decodes images; rimelight_media makes video posters, reads durations and plays audio (Windows
+# engine; a stub elsewhere, so previews fall back to the type placeholder off Windows).
+[lints]
+workspace = true
+
+[dependencies]
+idantity_core.workspace = true
+ehttp.workspace = true
+rimelight_picture = { workspace = true }
+rimelight_media = { workspace = true }

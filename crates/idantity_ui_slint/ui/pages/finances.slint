@@ -1,0 +1,70 @@
+// The Finances route: the feature's FinancesPage fed by FinancesState, which the Rust glue (src/pages/finances.rs) fills.
+import { FinancesPage, FinanceStat, FinanceRow, FinanceSection, FinanceChip, FinanceField } from "@idantity_feature_finances/finances.slint";
+
+export { FinanceStat, FinanceRow, FinanceSection, FinanceChip, FinanceField } from "@idantity_feature_finances/finances.slint";
+
+export global FinancesState {
+    in-out property <string> tab: "overview";
+    in-out property <bool> loading;
+    in-out property <string> error;
+    in-out property <bool> rates-missing;
+    in-out property <[FinanceStat]> stats;
+    in-out property <[FinanceChip]> chips;
+    in-out property <[FinanceSection]> sections;
+    in-out property <string> search;
+    in-out property <bool> form-open;
+    in-out property <string> form-title;
+    in-out property <string> form-submit;
+    in-out property <string> form-error;
+    in-out property <[FinanceField]> form-fields;
+
+    callback tab-requested(string);
+    callback refresh-requested();
+    callback search-changed(string);
+    callback chip-requested(string, string);
+    callback field-changed(string, string);
+    callback date-picked(string, int);
+    callback date-stepped(string, int);
+    callback submit-requested();
+    callback cancel-requested();
+    callback row-primary-requested(string);
+    callback row-secondary-requested(string);
+    callback row-edit-requested(string);
+    callback row-delete-requested(string);
+    callback copy-requested(string);
+    callback dismiss-error-requested();
+}
+
+export component FinancesRoute inherits Rectangle {
+    FinancesPage {
+        tab: FinancesState.tab;
+        loading: FinancesState.loading;
+        error: FinancesState.error;
+        rates-missing: FinancesState.rates-missing;
+        stats: FinancesState.stats;
+        chips: FinancesState.chips;
+        sections: FinancesState.sections;
+        search: FinancesState.search;
+        form-open: FinancesState.form-open;
+        form-title: FinancesState.form-title;
+        form-submit: FinancesState.form-submit;
+        form-error: FinancesState.form-error;
+        form-fields: FinancesState.form-fields;
+
+        tab-requested(key) => { FinancesState.tab-requested(key); }
+        refresh-requested() => { FinancesState.refresh-requested(); }
+        search-changed(text) => { FinancesState.search-changed(text); }
+        chip-requested(group, value) => { FinancesState.chip-requested(group, value); }
+        field-changed(key, value) => { FinancesState.field-changed(key, value); }
+        date-picked(key, index) => { FinancesState.date-picked(key, index); }
+        date-stepped(key, delta) => { FinancesState.date-stepped(key, delta); }
+        submit-requested() => { FinancesState.submit-requested(); }
+        cancel-requested() => { FinancesState.cancel-requested(); }
+        row-primary-requested(id) => { FinancesState.row-primary-requested(id); }
+        row-secondary-requested(id) => { FinancesState.row-secondary-requested(id); }
+        row-edit-requested(id) => { FinancesState.row-edit-requested(id); }
+        row-delete-requested(id) => { FinancesState.row-delete-requested(id); }
+        copy-requested(text) => { FinancesState.copy-requested(text); }
+        dismiss-error-requested() => { FinancesState.dismiss-error-requested(); }
+    }
+}

@@ -1,0 +1,22 @@
+// The stand-in page every route shows until its feature page is wired (ST6.3 replaces each one).
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+
+export component PlaceholderPage inherits VerticalLayout {
+    in property <string> title;
+    padding: Tokens.space-6;
+    spacing: Tokens.space-3;
+
+    Text {
+        text: root.title;
+        color: Tokens.text-primary;
+        font-size: Type.heading.size;
+        font-weight: Type.heading.weight;
+    }
+
+    Text {
+        text: "This page is not ported yet.";
+        color: Tokens.text-primary;
+        font-size: Type.body.size;
+    }
+}

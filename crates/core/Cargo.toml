@@ -1,0 +1,45 @@
+[package]
+name = "idantity_core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ehttp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Reads the JWT payload of the Access token (the `exp` claim) and encodes the sign-in transfer key.
+base64 = "0.22"
+
+# Calendar days (crates/core/src/local_date.rs): jiff on native, js-sys in the browser. 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jiff = "0.2"
+# The transfer key for the desktop Access login (crates/core/src/signin.rs).
+getrandom = "0.3"
+# The NaCl box the transfer service encrypts the token with (crates/core/src/signin.rs); the primitive cloudflared uses.
+crypto_box = { version = "0.9", default-features = false, features = ["alloc", "salsa20"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+# The browser's location, for the Access login and logout (crates/core/src/web_session.rs).
+web-sys = { version = "0.3", features = ["Window", "Location"] }
+
+# Desktop sign-in: the system browser for the Access CLI login, and the OS credential store for the token. The same
+# crates and pins as Rimelight Space (space_client).
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
+open = "5"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["linux-native-sync-persistent", "crypto-rust"] }
+

@@ -1,0 +1,654 @@
+// The Notes page (ported from crates/app/src/notes.rs). It draws only.
+// Data comes in through the properties; every user action goes out through a callback. The Rust controller (src/lib.rs
+// of this crate) holds the state, and apps/desktop/src/pages/notes.rs wires the two.
+// No colour, size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Checkbox, CheckState } from "@rimelight_ui/components/checkbox.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Tag } from "@rimelight_ui/components/tag.slint";
+import { Dialog, DialogSize, ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+
+// One card of the list. `tags` are shown as #tag chips; `date` is the day of the last update.
+export struct NoteCard {
+    id: string,
+    title: string,
+    preview: string,
+    empty: bool,
+    tags: [string],
+    date: string,
+    color: string,
+    pinned: bool,
+    archived: bool,
+    trashed: bool,
+    selected: bool,
+}
+
+// The fill and edge of a note colour. Tokens has no note palette, so the colours are the status tokens; the egui
+// page's Tailwind hues for commentary, ideation and source have no token, so they draw as neutral (see the gaps).
+export global NotePalette {
+    public pure function fill(name: string) -> color {
+        return name == "info" ? Tokens.status-info-surface
+            : name == "success" ? Tokens.status-success-surface
+            : name == "warning" ? Tokens.status-warning-surface
+            : name == "error" ? Tokens.status-danger-surface
+            : Tokens.surface-raised;
+    }
+    public pure function edge(name: string) -> color {
+        return name == "info" ? Tokens.status-info-border
+            : name == "success" ? Tokens.status-success-border
+            : name == "warning" ? Tokens.status-warning-border
+            : name == "error" ? Tokens.status-danger-border
+            : Tokens.border-strong;
+    }
+}
+
+// One card. It reports its actions to the page, which forwards them with the note id.
+component NoteCardItem inherits Rectangle {
+    in property <NoteCard> note;
+
+    callback select-requested();
+    callback open-requested();
+    callback pin-requested(bool);
+    callback archive-requested(bool);
+    callback trash-requested();
+    callback delete-requested();
+
+    background: NotePalette.fill(root.note.color);
+    border-color: root.note.selected ? Tokens.focus-ring : NotePalette.edge(root.note.color);
+    border-width: root.note.selected ? 2px : 1px;
+    border-radius: Tokens.radius-surface;
+    height: body.preferred-height;
+
+    body := VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-3;
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            Checkbox {
+                text: "";
+                accessible-name: "Select " + root.note.title;
+                check-state: root.note.selected ? CheckState.checked : CheckState.unchecked;
+                changed(checked) => { root.select-requested(); }
+            }
+            Button {
+                horizontal-stretch: 1;
+                text: root.note.title != "" ? root.note.title : "Untitled";
+                accessible-name: "Open " + root.note.title;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.md;
+                clicked => { root.open-requested(); }
+            }
+        }
+
+        Text {
+            text: root.note.empty ? "Empty note" : root.note.preview;
+            color: root.note.empty ? Tokens.text-faint : Tokens.text-primary;
+            wrap: word-wrap;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+
+        if root.note.tags.length > 0 : HorizontalLayout {
+            spacing: Tokens.space-1;
+            alignment: start;
+
+            for tag in root.note.tags : Tag {
+                label: "#" + tag;
+            }
+        }
+
+        if root.note.date != "" : Text {
+            text: root.note.date;
+            color: Tokens.text-muted;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            alignment: end;
+
+            if !root.note.trashed : Button {
+                text: "Trash";
+                accessible-name: "Trash " + root.note.title;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.trash-requested(); }
+            }
+            if !root.note.trashed : Button {
+                text: root.note.archived ? "Unarchive" : "Archive";
+                accessible-name: (root.note.archived ? "Unarchive " : "Archive ") + root.note.title;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.archive-requested(!root.note.archived); }
+            }
+            if root.note.trashed : Button {
+                text: "Delete";
+                accessible-name: "Delete " + root.note.title;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.delete-requested(); }
+            }
+            Button {
+                text: root.note.pinned ? "Unpin" : "Pin";
+                accessible-name: (root.note.pinned ? "Unpin " : "Pin ") + root.note.title;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.pin-requested(!root.note.pinned); }
+            }
+        }
+    }
+}
+
+export component NotesPage inherits VerticalLayout {
+    // Data in.
+    // The three tab labels with their counts, and the selected tab (0 active, 1 archive, 2 trash).
+    in property <[string]> tab-labels;
+    in property <int> tab;
+    // The search text. Rust filters the list on each change.
+    in-out property <string> search;
+    in property <[string]> tags;
+    // The tag filter, empty for all tags.
+    in property <string> tag-filter;
+    in property <int> selected-count;
+    in property <bool> loading;
+    // True when no note has been loaded yet.
+    in property <bool> no-notes;
+    // Empty means no error.
+    in property <string> error;
+    in property <[NoteCard]> pinned;
+    in property <[NoteCard]> others;
+    // Colours offered by the colour picker, in the egui order.
+    property <[string]> color-options: ["neutral", "info", "success", "warning", "error", "commentary", "ideation", "source"];
+
+    // The editor dialog. It is shown while `editor-visible` is true.
+    in property <bool> editor-visible;
+    in property <bool> editor-existing;
+    in property <bool> editor-trashed;
+    in-out property <string> editor-title;
+    in-out property <string> editor-content;
+    in property <[string]> editor-tags;
+    in-out property <string> editor-tag-input;
+    in property <string> editor-color;
+    in property <bool> editor-color-open;
+    in property <bool> editor-pinned;
+    in property <bool> editor-archived;
+    in property <string> editor-status;
+
+    // The quick-create dialog. Its fields are read on submit.
+    in property <bool> quick-open;
+    in property <bool> quick-creating;
+    in-out property <string> quick-title;
+    in-out property <string> quick-content;
+    in-out property <string> quick-tags;
+
+    // The confirmation dialog.
+    in property <bool> confirm-open;
+    in property <string> confirm-title;
+    in property <string> confirm-message;
+    in property <string> confirm-action;
+
+    // Actions out.
+    callback tab-requested(int);
+    callback search-edited(string);
+    callback tag-requested(string);
+    callback new-note-requested();
+    callback clear-selection-requested();
+    callback archive-selected-requested();
+    callback trash-selected-requested();
+    callback restore-selected-requested();
+    callback ask-batch-delete-requested();
+    callback select-requested(string);
+    callback open-requested(string);
+    callback pin-requested(string, bool);
+    callback archive-requested(string, bool);
+    callback trash-requested(string);
+    callback delete-requested(string);
+    callback dismiss-error-requested();
+    callback editor-title-edited(string);
+    callback editor-content-edited(string);
+    callback editor-tag-input-edited(string);
+    callback editor-tag-added();
+    callback editor-tag-removed(int);
+    callback editor-color-toggled();
+    callback editor-color-picked(string);
+    callback editor-pin-toggled();
+    callback editor-archive-toggled();
+    callback editor-trash-requested();
+    callback editor-restore-requested();
+    callback editor-delete-requested();
+    callback editor-dismissed();
+    callback quick-submit-requested(string, string, string);
+    callback quick-cancel-requested();
+    callback confirm-accepted();
+    callback confirm-cancelled();
+
+    spacing: Tokens.space-3;
+
+    // Opening and closing the dialogs follows the data.
+    changed editor-visible => {
+        if (root.editor-visible) {
+            editor-dialog.open();
+        } else {
+            editor-dialog.close();
+        }
+    }
+    changed quick-open => {
+        if (root.quick-open) {
+            quick-dialog.open();
+        } else {
+            quick-dialog.close();
+        }
+    }
+    changed confirm-open => {
+        if (root.confirm-open) {
+            confirm-dialog.open();
+        } else {
+            confirm-dialog.close();
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        for label[index] in root.tab-labels : Button {
+            text: label;
+            variant: index == root.tab ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.tab-requested(index); }
+        }
+        Input {
+            horizontal-stretch: 1;
+            size: InputSize.md;
+            placeholder: "Search notes or tags";
+            accessible-name: "Search notes or tags";
+            text <=> root.search;
+            changed(value) => { root.search-edited(value); }
+        }
+        Button {
+            text: "New Note";
+            variant: ButtonVariant.primary;
+            size: ButtonSize.md;
+            clicked => { root.new-note-requested(); }
+        }
+    }
+
+    if root.tags.length > 0 : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Text {
+            text: "Tags";
+            vertical-alignment: center;
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+        Button {
+            text: "All Tags";
+            variant: root.tag-filter == "" ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.tag-requested(""); }
+        }
+        for tag in root.tags : Button {
+            text: "#" + tag;
+            accessible-name: "Filter by " + tag;
+            variant: tag == root.tag-filter ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.tag-requested(tag); }
+        }
+    }
+
+    if root.selected-count > 0 : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Text {
+            text: "\{root.selected-count} notes selected";
+            vertical-alignment: center;
+            color: Tokens.text-primary;
+            font-family: Type.body-strong.family;
+            font-size: Type.body-strong.size;
+            font-weight: Type.body-strong.weight;
+        }
+        if root.tab == 0 : Button {
+            text: "Archive Selected";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.archive-selected-requested(); }
+        }
+        if root.tab == 0 : Button {
+            text: "Move to Trash";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.trash-selected-requested(); }
+        }
+        if root.tab == 1 : Button {
+            text: "Unarchive Selected";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.restore-selected-requested(); }
+        }
+        if root.tab == 1 : Button {
+            text: "Move to Trash";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.trash-selected-requested(); }
+        }
+        if root.tab == 2 : Button {
+            text: "Restore Selected";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.restore-selected-requested(); }
+        }
+        if root.tab == 2 : Button {
+            text: "Delete Permanently";
+            variant: ButtonVariant.danger;
+            size: ButtonSize.sm;
+            clicked => { root.ask-batch-delete-requested(); }
+        }
+        Button {
+            text: "Clear";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.clear-selection-requested(); }
+        }
+    }
+
+    if root.loading && root.no-notes : Text {
+        text: "Loading notes…";
+        color: Tokens.text-muted;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        font-weight: Type.body.weight;
+    }
+
+    // Builtin Flickable (not std-widgets' ScrollView, which feature markup cannot import): it scrolls when the cards
+    // overflow the height, as rimelight_ui's Combobox does.
+    Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: list.preferred-height;
+
+        list := VerticalLayout {
+            width: parent.width;
+            spacing: Tokens.space-3;
+            alignment: start;
+
+            if root.pinned.length > 0 : Text {
+                text: "PINNED NOTES";
+                color: Tokens.text-muted;
+                font-family: Type.subheading.family;
+                font-size: Type.subheading.size;
+                font-weight: Type.subheading.weight;
+            }
+            for card in root.pinned : NoteCardItem {
+                note: card;
+                select-requested => { root.select-requested(card.id); }
+                open-requested => { root.open-requested(card.id); }
+                pin-requested(value) => { root.pin-requested(card.id, value); }
+                archive-requested(value) => { root.archive-requested(card.id, value); }
+                trash-requested => { root.trash-requested(card.id); }
+                delete-requested => { root.delete-requested(card.id); }
+            }
+            if root.pinned.length > 0 && root.others.length > 0 : Text {
+                text: "Other Notes";
+                color: Tokens.text-muted;
+                font-family: Type.subheading.family;
+                font-size: Type.subheading.size;
+                font-weight: Type.subheading.weight;
+            }
+            for card in root.others : NoteCardItem {
+                note: card;
+                select-requested => { root.select-requested(card.id); }
+                open-requested => { root.open-requested(card.id); }
+                pin-requested(value) => { root.pin-requested(card.id, value); }
+                archive-requested(value) => { root.archive-requested(card.id, value); }
+                trash-requested => { root.trash-requested(card.id); }
+                delete-requested => { root.delete-requested(card.id); }
+            }
+            if root.pinned.length == 0 && root.others.length == 0 : EmptyState {
+                title: "No notes found";
+                description: "Create a new note or adjust your search filter.";
+            }
+        }
+    }
+
+    // The dialogs. A Dialog sets its own position, so it cannot be a direct child of this layout: they sit in a
+    // zero-height box, which takes no room.
+    Rectangle {
+        height: 0px;
+
+    // The editor. Closing it (Escape, the close control or a scrim click) reports `editor-dismissed`.
+    editor-dialog := Dialog {
+        title: "Note";
+        size: DialogSize.lg;
+        close-label: "Close note";
+        closed => { root.editor-dismissed(); }
+
+        Rectangle {
+            background: NotePalette.fill(root.editor-color);
+            border-color: NotePalette.edge(root.editor-color);
+            border-width: 1px;
+            border-radius: Tokens.radius-surface;
+            height: editor-body.preferred-height;
+
+            editor-body := VerticalLayout {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                padding: Tokens.space-3;
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                Input {
+                    size: InputSize.md;
+                    placeholder: "Title";
+                    accessible-name: "Note title";
+                    text <=> root.editor-title;
+                    changed(value) => { root.editor-title-edited(value); }
+                }
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    for tag[index] in root.editor-tags : Tag {
+                        label: "#" + tag;
+                        removable: true;
+                        remove-label: "Remove tag " + tag;
+                        removed => { root.editor-tag-removed(index); }
+                    }
+                    Input {
+                        horizontal-stretch: 1;
+                        size: InputSize.sm;
+                        placeholder: "Add tag (Enter)";
+                        accessible-name: "New tag";
+                        text <=> root.editor-tag-input;
+                        changed(value) => { root.editor-tag-input-edited(value); }
+                        submitted(value) => { root.editor-tag-added(); }
+                    }
+                    Button {
+                        text: "+";
+                        accessible-name: "Add tag";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-tag-added(); }
+                    }
+                }
+
+                Textarea {
+                    rows: 10;
+                    max-rows: 12;
+                    placeholder: "Write your note here";
+                    accessible-name: "Note content";
+                    text <=> root.editor-content;
+                    changed(value) => { root.editor-content-edited(value); }
+                }
+
+                if root.editor-color-open : HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    for name in root.color-options : Button {
+                        text: name;
+                        accessible-name: "Colour " + name;
+                        variant: name == root.editor-color ? ButtonVariant.primary : ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-color-picked(name); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    Button {
+                        text: "Color: " + root.editor-color;
+                        accessible-name: "Change colour";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-color-toggled(); }
+                    }
+                    Text {
+                        text: root.editor-status;
+                        vertical-alignment: center;
+                        color: root.editor-status == "Save failed" ? Tokens.status-danger : Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    Button {
+                        text: "Pin";
+                        accessible-name: root.editor-pinned ? "Unpin note" : "Pin note";
+                        variant: root.editor-pinned ? ButtonVariant.primary : ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-pin-toggled(); }
+                    }
+                    Button {
+                        text: "Archive";
+                        accessible-name: root.editor-archived ? "Unarchive note" : "Archive note";
+                        variant: root.editor-archived ? ButtonVariant.primary : ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-archive-toggled(); }
+                    }
+                    if root.editor-existing && !root.editor-trashed : Button {
+                        text: "Trash";
+                        accessible-name: "Move note to trash";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-trash-requested(); }
+                    }
+                    if root.editor-existing && root.editor-trashed : Button {
+                        text: "Restore";
+                        accessible-name: "Restore note";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-restore-requested(); }
+                    }
+                    if root.editor-existing && root.editor-trashed : Button {
+                        text: "Delete";
+                        accessible-name: "Delete note permanently";
+                        variant: ButtonVariant.danger;
+                        size: ButtonSize.sm;
+                        clicked => { root.editor-delete-requested(); }
+                    }
+                }
+            }
+        }
+    }
+
+    // The quick-create form.
+    quick-dialog := Dialog {
+        title: "Create Note";
+        size: DialogSize.md;
+        close-label: "Close";
+        closed => { root.quick-cancel-requested(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            alignment: start;
+
+            Text {
+                text: "Quickly capture a new note";
+                color: Tokens.text-muted;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "e.g. Meeting notes, Idea, Grocery list";
+                accessible-name: "Quick note title";
+                text <=> root.quick-title;
+                submitted(value) => { root.quick-submit-requested(root.quick-title, root.quick-content, root.quick-tags); }
+            }
+            Textarea {
+                rows: 5;
+                placeholder: "Write your note...";
+                accessible-name: "Quick note content";
+                text <=> root.quick-content;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "Work, Ideas, Personal";
+                accessible-name: "Quick note tags";
+                text <=> root.quick-tags;
+                submitted(value) => { root.quick-submit-requested(root.quick-title, root.quick-content, root.quick-tags); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: end;
+
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.quick-cancel-requested(); }
+                }
+                Button {
+                    text: root.quick-creating ? "Creating..." : "Create Note";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    enabled: !root.quick-creating;
+                    clicked => { root.quick-submit-requested(root.quick-title, root.quick-content, root.quick-tags); }
+                }
+            }
+        }
+    }
+
+    // The delete and trash confirmations.
+    confirm-dialog := ConfirmDialog {
+        title: root.confirm-title;
+        message: root.confirm-message;
+        confirm-label: root.confirm-action;
+        cancel-label: "Cancel";
+        confirmed => { root.confirm-accepted(); }
+        cancelled => { root.confirm-cancelled(); }
+    }
+    }
+}

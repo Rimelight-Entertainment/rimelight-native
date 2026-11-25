@@ -1,0 +1,850 @@
+// The Health & Fitness page (ported from crates/app/src/health.rs and the web components in src/components/health/).
+// It draws only. Data comes in through properties; every user action goes out through a `*-requested` or `*-changed`
+// callback. The Rust controller (src/lib.rs of this crate) holds the state, and the shell glue wires the two.
+// No colour, size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Progress } from "@rimelight_ui/components/progress.slint";
+import { Switch } from "@rimelight_ui/components/switch.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { TimePicker } from "@rimelight_ui/components/time-picker.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { Dialog, DialogAction, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { BarChart, ProgressRing, ChartPoint } from "@rimelight_ui/components/chart.slint";
+
+// One set of an exercise.
+export struct HealthSetRow {
+    id: string,
+    kg: string,
+    reps: string,
+    rest: string,
+    done: bool,
+}
+
+// One exercise of a training day.
+export struct HealthExerciseRow {
+    id: string,
+    name: string,
+    notes: string,
+    sets: [HealthSetRow],
+}
+
+// One training day (an exercise category).
+export struct HealthExerciseDay {
+    id: string,
+    name: string,
+    exercises: [HealthExerciseRow],
+}
+
+// One stretch in a routine.
+export struct HealthStretchRow {
+    id: string,
+    name: string,
+    duration: string,
+}
+
+// One stretching routine (a stretch category).
+export struct HealthRoutine {
+    id: string,
+    name: string,
+    items: [HealthStretchRow],
+}
+
+// One metabolic stage. `current` marks the stage the running fast is in.
+export struct HealthStageRow {
+    name: string,
+    description: string,
+    reached: bool,
+    current: bool,
+}
+
+// One past fast in the history chart. `tone`: 0 amber, 1 primary, 2 emerald, 3 purple.
+export struct HealthHistoryBar {
+    label: string,
+    hours: float,
+    tone: int,
+}
+
+// One measurement track. `cells` has twelve entries, January first.
+export struct HealthMetricRow {
+    id: string,
+    name: string,
+    unit: string,
+    target: string,
+    cells: [string],
+}
+
+export component HealthPage inherits VerticalLayout {
+    // Which part of the page shows: 0 fasting, 1 workouts, 2 measurements.
+    in property <int> section: 0;
+    in property <bool> loading;
+    // Empty means no error.
+    in property <string> error;
+    // Empty means no notice.
+    in property <string> notice;
+
+    // ----- Fasting -----
+    in property <[string]> protocols;
+    in property <int> protocol: 0;
+    in-out property <string> custom-hours;
+    in-out property <bool> custom-start-on;
+    // Calendar and time of the retroactive start (UTC). The picked start is shown in start-label.
+    in property <[CalendarDay]> start-days;
+    in property <[string]> weekday-labels;
+    in property <string> start-title;
+    in property <string> start-label;
+    in property <int> start-hour;
+    in property <int> start-minute;
+    in property <bool> has-active;
+    in property <string> active-id;
+    in property <string> active-started;
+    in property <string> active-elapsed;
+    in property <string> active-goal;
+    in property <float> active-progress;
+    in property <string> active-stage;
+    in property <string> active-stage-description;
+    in property <[HealthStageRow]> stages;
+    in property <[HealthHistoryBar]> history;
+
+    // ----- Workouts -----
+    // 0 exercises and workouts, 1 stretching routines.
+    in property <int> workout-tab: 0;
+    in property <[HealthExerciseDay]> exercise-days;
+    in property <[HealthRoutine]> routines;
+    // Empty when no rest countdown runs.
+    in property <string> rest-remaining;
+    in property <bool> runner-active;
+    in property <string> runner-routine;
+    in property <string> runner-current;
+    in property <string> runner-remaining;
+    in property <string> runner-step;
+    in property <bool> runner-paused;
+    in property <bool> runner-finished;
+    in property <float> runner-progress;
+    in-out property <string> new-day-name;
+    in-out property <string> new-exercise-name;
+    in-out property <string> new-routine-name;
+    in-out property <string> new-stretch-name;
+    in-out property <string> new-stretch-duration;
+
+    // ----- Measurements -----
+    in property <[string]> years;
+    in property <string> year;
+    in property <[HealthMetricRow]> metrics;
+    in property <string> weight-unit;
+    in property <string> weight-gap;
+    in property <string> body-fat-gap;
+    in-out property <string> goal-current-weight;
+    in-out property <string> goal-target-weight;
+    in-out property <string> goal-current-body-fat;
+    in-out property <string> goal-target-body-fat;
+    in-out property <string> goal-unit;
+    // The track shown in the bar chart, and its twelve bars.
+    in property <string> chart-metric-name;
+    in property <[ChartPoint]> chart;
+    in-out property <string> new-metric-name;
+    in-out property <string> new-metric-unit: "cm";
+    in-out property <string> new-metric-target;
+    // The track whose removal is waiting for a second click. Empty when none.
+    in-out property <string> pending-remove;
+
+    // ----- Actions out -----
+    callback dismiss-requested();
+    callback protocol-requested(int);
+    callback custom-hours-changed(string);
+    callback custom-start-toggled(bool);
+    callback pick-start-day-requested(int);
+    callback step-start-month-requested(int);
+    callback start-time-requested(int, int);
+    callback chart-metric-requested(string);
+    callback start-fast-requested();
+    callback end-fast-requested(string);
+    callback workout-tab-requested(int);
+    callback add-day-requested(string);
+    callback delete-day-requested(string);
+    callback add-exercise-requested(string, string);
+    callback delete-exercise-requested(string, string);
+    callback exercise-notes-changed(string, string, string);
+    callback add-set-requested(string, string);
+    callback delete-set-requested(string, string, string);
+    // Field: 0 weight, 1 reps, 2 rest seconds.
+    callback set-field-changed(string, string, string, int, string);
+    callback toggle-set-requested(string, string, string);
+    callback add-routine-requested(string);
+    callback delete-routine-requested(string);
+    callback add-stretch-requested(string, string, string);
+    callback delete-stretch-requested(string, string);
+    callback start-routine-requested(string);
+    // Command: "pause", "next", "previous" or "stop".
+    callback routine-command-requested(string);
+    callback year-requested(string);
+    callback cell-changed(string, int, string);
+    callback add-metric-requested(string, string, string);
+    callback remove-metric-requested(string);
+    callback goals-requested(string, string, string, string, string);
+
+    spacing: Tokens.space-3;
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-requested(); }
+    }
+    if root.notice != "" : Banner {
+        tone: BannerTone.info;
+        title: root.notice;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-requested(); }
+    }
+
+    // ===== Fasting =====
+    if root.section == 0 : Flickable {
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            // Protocol buttons and the custom hours.
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                for label[i] in root.protocols : Button {
+                    text: label;
+                    accessible-name: label;
+                    variant: root.protocol == i ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.protocol-requested(i); }
+                }
+            }
+            if root.protocol == 5 : Input {
+                size: InputSize.md;
+                placeholder: "e.g. 14, 22, 48";
+                accessible-name: "Custom fast hours";
+                text <=> root.custom-hours;
+                changed(value) => { root.custom-hours-changed(value); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                Switch {
+                    text: "Set custom start time (retroactive fast)";
+                    accessible-name: "Set custom start time";
+                    checked <=> root.custom-start-on;
+                    changed(on) => { root.custom-start-toggled(on); }
+                }
+            }
+            if root.custom-start-on : VerticalLayout {
+                spacing: Tokens.space-2;
+                DatePicker {
+                    text: root.start-label;
+                    placeholder: "Pick a start day";
+                    accessible-name: "Custom start day";
+                    days: root.start-days;
+                    weekday-labels: root.weekday-labels;
+                    title: root.start-title;
+                    picked(index) => { root.pick-start-day-requested(index); }
+                    month-step(delta) => { root.step-start-month-requested(delta); }
+                }
+                TimePicker {
+                    accessible-name: "Custom start time (UTC)";
+                    hour: root.start-hour;
+                    minute: root.start-minute;
+                    time-changed(h, m) => { root.start-time-requested(round(h), round(m)); }
+                }
+            }
+
+            if !root.has-active : Button {
+                text: "Start Fast";
+                accessible-name: "Start Fast";
+                variant: ButtonVariant.primary;
+                clicked => { root.start-fast-requested(); }
+            }
+
+            if root.has-active : VerticalLayout {
+                spacing: Tokens.space-2;
+                Text {
+                    text: root.active-goal;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                Text {
+                    text: root.active-elapsed;
+                    color: Tokens.text-primary;
+                    font-family: Type.display.family;
+                    font-size: Type.display.size;
+                    font-weight: Type.display.weight;
+                }
+                Text {
+                    text: "Started " + root.active-started;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                ProgressRing {
+                    value: root.active-progress;
+                    centre-text: root.active-elapsed;
+                    accessible-name: "Fast progress";
+                }
+                Text {
+                    text: root.active-stage;
+                    color: Tokens.text-primary;
+                    font-family: Type.subheading.family;
+                    font-size: Type.subheading.size;
+                    font-weight: Type.subheading.weight;
+                }
+                Text {
+                    text: root.active-stage-description;
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    wrap: word-wrap;
+                }
+                Button {
+                    text: "End Fast Now";
+                    accessible-name: "End Fast Now";
+                    variant: ButtonVariant.danger;
+                    clicked => { root.end-fast-requested(root.active-id); }
+                }
+            }
+
+            // Stage milestones.
+            for stage[i] in root.stages : HorizontalLayout {
+                spacing: Tokens.space-2;
+                Text {
+                    text: stage.name;
+                    color: stage.current ? Tokens.accent-text : (stage.reached ? Tokens.text-primary : Tokens.text-faint);
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body-strong.weight;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: stage.description;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+
+            // History of past fasts.
+            Text {
+                text: "Fasting history";
+                color: Tokens.text-primary;
+                font-family: Type.subheading.family;
+                font-size: Type.subheading.size;
+                font-weight: Type.subheading.weight;
+            }
+            if root.history.length == 0 : Text {
+                text: "Complete your first fast to see trends!";
+                color: Tokens.text-muted;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+            }
+            for bar[i] in root.history : HorizontalLayout {
+                spacing: Tokens.space-2;
+                Text {
+                    text: bar.label;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                    min-width: Tokens.size-control-lg;
+                }
+                Rectangle {
+                    height: Tokens.size-control-lg;
+                    horizontal-stretch: 1;
+                    background: Tokens.surface-sunken;
+                    border-radius: Tokens.radius-control;
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        height: parent.height;
+                        // The web scales the bars to 28 hours, never below 10 percent.
+                        width: parent.width * min(1, max(0.1, bar.hours / 28));
+                        border-radius: Tokens.radius-control;
+                        background: bar.tone == 3 ? Tokens.status-info : (bar.tone == 2 ? Tokens.status-success : (bar.tone == 1 ? Tokens.accent-fill : Tokens.status-warning));
+                    }
+                }
+                Text {
+                    text: round(bar.hours) + " h";
+                    color: Tokens.text-primary;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    // ===== Workouts =====
+    if root.section == 1 : Flickable {
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                Button {
+                    text: "Exercises & Workouts";
+                    accessible-name: "Exercises and workouts";
+                    variant: root.workout-tab == 0 ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.workout-tab-requested(0); }
+                }
+                Button {
+                    text: "Stretching Routines";
+                    accessible-name: "Stretching routines";
+                    variant: root.workout-tab == 1 ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.workout-tab-requested(1); }
+                }
+            }
+
+            // Rest countdown after a completed set.
+            if root.rest-remaining != "" : Text {
+                text: "Rest: " + root.rest-remaining + " s";
+                color: Tokens.accent-text;
+                font-family: Type.body-strong.family;
+                font-size: Type.body.size;
+                font-weight: Type.body-strong.weight;
+            }
+
+            // ----- Exercise days -----
+            if root.workout-tab == 0 : VerticalLayout {
+                spacing: Tokens.space-3;
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Input {
+                        size: InputSize.md;
+                        placeholder: "Workout day name, e.g. Chest & triceps";
+                        accessible-name: "Workout day name";
+                        text <=> root.new-day-name;
+                    }
+                    Button {
+                        text: "Add Category";
+                        accessible-name: "Add category";
+                        size: ButtonSize.sm;
+                        clicked => { root.add-day-requested(root.new-day-name); root.new-day-name = ""; }
+                    }
+                }
+                Input {
+                    size: InputSize.md;
+                    placeholder: "Exercise name";
+                    accessible-name: "Exercise name";
+                    text <=> root.new-exercise-name;
+                }
+
+                for day[di] in root.exercise-days : VerticalLayout {
+                    spacing: Tokens.space-2;
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: day.name;
+                            color: Tokens.text-primary;
+                            font-family: Type.subheading.family;
+                            font-size: Type.subheading.size;
+                            font-weight: Type.subheading.weight;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Add Exercise";
+                            accessible-name: "Add exercise to " + day.name;
+                            size: ButtonSize.sm;
+                            clicked => { root.add-exercise-requested(day.id, root.new-exercise-name); root.new-exercise-name = ""; }
+                        }
+                        Button {
+                            text: "Delete Day";
+                            accessible-name: "Delete day " + day.name;
+                            variant: ButtonVariant.danger;
+                            size: ButtonSize.sm;
+                            clicked => { root.delete-day-requested(day.id); }
+                        }
+                    }
+
+                    for ex[ei] in day.exercises : VerticalLayout {
+                        spacing: Tokens.space-1;
+                        padding: Tokens.space-2;
+                        HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            Text {
+                                text: ex.name;
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body-strong.weight;
+                                vertical-alignment: center;
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                            Button {
+                                text: "Delete";
+                                accessible-name: "Delete exercise " + ex.name;
+                                variant: ButtonVariant.danger;
+                                size: ButtonSize.sm;
+                                clicked => { root.delete-exercise-requested(day.id, ex.id); }
+                            }
+                        }
+                        Input {
+                            size: InputSize.sm;
+                            placeholder: "Notes or cues";
+                            accessible-name: "Notes for " + ex.name;
+                            text: ex.notes;
+                            submitted(value) => { root.exercise-notes-changed(day.id, ex.id, value); }
+                        }
+
+                        for set[si] in ex.sets : HorizontalLayout {
+                            spacing: Tokens.space-1;
+                            Button {
+                                text: set.done ? "Done" : "Set " + (si + 1);
+                                accessible-name: "Complete set " + (si + 1) + " of " + ex.name;
+                                variant: set.done ? ButtonVariant.primary : ButtonVariant.secondary;
+                                size: ButtonSize.sm;
+                                clicked => { root.toggle-set-requested(day.id, ex.id, set.id); }
+                            }
+                            Input {
+                                size: InputSize.sm;
+                                placeholder: "kg";
+                                accessible-name: "Weight, set " + (si + 1);
+                                text: set.kg;
+                                submitted(value) => { root.set-field-changed(day.id, ex.id, set.id, 0, value); }
+                            }
+                            Input {
+                                size: InputSize.sm;
+                                placeholder: "reps";
+                                accessible-name: "Reps, set " + (si + 1);
+                                text: set.reps;
+                                submitted(value) => { root.set-field-changed(day.id, ex.id, set.id, 1, value); }
+                            }
+                            Input {
+                                size: InputSize.sm;
+                                placeholder: "rest s";
+                                accessible-name: "Rest seconds, set " + (si + 1);
+                                text: set.rest;
+                                submitted(value) => { root.set-field-changed(day.id, ex.id, set.id, 2, value); }
+                            }
+                            Button {
+                                text: "Remove";
+                                accessible-name: "Remove set " + (si + 1);
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.delete-set-requested(day.id, ex.id, set.id); }
+                            }
+                        }
+                        Button {
+                            text: "Add Set";
+                            accessible-name: "Add set to " + ex.name;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.add-set-requested(day.id, ex.id); }
+                        }
+                    }
+                }
+            }
+
+            // ----- Stretching routines -----
+            if root.workout-tab == 1 : VerticalLayout {
+                spacing: Tokens.space-3;
+                if root.runner-active : VerticalLayout {
+                    spacing: Tokens.space-2;
+                    Text {
+                        text: root.runner-routine + " · " + root.runner-step;
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                    }
+                    Text {
+                        text: root.runner-finished ? "Routine complete" : root.runner-current;
+                        color: Tokens.text-primary;
+                        font-family: Type.subheading.family;
+                        font-size: Type.subheading.size;
+                        font-weight: Type.subheading.weight;
+                    }
+                    if !root.runner-finished : Text {
+                        text: root.runner-remaining + " s";
+                        color: Tokens.text-primary;
+                        font-family: Type.display.family;
+                        font-size: Type.display.size;
+                        font-weight: Type.display.weight;
+                    }
+                    Progress {
+                        value: root.runner-progress;
+                        accessible-name: "Routine progress";
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-1;
+                        if !root.runner-finished : Button {
+                            text: root.runner-paused ? "Resume" : "Pause";
+                            accessible-name: root.runner-paused ? "Resume routine" : "Pause routine";
+                            size: ButtonSize.sm;
+                            clicked => { root.routine-command-requested("pause"); }
+                        }
+                        Button {
+                            text: "Previous";
+                            accessible-name: "Previous stretch";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.routine-command-requested("previous"); }
+                        }
+                        if !root.runner-finished : Button {
+                            text: "Skip Next";
+                            accessible-name: "Skip to next stretch";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.routine-command-requested("next"); }
+                        }
+                        Button {
+                            text: root.runner-finished ? "Close" : "Stop";
+                            accessible-name: "Stop routine";
+                            variant: ButtonVariant.danger;
+                            size: ButtonSize.sm;
+                            clicked => { root.routine-command-requested("stop"); }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Input {
+                        size: InputSize.md;
+                        placeholder: "Routine name, e.g. Morning full body";
+                        accessible-name: "Routine name";
+                        text <=> root.new-routine-name;
+                    }
+                    Button {
+                        text: "Add Routine";
+                        accessible-name: "Add routine";
+                        size: ButtonSize.sm;
+                        clicked => { root.add-routine-requested(root.new-routine-name); root.new-routine-name = ""; }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Input {
+                        size: InputSize.md;
+                        placeholder: "Stretch name";
+                        accessible-name: "Stretch name";
+                        text <=> root.new-stretch-name;
+                    }
+                    Input {
+                        size: InputSize.md;
+                        placeholder: "Seconds";
+                        accessible-name: "Stretch duration in seconds";
+                        text <=> root.new-stretch-duration;
+                    }
+                }
+
+                for routine[ri] in root.routines : VerticalLayout {
+                    spacing: Tokens.space-1;
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: routine.name;
+                            color: Tokens.text-primary;
+                            font-family: Type.subheading.family;
+                            font-size: Type.subheading.size;
+                            font-weight: Type.subheading.weight;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Start Routine";
+                            accessible-name: "Start routine " + routine.name;
+                            variant: ButtonVariant.primary;
+                            size: ButtonSize.sm;
+                            clicked => { root.start-routine-requested(routine.id); }
+                        }
+                        Button {
+                            text: "Add Stretch";
+                            accessible-name: "Add stretch to " + routine.name;
+                            size: ButtonSize.sm;
+                            clicked => { root.add-stretch-requested(routine.id, root.new-stretch-name, root.new-stretch-duration); root.new-stretch-name = ""; root.new-stretch-duration = ""; }
+                        }
+                        Button {
+                            text: "Delete";
+                            accessible-name: "Delete routine " + routine.name;
+                            variant: ButtonVariant.danger;
+                            size: ButtonSize.sm;
+                            clicked => { root.delete-routine-requested(routine.id); }
+                        }
+                    }
+                    for item in routine.items : HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: item.name;
+                            color: Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: item.duration + " s";
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            vertical-alignment: center;
+                        }
+                        Button {
+                            text: "Remove";
+                            accessible-name: "Remove stretch " + item.name;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.delete-stretch-requested(routine.id, item.id); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ===== Measurements =====
+    if root.section == 2 : Flickable {
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            // Year tabs.
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                for y in root.years : Button {
+                    text: y;
+                    accessible-name: "Year " + y;
+                    variant: root.year == y ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.year-requested(y); }
+                }
+            }
+
+            // Goals: the summary tiles, and the Set Goals form in a shared dialog (as the web's modal).
+            VerticalLayout {
+                spacing: Tokens.space-2;
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Text {
+                        text: "Goals";
+                        color: Tokens.text-primary;
+                        font-family: Type.subheading.family;
+                        font-size: Type.subheading.size;
+                        font-weight: Type.subheading.weight;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button {
+                        text: "Set Goals";
+                        accessible-name: "Set goals";
+                        size: ButtonSize.sm;
+                        clicked => { goals-dialog.open(); }
+                    }
+                }
+                Text {
+                    text: "Current weight " + root.goal-current-weight + " " + root.weight-unit + " · Target " + root.goal-target-weight + " " + root.weight-unit;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                if root.weight-gap != "" : Text {
+                    text: root.weight-gap + " " + root.weight-unit + " to goal";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+            }
+
+            goals-dialog := Dialog {
+                title: "Set Goals";
+                size: DialogSize.md;
+                actions: [
+                    { text: "Save Goals", variant: ButtonVariant.primary },
+                    { text: "Cancel", variant: ButtonVariant.ghost }
+                ];
+                action-clicked(index) => {
+                    if (index == 0) {
+                        root.goals-requested(root.goal-unit, root.goal-current-weight, root.goal-target-weight, root.goal-current-body-fat, root.goal-target-body-fat);
+                    }
+                    goals-dialog.close();
+                }
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+                    Input { size: InputSize.md; placeholder: "Unit: kg or lb"; accessible-label: "Weight unit"; text <=> root.goal-unit; }
+                    Input { size: InputSize.md; placeholder: "Current weight"; accessible-label: "Current weight"; text <=> root.goal-current-weight; }
+                    Input { size: InputSize.md; placeholder: "Target weight"; accessible-label: "Target weight"; text <=> root.goal-target-weight; }
+                    Input { size: InputSize.md; placeholder: "Current body fat %"; accessible-label: "Current body fat"; text <=> root.goal-current-body-fat; }
+                    Input { size: InputSize.md; placeholder: "Target body fat %"; accessible-label: "Target body fat"; text <=> root.goal-target-body-fat; }
+                }
+            }
+
+            // Bar chart of the chosen track's twelve months (the web scales the bars to 120).
+            if root.chart-metric-name != "" : BarChart {
+                points: root.chart;
+                y-min: 0;
+                y-max: 120;
+                accessible-name: "Chart of " + root.chart-metric-name;
+                empty-text: "No readings yet";
+            }
+
+            // Add a track.
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                Input { size: InputSize.md; placeholder: "Track name, e.g. Waist"; accessible-label: "Track name"; text <=> root.new-metric-name; }
+                Input { size: InputSize.sm; placeholder: "Unit"; accessible-label: "Track unit"; text <=> root.new-metric-unit; }
+                Input { size: InputSize.sm; placeholder: "Target"; accessible-label: "Track target"; text <=> root.new-metric-target; }
+                Button {
+                    text: "Add Dimension Track";
+                    accessible-name: "Add dimension track";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.sm;
+                    clicked => { root.add-metric-requested(root.new-metric-name, root.new-metric-unit, root.new-metric-target); root.new-metric-name = ""; root.new-metric-target = ""; }
+                }
+            }
+
+            // The month matrix. Each cell saves when Enter is pressed.
+            for metric[mi] in root.metrics : VerticalLayout {
+                spacing: Tokens.space-1;
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Text {
+                        text: metric.name + " (" + metric.unit + ")" + (metric.target != "" ? " · target " + metric.target : "");
+                        color: Tokens.text-primary;
+                        font-family: Type.body-strong.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body-strong.weight;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button {
+                        text: "Chart";
+                        accessible-name: "Chart " + metric.name;
+                        variant: root.chart-metric-name == metric.name ? ButtonVariant.primary : ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { root.chart-metric-requested(metric.id); }
+                    }
+                    Button {
+                        text: root.pending-remove == metric.id ? "Confirm remove" : "Remove";
+                        accessible-name: "Remove track " + metric.name;
+                        variant: ButtonVariant.danger;
+                        size: ButtonSize.sm;
+                        clicked => {
+                            if (root.pending-remove == metric.id) {
+                                root.remove-metric-requested(metric.id);
+                                root.pending-remove = "";
+                            } else {
+                                root.pending-remove = metric.id;
+                            }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-1;
+                    for cell[ci] in metric.cells : Input {
+                        size: InputSize.sm;
+                        placeholder: "Month " + (ci + 1);
+                        accessible-name: metric.name + ", month " + (ci + 1);
+                        text: cell;
+                        submitted(value) => { root.cell-changed(metric.id, ci, value); }
+                    }
+                }
+            }
+        }
+    }
+}

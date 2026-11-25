@@ -1,0 +1,52 @@
+// The Overview route: the feature's OverviewPage fed by OverviewState, which the Rust glue (src/pages/overview.rs) fills.
+import { OverviewPage, OverviewTask, OverviewNote } from "@idantity_feature_overview/overview.slint";
+
+export { OverviewTask, OverviewNote } from "@idantity_feature_overview/overview.slint";
+
+export global OverviewState {
+    in-out property <string> date;
+    in-out property <int> pending-count;
+    in-out property <int> due-today-count;
+    in-out property <int> urgent-count;
+    in-out property <[OverviewTask]> tasks;
+    in-out property <int> todo-total;
+    in-out property <string> net-worth;
+    in-out property <int> account-count;
+    in-out property <string> monthly-bills;
+    in-out property <int> active-subscriptions;
+    in-out property <[OverviewNote]> notes;
+    in-out property <int> note-total;
+    in-out property <bool> loading;
+    in-out property <string> error;
+    in-out property <string> quick-task;
+
+    callback navigate-requested(string);
+    callback quick-task-submitted();
+    callback toggle-todo-requested(string);
+    callback dismiss-error-requested();
+}
+
+export component OverviewRoute inherits Rectangle {
+    OverviewPage {
+        date: OverviewState.date;
+        pending-count: OverviewState.pending-count;
+        due-today-count: OverviewState.due-today-count;
+        urgent-count: OverviewState.urgent-count;
+        tasks: OverviewState.tasks;
+        todo-total: OverviewState.todo-total;
+        net-worth: OverviewState.net-worth;
+        account-count: OverviewState.account-count;
+        monthly-bills: OverviewState.monthly-bills;
+        active-subscriptions: OverviewState.active-subscriptions;
+        notes: OverviewState.notes;
+        note-total: OverviewState.note-total;
+        loading: OverviewState.loading;
+        error: OverviewState.error;
+        quick-task <=> OverviewState.quick-task;
+
+        navigate-requested(route) => { OverviewState.navigate-requested(route); }
+        quick-task-submitted() => { OverviewState.quick-task-submitted(); }
+        toggle-todo-requested(id) => { OverviewState.toggle-todo-requested(id); }
+        dismiss-error-requested() => { OverviewState.dismiss-error-requested(); }
+    }
+}

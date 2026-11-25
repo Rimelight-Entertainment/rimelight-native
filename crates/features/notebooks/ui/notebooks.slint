@@ -1,0 +1,416 @@
+// The Notebooks page (ported from crates/app/src/notebooks.rs and the web NotebooksManager, NotebookThreadModal). It
+// draws only. Data comes in through the properties; every user action goes out through a `*-requested` callback. The
+// Rust controller (src/lib.rs of this crate) holds the state, and the shell glue wires the two.
+// The list is the shared ListPage template: its header, search, filter row (the tabs), and table of notebooks. A row
+// pick opens the thread dialog. The thread and the create form are shared Dialogs; trash and delete ask first with the
+// shared ConfirmDialog.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and the shared components.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Dialog, DialogSize, ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { ListPage, ListRowAction } from "@rimelight_shell/templates/list-page.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+
+// One entry of the open thread. `editing` shows its edit field in place of the text.
+export struct NotebookEntryRow {
+    id: string,
+    date: string,
+    content: string,
+    editing: bool,
+}
+
+export component NotebooksPage inherits Rectangle {
+    // The list. `rows` is in display order (pinned notebooks first), one cell each for title, entries, date, status.
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <[TableColumn]> columns;
+    in property <[TableRow]> rows;
+    in property <[string]> tab-labels;
+    in property <int> tab: 0;
+    in-out property <string> search-text;
+    // The page's empty message (no notebook matches the tab and search).
+    in property <string> empty-title: "No notebooks here";
+    in property <string> empty-description: "Create a notebook to keep a running thread of entries on one topic.";
+
+    // The open thread. Empty `thread-id` means no thread is open.
+    in property <string> thread-id;
+    in property <bool> thread-open;
+    // The title field is a draft until Enter commits it (in-out so the page keeps the typed text).
+    in-out property <string> thread-title;
+    in property <[NotebookEntryRow]> entries;
+    in property <bool> entries-loading;
+    in property <string> thread-count;
+    in-out property <string> thread-draft;
+    in property <bool> thread-adding;
+    in-out property <string> edit-text;
+    in property <bool> thread-pinned;
+    in property <bool> thread-archived;
+    in property <bool> thread-trashed;
+
+    // The create form.
+    in property <bool> create-open;
+    in-out property <string> create-title;
+    in-out property <string> create-content;
+    in property <bool> creating;
+
+    // The confirmation: empty `confirm-title` means none open.
+    in property <string> confirm-title;
+    in property <string> confirm-message;
+    in property <string> confirm-action;
+
+    // Actions out.
+    callback opened();
+    callback retry-requested();
+    callback tab-requested(int);
+    callback search-requested(string);
+    callback new-requested();
+    callback row-picked(int);
+    // A row action: the row's index in `rows` (the order of the list) and the action's id ("pin", "archive", "unarchive",
+    // "trash", "restore", "delete").
+    callback row-action-requested(int, string);
+    callback dismiss-error-requested();
+    callback create-requested();
+    callback create-cancel-requested();
+    callback thread-closed();
+    callback thread-rename-requested(string);
+    callback thread-draft-add-requested(string);
+    callback start-edit-requested(string);
+    callback edit-cancel-requested();
+    callback edit-save-requested(string);
+    callback delete-entry-requested(string);
+    callback thread-pin-requested();
+    callback thread-archive-requested();
+    callback thread-trash-requested();
+    callback thread-restore-requested();
+    callback thread-delete-requested();
+    callback confirm-accept-requested();
+    callback confirm-cancel-requested();
+
+    background: transparent;
+
+    property <[ListRowAction]> active-actions: [
+        { id: "pin", label: "Pin or unpin", icon: Icons.pin, danger: false },
+        { id: "archive", label: "Archive", icon: Icons.folder, danger: false },
+        { id: "trash", label: "Move to Trash", icon: Icons.trash, danger: true },
+    ];
+    property <[ListRowAction]> archive-actions: [
+        { id: "pin", label: "Pin or unpin", icon: Icons.pin, danger: false },
+        { id: "unarchive", label: "Unarchive", icon: Icons.undo-2, danger: false },
+        { id: "trash", label: "Move to Trash", icon: Icons.trash, danger: true },
+    ];
+    property <[ListRowAction]> trash-actions: [
+        { id: "restore", label: "Restore", icon: Icons.undo-2, danger: false },
+        { id: "delete", label: "Delete Permanently", icon: Icons.trash, danger: true },
+    ];
+
+    VerticalLayout {
+        spacing: Tokens.space-3;
+
+        if root.error != "" : Banner {
+            tone: BannerTone.danger;
+            title: "Something went wrong";
+            description: root.error;
+            dismiss-label: "Dismiss";
+            dismiss-clicked => { root.dismiss-error-requested(); }
+        }
+
+        list := ListPage {
+            vertical-stretch: 1;
+            title: "Notebooks";
+            state: root.state;
+            error: root.error;
+            empty-title: root.empty-title;
+            empty-description: root.empty-description;
+            search-text <=> root.search-text;
+            search-placeholder: "Search notebooks";
+            action-label: "New Notebook";
+            bulk-label: "";
+            columns: root.columns;
+            rows: root.rows;
+            // The row actions follow the tab, as the web's cards do: pin and archive on Active, unarchive on Archive, restore
+            // and delete for good on Trash. "pin" is a toggle: the glue flips the row's pinned flag.
+            row-actions: root.tab == 2 ? trash-actions : root.tab == 1 ? archive-actions : active-actions;
+            row-action(index, id) => { root.row-action-requested(index, id); }
+            search(text) => { root.search-requested(text); }
+            picked(index, shift, ctrl) => { root.row-picked(index); }
+            action => { root.new-requested(); }
+            opened => { root.opened(); }
+            retry => { root.retry-requested(); }
+
+            // The tabs: Active, Archive and Trash, each with its count.
+            for label[index] in root.tab-labels : Button {
+                text: label;
+                variant: index == root.tab ? ButtonVariant.primary : ButtonVariant.secondary;
+                size: ButtonSize.md;
+                accessible-name: label;
+                clicked => { root.tab-requested(index); }
+            }
+        }
+    }
+
+    // The thread: the notebook's title, its entries, the add field, and the actions.
+    thread-dialog := Dialog {
+        title: root.thread-title == "" ? "Untitled" : root.thread-title;
+        size: DialogSize.lg;
+        dismissible: true;
+        closed => { root.thread-closed(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Input {
+                size: InputSize.md;
+                placeholder: "Notebook title";
+                accessible-name: "Notebook title";
+                text <=> root.thread-title;
+                submitted(value) => { root.thread-rename-requested(value); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                Button {
+                    text: root.thread-pinned ? "Unpin" : "Pin";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.sm;
+                    accessible-name: root.thread-pinned ? "Unpin Notebook" : "Pin Notebook";
+                    clicked => { root.thread-pin-requested(); }
+                }
+                Button {
+                    text: root.thread-archived ? "Unarchive" : "Archive";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.sm;
+                    accessible-name: root.thread-archived ? "Unarchive Notebook" : "Archive Notebook";
+                    clicked => { root.thread-archive-requested(); }
+                }
+                if !root.thread-trashed : Button {
+                    text: "Move to Trash";
+                    variant: ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.thread-trash-requested(); }
+                }
+                if root.thread-trashed : Button {
+                    text: "Restore";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.sm;
+                    clicked => { root.thread-restore-requested(); }
+                }
+                if root.thread-trashed : Button {
+                    text: "Delete Permanently";
+                    variant: ButtonVariant.danger;
+                    size: ButtonSize.sm;
+                    clicked => { root.thread-delete-requested(); }
+                }
+            }
+
+            if root.entries-loading : HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                Spinner {
+                    size: SpinnerSize.sm;
+                }
+                Text {
+                    text: "Loading…";
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+            }
+
+            if !root.entries-loading && root.entries.length == 0 : EmptyState {
+                title: "Nothing here yet.";
+                description: "Dump something into this notebook below.";
+            }
+
+            Text {
+                text: root.thread-count;
+                color: Tokens.text-muted;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            // Builtin Flickable so a long thread scrolls inside the dialog.
+            Flickable {
+                vertical-stretch: 1;
+                interactive: true;
+                content-height: entry-list.preferred-height;
+
+                entry-list := VerticalLayout {
+                    width: parent.width;
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    for entry in root.entries : VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        Text {
+                            text: entry.date;
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        if !entry.editing : Text {
+                            text: entry.content;
+                            wrap: word-wrap;
+                            color: Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                        if !entry.editing : HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            alignment: start;
+
+                            Button {
+                                text: "Edit";
+                                accessible-name: "Edit entry";
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.start-edit-requested(entry.id); }
+                            }
+                            Button {
+                                text: "Delete";
+                                accessible-name: "Delete entry";
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.delete-entry-requested(entry.id); }
+                            }
+                        }
+                        if entry.editing : Textarea {
+                            text <=> root.edit-text;
+                            accessible-name: "Edit entry text";
+                            placeholder: "Edit this entry";
+                            submit-on-enter: true;
+                            submitted(value) => { root.edit-save-requested(value); }
+                            cancelled => { root.edit-cancel-requested(); }
+                        }
+                        if entry.editing : HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            alignment: start;
+
+                            Button {
+                                text: "Save";
+                                variant: ButtonVariant.primary;
+                                size: ButtonSize.sm;
+                                clicked => { root.edit-save-requested(root.edit-text); }
+                            }
+                            Button {
+                                text: "Cancel";
+                                variant: ButtonVariant.secondary;
+                                size: ButtonSize.sm;
+                                clicked => { root.edit-cancel-requested(); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The add field: the draft stays in the controller until the entry is saved. Enter adds it, Shift+Enter a line.
+            Textarea {
+                text <=> root.thread-draft;
+                placeholder: "Dump something into this notebook. Enter to add, Shift+Enter for a new line.";
+                accessible-name: "New entry";
+                submit-on-enter: true;
+                submitted(value) => { root.thread-draft-add-requested(value); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: end;
+
+                Button {
+                    text: root.thread-adding ? "Adding…" : "Add";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    enabled: !root.thread-adding;
+                    clicked => { root.thread-draft-add-requested(root.thread-draft); }
+                }
+            }
+        }
+    }
+
+    // The create form: a first dump is optional.
+    create-dialog := Dialog {
+        title: "New notebook";
+        size: DialogSize.md;
+        dismissible: !root.creating;
+        closed => { root.create-cancel-requested(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Input {
+                size: InputSize.md;
+                placeholder: "e.g. Homelab, book notes, recipes";
+                accessible-name: "Notebook title";
+                text <=> root.create-title;
+            }
+            Textarea {
+                text <=> root.create-content;
+                placeholder: "Start the notebook with a first thought (optional)";
+                accessible-name: "First dump";
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: end;
+
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.create-cancel-requested(); }
+                }
+                Button {
+                    text: root.creating ? "Creating..." : "Create Notebook";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    enabled: !root.creating;
+                    clicked => { root.create-requested(); }
+                }
+            }
+        }
+    }
+
+    // Trash and delete confirmations (the web's "Move to Trash" and "Delete Notebook" dialogs).
+    confirm-dialog := ConfirmDialog {
+        title: root.confirm-title;
+        message: root.confirm-message;
+        confirm-label: root.confirm-action;
+        danger: true;
+        confirmed => { root.confirm-accept-requested(); }
+        cancelled => { root.confirm-cancel-requested(); }
+    }
+
+    changed thread-open => {
+        if (root.thread-open) {
+            thread-dialog.open();
+        } else {
+            thread-dialog.close();
+        }
+    }
+    changed create-open => {
+        if (root.create-open) {
+            create-dialog.open();
+        } else {
+            create-dialog.close();
+        }
+    }
+    changed confirm-title => {
+        if (root.confirm-title != "") {
+            confirm-dialog.open();
+        } else {
+            confirm-dialog.close();
+        }
+    }
+}

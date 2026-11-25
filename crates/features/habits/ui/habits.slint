@@ -1,0 +1,402 @@
+// The Habits page (ported from crates/app/src/habits.rs and the web HabitsTracker). It draws only.
+// Data comes in through the properties; every user action goes out through a `*-requested` callback. The Rust
+// controller (src/lib.rs of this crate) holds the state, and apps/desktop/src/pages/habits.rs wires the two.
+// The text of each category's "New habit" field is kept here, in the repeated category row.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and the rimelight_ui components.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+
+// One year tab. `label` is the year as text.
+export struct HabitYearTab {
+    year: int,
+    label: string,
+    selected: bool,
+}
+
+// One day cell. `date` is YYYY-MM-DD and is the cell's accessible name; `label` is the day of the month.
+export struct HabitDay {
+    date: string,
+    label: string,
+    done: bool,
+}
+
+// A row of day cells: one line of the calendar, or one line of the 52-week grid.
+export struct HabitWeek {
+    days: [HabitDay],
+}
+
+// One habit. The calendar line shows the streak badge (when current-streak > 0) and month-percent; the streaks view
+// shows the year figures, the two streaks and the year grid (`year-weeks`).
+export struct HabitRow {
+    id: string,
+    name: string,
+    weeks: [HabitWeek],
+    current-streak: int,
+    best-streak: int,
+    month-percent: int,
+    year-completed: int,
+    year-percent: int,
+    year-weeks: [HabitWeek],
+}
+
+export struct HabitCategoryRow {
+    id: string,
+    name: string,
+    habits: [HabitRow],
+}
+
+export component HabitsPage inherits VerticalLayout {
+    // Data in.
+    in property <[HabitYearTab]> years;
+    // The month list. Each value is the month number, 1 to 12.
+    in property <[SelectOption]> month-options;
+    // The selected month's number, as text.
+    in property <string> month;
+    // False when no year exists yet.
+    in property <bool> has-year;
+    // The selected year, as text (the streaks view's "in <year>" line).
+    in property <string> year-label;
+    // True in the streaks view, false in the calendar view.
+    in property <bool> streaks-mode;
+    in property <[HabitCategoryRow]> categories;
+    in property <bool> loading;
+    // Empty means no error.
+    in property <string> error;
+    // The category whose delete is waiting for confirmation. Empty means none.
+    in property <string> pending-delete;
+    // The year and category fields. Rust clears each one after the page accepts its input.
+    in-out property <string> new-year;
+    in-out property <string> new-category;
+
+    // Actions out.
+    callback year-requested(int);
+    callback month-requested(string);
+    callback streaks-mode-requested(bool);
+    callback add-year-requested(string);
+    callback add-category-requested(string);
+    callback delete-category-requested(string);
+    callback confirm-delete-category-requested();
+    callback cancel-delete-category-requested();
+    callback add-habit-requested(string, string);
+    callback delete-habit-requested(string, string);
+    callback toggle-day-requested(string, string, string);
+    callback dismiss-error-requested();
+
+    spacing: Tokens.space-3;
+
+    if root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    // The year tabs, then the field that adds a year.
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        for year in root.years : Button {
+            text: year.label;
+            variant: year.selected ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.year-requested(year.year); }
+        }
+    }
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Input {
+            horizontal-stretch: 0;
+            size: InputSize.md;
+            placeholder: "Year";
+            accessible-name: "Year";
+            text <=> root.new-year;
+        }
+        Button {
+            text: "Add year";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.add-year-requested(root.new-year); }
+        }
+    }
+
+    // The view toggle: the calendar, or the streaks and the 52-week grid.
+    if root.has-year : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Button {
+            text: "Calendar";
+            variant: root.streaks-mode ? ButtonVariant.secondary : ButtonVariant.primary;
+            size: ButtonSize.md;
+            clicked => { root.streaks-mode-requested(false); }
+        }
+        Button {
+            text: "Streaks & heatmap";
+            variant: root.streaks-mode ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.streaks-mode-requested(true); }
+        }
+    }
+
+    if !root.has-year : EmptyState {
+        title: "No years yet.";
+        description: "Add one to start tracking.";
+    }
+
+    // The month picker is for the calendar view only, as on the web.
+    if root.has-year && !root.streaks-mode : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Select {
+            value: root.month;
+            options: root.month-options;
+            size: SelectSize.md;
+            accessible-name: "Month";
+            changed(value) => { root.month-requested(value); }
+        }
+    }
+
+    // Builtin Flickable (not std-widgets' ScrollView, which feature markup cannot import): it scrolls when the
+    // categories overflow the height, as the Todos list does.
+    if root.has-year : Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: list.preferred-height;
+
+        list := VerticalLayout {
+            width: parent.width;
+            spacing: Tokens.space-4;
+            alignment: start;
+
+            for cat in root.categories : VerticalLayout {
+                spacing: Tokens.space-2;
+                // The "New habit" text of this category.
+                property <string> habit-draft;
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    Text {
+                        text: cat.name + " (" + cat.habits.length + ")";
+                        color: Tokens.text-primary;
+                        font-family: Type.body-strong.family;
+                        font-size: Type.body-strong.size;
+                        font-weight: Type.body-strong.weight;
+                    }
+                    Button {
+                        text: "Delete category";
+                        accessible-name: "Delete category " + cat.name;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { root.delete-category-requested(cat.id); }
+                    }
+                }
+
+                for habit in cat.habits : VerticalLayout {
+                    spacing: Tokens.space-1;
+
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+
+                        Text {
+                            text: habit.name;
+                            vertical-alignment: center;
+                            color: Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                        // The streak badge (calendar view, when the current streak is above zero).
+                        if !root.streaks-mode && habit.current-streak > 0 : Text {
+                            text: habit.current-streak + "d";
+                            vertical-alignment: center;
+                            accessible-role: text;
+                            accessible-label: "Current streak: " + habit.current-streak + " days";
+                            color: Tokens.text-primary;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.body-strong.weight;
+                        }
+                        if !root.streaks-mode : Text {
+                            text: habit.month-percent + "%";
+                            vertical-alignment: center;
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        Button {
+                            text: "Delete";
+                            accessible-name: "Delete " + habit.name;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.delete-habit-requested(cat.id, habit.id); }
+                        }
+                    }
+
+                    // Calendar view: the month's day cells.
+                    if !root.streaks-mode : VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        for week in habit.weeks : HorizontalLayout {
+                            spacing: Tokens.space-1;
+                            alignment: start;
+
+                            for day in week.days : Button {
+                                text: day.label;
+                                accessible-name: day.date;
+                                variant: day.done ? ButtonVariant.primary : ButtonVariant.secondary;
+                                size: ButtonSize.sm;
+                                clicked => { root.toggle-day-requested(cat.id, habit.id, day.date); }
+                            }
+                        }
+                    }
+
+                    // Streaks view: the streaks, the year totals and the 52-week grid.
+                    if root.streaks-mode : VerticalLayout {
+                        spacing: Tokens.space-2;
+
+                        Text {
+                            text: habit.year-completed + " days completed in " + root.year-label + " (" + habit.year-percent + "% of year)";
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            alignment: start;
+
+                            Text {
+                                text: "Current streak: " + habit.current-streak + " days";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            Text {
+                                text: "Best streak: " + habit.best-streak + " days";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: Tokens.space-1;
+
+                            for week in habit.year-weeks : HorizontalLayout {
+                                spacing: Tokens.space-1;
+                                alignment: start;
+
+                                for day in week.days : Rectangle {
+                                    width: Tokens.size-badge-dot;
+                                    height: Tokens.size-badge-dot;
+                                    border-radius: Tokens.radius-r4;
+                                    background: day.done ? Tokens.accent-default : Tokens.surface-sunken;
+                                    border-width: 1px;
+                                    border-color: Tokens.border-subtle;
+
+                                    TouchArea {
+                                        accessible-role: button;
+                                        accessible-label: day.date + ": " + (day.done ? "Completed" : "Not completed");
+                                        clicked => { root.toggle-day-requested(cat.id, habit.id, day.date); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+
+                    Input {
+                        horizontal-stretch: 1;
+                        size: InputSize.md;
+                        placeholder: "New habit";
+                        accessible-name: "New habit in " + cat.name;
+                        text <=> habit-draft;
+                    }
+                    Button {
+                        text: "Add habit";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        // The draft is cleared on any non-blank click. The controller refuses a whitespace-only name.
+                        clicked => {
+                            if (habit-draft != "") {
+                                root.add-habit-requested(cat.id, habit-draft);
+                                habit-draft = "";
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.has-year : HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Input {
+                    horizontal-stretch: 1;
+                    size: InputSize.md;
+                    placeholder: "New category";
+                    accessible-name: "New category";
+                    text <=> root.new-category;
+                }
+                Button {
+                    text: "Add category";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.add-category-requested(root.new-category); }
+                }
+            }
+        }
+    }
+
+    // Category delete confirmation (the web's confirm: "Are you sure you want to delete this category and all its habits?").
+    confirm-dialog := ConfirmDialog {
+        title: "Delete category";
+        message: "Are you sure you want to delete this category and all its habits?";
+        confirm-label: "Delete";
+        danger: true;
+        confirmed => { root.confirm-delete-category-requested(); }
+        cancelled => { root.cancel-delete-category-requested(); }
+    }
+
+    changed pending-delete => {
+        if (root.pending-delete != "") {
+            confirm-dialog.open();
+        } else {
+            confirm-dialog.close();
+        }
+    }
+}

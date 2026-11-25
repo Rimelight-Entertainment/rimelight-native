@@ -1,0 +1,711 @@
+// The Storage page (web: src/components/storage/R2FileManager.tsx). It draws only.
+// Data comes in through properties; every user action goes out through a `*-requested` callback. The Rust controller
+// (src/lib.rs of this crate) holds the state, and the shell's glue wires the two.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and Icons.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { Checkbox, CheckState } from "@rimelight_ui/components/checkbox.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { Dialog, DialogSize, ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+
+export struct StorageFolderRow {
+    path: string,
+    label: string,
+    depth: int,
+    count: int,
+    selected: bool,
+}
+
+export struct StorageCrumb {
+    label: string,
+    path: string,
+}
+
+export struct StorageFolderCard {
+    path: string,
+    name: string,
+    count: int,
+}
+
+export struct StorageFileRow {
+    id: string,
+    name: string,
+    key: string,
+    url: string,
+    size: string,
+    mime: string,
+    ext: string,
+    // image, video, audio or document.
+    kind: string,
+    nested: bool,
+    selected: bool,
+    copied: bool,
+    // "m:ss" for video and audio; empty until known.
+    duration: string,
+    // True when `preview` holds a decoded image for this card (the glue sets it from the controller's thumbnail).
+    has-preview: bool,
+    preview: image,
+    playing: bool,
+}
+
+export struct StorageInspector {
+    id: string,
+    name: string,
+    key: string,
+    url: string,
+    size: string,
+    mime: string,
+    ext: string,
+    kind: string,
+    basename: string,
+    folder: string,
+    folder-options: [SelectOption],
+    preview-key: string,
+    saving: bool,
+    has-preview: bool,
+    preview: image,
+}
+
+// A drag from a file's handle onto a folder row. The handle reports window coordinates; the page works out which
+// folder row is under them (the tree rows have a fixed height and spacing, so the row is a division).
+component DragHandle inherits Rectangle {
+    in property <string> file-id;
+    callback drag-started(string);
+    callback drag-moved(length);
+    callback drag-ended();
+
+    height: Tokens.size-control-md;
+    horizontal-stretch: 1;
+
+    ta := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.drag-started(root.file-id);
+            }
+            if (event.kind == PointerEventKind.up) {
+                root.drag-ended();
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.drag-moved(self.absolute-position.y + self.mouse-y);
+            }
+        }
+    }
+
+    Text {
+        text: "Drag to a folder";
+        color: Tokens.text-muted;
+        vertical-alignment: center;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+    }
+}
+
+export component StoragePage inherits VerticalLayout {
+    // Data in.
+    in property <[StorageFolderRow]> folders;
+    in property <int> root-count;
+    in property <bool> root-selected;
+    in property <[StorageCrumb]> crumbs;
+    in property <[StorageFolderCard]> subfolders;
+    in property <[StorageFileRow]> files;
+    in property <bool> table-view;
+    // The type pill index: 0 all, 1 images, 2 videos, 3 audio, 4 documents.
+    in property <int> filter;
+    in property <int> selected-count;
+    in property <bool> all-visible-selected;
+    in property <bool> loading;
+    in property <bool> uploading;
+    in property <string> error;
+    in property <bool> folder-empty;
+    in property <bool> new-folder-open;
+    // The inspector is open when `inspector.id` is not empty.
+    in property <StorageInspector> inspector;
+    // The open confirmation text, empty when none is pending.
+    in property <string> confirm-message;
+    // The search text. Rust keeps it too, so it is two-way.
+    in-out property <string> query;
+    // The name typed in the New Folder dialog. Rust clears it when the folder is made.
+    in-out property <string> new-folder-name;
+
+    // Drag state, internal to the page. drag-over: -2 none, -1 the root row, otherwise the folder index.
+    property <string> drag-id;
+    property <int> drag-over: -2;
+
+    // Actions out.
+    callback refresh-requested();
+    callback open-folder-requested(string);
+    callback query-changed(string);
+    callback filter-requested(int);
+    callback table-requested(bool);
+    callback toggle-select-requested(string);
+    callback select-visible-requested(bool);
+    callback new-folder-requested();
+    callback new-folder-name-changed(string);
+    callback create-folder-requested();
+    callback close-new-folder-requested();
+    callback upload-requested();
+    callback open-detail-requested(string);
+    callback close-detail-requested();
+    callback detail-basename-changed(string);
+    callback detail-folder-changed(string);
+    callback save-detail-requested();
+    callback copy-requested(string);
+    callback delete-requested(string);
+    callback delete-selected-requested();
+    callback confirm-delete-requested();
+    callback cancel-delete-requested();
+    callback dismiss-error-requested();
+    // A file was dropped on a folder row (or the root row): the file's id and the folder path ("" for the root).
+    callback move-requested(string, string);
+    callback toggle-audio-requested(string);
+    // The file ids of the cards the page shows, so the controller can load their previews lazily.
+    callback previews-visible-requested([string]);
+
+    // The folder index under window y, or -1 for the root row, or -2 for none.
+    function drop-index(y: length) -> int {
+        if (y >= root-row.absolute-position.y && y < root-row.absolute-position.y + root-row.height) {
+            return -1;
+        }
+        if (y < tree.absolute-position.y) {
+            return -2;
+        }
+        if (floor((y - tree.absolute-position.y) / (Tokens.size-control-md + Tokens.space-1)) >= root.folders.length) {
+            return -2;
+        }
+        return floor((y - tree.absolute-position.y) / (Tokens.size-control-md + Tokens.space-1));
+    }
+
+    function folder-for(index: int) -> string {
+        if (index == -1) {
+            return "";
+        }
+        return root.folders[index].path;
+    }
+
+    spacing: Tokens.space-3;
+
+    // Toolbar: upload, new folder, batch delete, view switch, type pills and search.
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Button {
+            text: root.uploading ? "Uploading..." : "Upload Files";
+            variant: ButtonVariant.primary;
+            size: ButtonSize.md;
+            enabled: !root.uploading;
+            clicked => { root.upload-requested(); }
+        }
+        Button {
+            text: "New Folder";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.new-folder-requested(); }
+        }
+        if root.selected-count > 0 : Button {
+            text: "Delete (" + root.selected-count + ")";
+            variant: ButtonVariant.danger;
+            size: ButtonSize.md;
+            clicked => { root.delete-selected-requested(); }
+        }
+        Button {
+            text: "Grid";
+            accessible-name: "Grid view";
+            variant: root.table-view ? ButtonVariant.secondary : ButtonVariant.primary;
+            size: ButtonSize.md;
+            clicked => { root.table-requested(false); }
+        }
+        Button {
+            text: "Table";
+            accessible-name: "Table / list view";
+            variant: root.table-view ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.table-requested(true); }
+        }
+        SearchField {
+            horizontal-stretch: 1;
+            text <=> root.query;
+            placeholder: "Search assets";
+            accessible-name: "Search assets";
+            changed(value) => { root.query-changed(value); }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        for label[index] in ["All", "Images", "Video", "Audio", "Documents"] : Button {
+            text: label;
+            variant: root.filter == index ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.filter-requested(index); }
+        }
+    }
+
+    if root.uploading || root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: root.uploading ? "Uploading..." : "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-4;
+        vertical-stretch: 1;
+
+        // Folder directory on the left. Files dragged from the main area drop onto these rows.
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Tokens.space-1;
+
+            Text {
+                text: "Folder Directory";
+                color: Tokens.text-muted;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+            }
+            root-row := Rectangle {
+                height: Tokens.size-control-md;
+                background: root.drag-over == -1 ? Tokens.surface-raised : transparent;
+                border-radius: Tokens.radius-control;
+
+                Button {
+                    text: "All files (" + root.root-count + ")";
+                    variant: root.root-selected ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    full-width: true;
+                    clicked => { root.open-folder-requested(""); }
+                }
+            }
+            Flickable {
+                vertical-stretch: 1;
+                interactive: true;
+                content-height: tree.preferred-height;
+
+                tree := VerticalLayout {
+                    width: parent.width;
+                    spacing: Tokens.space-1;
+                    alignment: start;
+
+                    for folder[index] in root.folders : Rectangle {
+                        height: Tokens.size-control-md;
+                        background: root.drag-over == index ? Tokens.surface-raised : transparent;
+                        border-radius: Tokens.radius-control;
+
+                        Button {
+                            text: folder.label + " (" + folder.count + ")";
+                            accessible-name: folder.path;
+                            variant: folder.selected ? ButtonVariant.primary : ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            full-width: true;
+                            clicked => { root.open-folder-requested(folder.path); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // The main area: breadcrumbs, folders, files.
+        VerticalLayout {
+            horizontal-stretch: 4;
+            spacing: Tokens.space-3;
+
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                alignment: start;
+
+                for crumb[index] in root.crumbs : HorizontalLayout {
+                    spacing: Tokens.space-1;
+
+                    if index > 0 : Text {
+                        text: "/";
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                    }
+                    Button {
+                        text: crumb.label;
+                        variant: ButtonVariant.link;
+                        size: ButtonSize.sm;
+                        clicked => { root.open-folder-requested(crumb.path); }
+                    }
+                }
+            }
+
+            if root.subfolders.length > 0 : Text {
+                text: "Folders (" + root.subfolders.length + ")";
+                color: Tokens.text-muted;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+            }
+            if root.subfolders.length > 0 : HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                for folder in root.subfolders : Button {
+                    text: folder.name + " (" + folder.count + ")";
+                    accessible-name: folder.path;
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.sm;
+                    clicked => { root.open-folder-requested(folder.path); }
+                }
+            }
+
+            if root.folder-empty && !root.loading : EmptyState {
+                title: "Folder is empty";
+                description: "Drag files here or use the upload button above.";
+            }
+
+            if root.table-view && root.files.length > 0 : HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Checkbox {
+                    accessible-name: "Select all";
+                    check-state: root.all-visible-selected ? CheckState.checked : CheckState.unchecked;
+                    changed(checked) => { root.select-visible-requested(checked); }
+                }
+                Text {
+                    text: "Name";
+                    horizontal-stretch: 4;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                Text {
+                    text: "Type";
+                    horizontal-stretch: 1;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                Text {
+                    text: "Size";
+                    horizontal-stretch: 1;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+                Text {
+                    text: "Actions";
+                    horizontal-stretch: 2;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                }
+            }
+
+            Flickable {
+                vertical-stretch: 1;
+                interactive: true;
+                content-height: body.preferred-height;
+
+                body := VerticalLayout {
+                    width: parent.width;
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    // Grid view: three cards per row.
+                    if !root.table-view : GridLayout {
+                        spacing: Tokens.space-2;
+
+                        for file[index] in root.files : Card {
+                            col: mod(index, 3);
+                            row: floor(index / 3);
+                            horizontal-stretch: 1;
+                            title: file.name;
+
+                            VerticalLayout {
+                                spacing: Tokens.space-1;
+
+                                // Preview: the decoded image when there is one, otherwise the type's label.
+                                if file.has-preview : Image {
+                                    source: file.preview;
+                                    image-fit: contain;
+                                    horizontal-stretch: 1;
+                                    height: Tokens.size-control-md * 4;
+                                }
+                                if !file.has-preview : Text {
+                                    text: file.kind == "image" ? "Image" : file.kind == "video" ? "Video" : file.kind == "audio" ? "Audio" : "Document";
+                                    color: Tokens.text-muted;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                }
+
+                                Checkbox {
+                                    accessible-name: "Select " + file.name;
+                                    text: file.name;
+                                    check-state: file.selected ? CheckState.checked : CheckState.unchecked;
+                                    changed(checked) => { root.toggle-select-requested(file.key); }
+                                }
+                                Text {
+                                    text: file.size + (file.duration != "" ? " · " + file.duration : "") + " · " + (file.nested ? "nested" : "root");
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                }
+                                if file.kind == "audio" : Button {
+                                    text: file.playing ? "Stop" : "Play";
+                                    accessible-name: (file.playing ? "Stop " : "Play ") + file.name;
+                                    variant: ButtonVariant.secondary;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.toggle-audio-requested(file.id); }
+                                }
+                                HorizontalLayout {
+                                    spacing: Tokens.space-1;
+                                    alignment: start;
+
+                                    Button {
+                                        text: file.copied ? "Copied" : "Copy public URL";
+                                        accessible-name: "Copy public URL " + file.name;
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        clicked => { root.copy-requested(file.key); }
+                                    }
+                                    Button {
+                                        text: "Inspect & rename";
+                                        accessible-name: "Inspect and rename " + file.name;
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        clicked => { root.open-detail-requested(file.id); }
+                                    }
+                                    Button {
+                                        text: "Delete";
+                                        accessible-name: "Delete file " + file.name;
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        clicked => { root.delete-requested(file.id); }
+                                    }
+                                }
+                                DragHandle {
+                                    file-id: file.id;
+                                    drag-started(id) => { root.drag-id = id; root.drag-over = -2; }
+                                    drag-moved(y) => { root.drag-over = root.drop-index(y); }
+                                    drag-ended => {
+                                        if (root.drag-over != -2) {
+                                            root.move-requested(root.drag-id, root.folder-for(root.drag-over));
+                                        }
+                                        root.drag-id = "";
+                                        root.drag-over = -2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Table view: one row per file.
+                    if root.table-view : VerticalLayout {
+                        spacing: Tokens.space-2;
+
+                        for file in root.files : HorizontalLayout {
+                            spacing: Tokens.space-2;
+
+                            Checkbox {
+                                accessible-name: "Select " + file.name;
+                                check-state: file.selected ? CheckState.checked : CheckState.unchecked;
+                                changed(checked) => { root.toggle-select-requested(file.key); }
+                            }
+                            Button {
+                                text: file.name;
+                                variant: ButtonVariant.link;
+                                size: ButtonSize.sm;
+                                horizontal-stretch: 4;
+                                clicked => { root.open-detail-requested(file.id); }
+                            }
+                            Text {
+                                text: file.mime == "" ? file.ext : file.mime;
+                                horizontal-stretch: 1;
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                            }
+                            Text {
+                                text: file.size + (file.duration != "" ? " · " + file.duration : "");
+                                horizontal-stretch: 1;
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                            }
+                            HorizontalLayout {
+                                horizontal-stretch: 2;
+                                spacing: Tokens.space-1;
+
+                                if file.kind == "audio" : Button {
+                                    text: file.playing ? "Stop" : "Play";
+                                    accessible-name: (file.playing ? "Stop " : "Play ") + file.name;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.toggle-audio-requested(file.id); }
+                                }
+                                Button {
+                                    text: file.copied ? "Copied" : "Copy URL";
+                                    accessible-name: "Copy URL " + file.name;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.copy-requested(file.key); }
+                                }
+                                Button {
+                                    text: "Inspect & edit";
+                                    accessible-name: "Inspect and edit " + file.name;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.open-detail-requested(file.id); }
+                                }
+                                Button {
+                                    text: "Delete";
+                                    accessible-name: "Delete " + file.name;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.delete-requested(file.id); }
+                                }
+                                DragHandle {
+                                    file-id: file.id;
+                                    drag-started(id) => { root.drag-id = id; root.drag-over = -2; }
+                                    drag-moved(y) => { root.drag-over = root.drop-index(y); }
+                                    drag-ended => {
+                                        if (root.drag-over != -2) {
+                                            root.move-requested(root.drag-id, root.folder-for(root.drag-over));
+                                        }
+                                        root.drag-id = "";
+                                        root.drag-over = -2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // New Folder dialog. Folder names exist only in this session; the server has no folder endpoint.
+    if root.new-folder-open : Dialog {
+        title: "Create New Folder";
+        size: DialogSize.sm;
+        close-label: "Close";
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Create", variant: ButtonVariant.primary },
+        ];
+        action-clicked(index) => {
+            if index == 0 { root.close-new-folder-requested(); } else { root.create-folder-requested(); }
+        }
+        closed => { root.close-new-folder-requested(); }
+
+        Input {
+            placeholder: "e.g. avatars, mixes, projects";
+            accessible-name: "Folder name";
+            text <=> root.new-folder-name;
+            changed(value) => { root.new-folder-name-changed(value); }
+            submitted(value) => { root.create-folder-requested(); }
+        }
+    }
+
+    // Asset inspector: rename, move, and the file's details.
+    if root.inspector.id != "" : Dialog {
+        title: "Asset Inspector";
+        size: DialogSize.lg;
+        close-label: "Close";
+        closed => { root.close-detail-requested(); }
+
+        if root.inspector.has-preview : Image {
+            source: root.inspector.preview;
+            image-fit: contain;
+            height: Tokens.size-control-md * 6;
+        }
+        if root.inspector.kind != "image" : Text {
+            text: root.inspector.kind == "video" ? "Video" : root.inspector.kind == "audio" ? "Audio" : "Document (binary file)";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+
+        Button {
+            text: "Copy public URL";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.copy-requested(root.inspector.key); }
+        }
+        Input {
+            placeholder: "Filename (Basename)";
+            accessible-name: "Filename (Basename)";
+            text: root.inspector.basename;
+            changed(value) => { root.detail-basename-changed(value); }
+        }
+        Text {
+            text: "Preview: " + root.inspector.preview-key;
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+        Select {
+            accessible-name: "Destination folder";
+            size: SelectSize.md;
+            value: root.inspector.folder;
+            options: root.inspector.folder-options;
+            changed(value) => { root.detail-folder-changed(value); }
+        }
+        Text {
+            text: "Size " + root.inspector.size + " · " + root.inspector.mime + " · ." + root.inspector.ext;
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            alignment: end;
+
+            Button {
+                text: "Delete";
+                variant: ButtonVariant.danger;
+                size: ButtonSize.md;
+                clicked => { root.delete-requested(root.inspector.id); }
+            }
+            Button {
+                text: root.inspector.saving ? "Saving..." : "Save";
+                variant: ButtonVariant.primary;
+                size: ButtonSize.md;
+                enabled: !root.inspector.saving;
+                clicked => { root.save-detail-requested(); }
+            }
+        }
+    }
+
+    // Delete confirmation (the web page's confirm() prompts).
+    if root.confirm-message != "" : ConfirmDialog {
+        title: "Confirm delete";
+        message: root.confirm-message;
+        confirm-label: "Delete";
+        danger: true;
+        confirmed => { root.confirm-delete-requested(); }
+        cancelled => { root.cancel-delete-requested(); }
+    }
+}

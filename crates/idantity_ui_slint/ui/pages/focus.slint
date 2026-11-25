@@ -1,0 +1,64 @@
+// The Focus timer card. It is not a route: the top bar's Focus button opens it over the page (FocusState.open), as the
+// egui card did. The feature page (FocusPage) owns the markup; this file mirrors its properties in FocusState.
+import { FocusPage, FocusMode } from "@idantity_feature_focus/focus.slint";
+
+export { FocusMode } from "@idantity_feature_focus/focus.slint";
+
+export global FocusState {
+    // Set by the shell: whether the card is shown.
+    in-out property <bool> open: false;
+    in property <FocusMode> mode: FocusMode.work;
+    in property <string> time-text;
+    in property <bool> running;
+    in property <int> sessions;
+    in property <int> bpm;
+    in property <bool> metronome-running;
+    in property <int> beat;
+    in property <bool> stretch-visible: false;
+    in property <string> stretch-category;
+    in property <string> stretch-name;
+    in property <int> stretch-index;
+    in property <int> stretch-total;
+    in property <int> stretch-seconds-left;
+    in property <float> stretch-progress;
+    in property <bool> stretch-paused;
+
+    callback mode-requested(FocusMode);
+    callback toggle-requested();
+    callback reset-requested();
+    callback bpm-changed(int);
+    callback metronome-toggle-requested();
+    callback stretch-pause-requested();
+    callback stretch-resume-requested();
+    callback stretch-stop-requested();
+    callback close-requested();
+}
+
+export component FocusRoute inherits VerticalLayout {
+    FocusPage {
+        mode: FocusState.mode;
+        time-text: FocusState.time-text;
+        running: FocusState.running;
+        sessions: FocusState.sessions;
+        bpm: FocusState.bpm;
+        metronome-running: FocusState.metronome-running;
+        beat: FocusState.beat;
+        stretch-visible: FocusState.stretch-visible;
+        stretch-category: FocusState.stretch-category;
+        stretch-name: FocusState.stretch-name;
+        stretch-index: FocusState.stretch-index;
+        stretch-total: FocusState.stretch-total;
+        stretch-seconds-left: FocusState.stretch-seconds-left;
+        stretch-progress: FocusState.stretch-progress;
+        stretch-paused: FocusState.stretch-paused;
+
+        mode-requested(mode) => { FocusState.mode-requested(mode); }
+        toggle-requested => { FocusState.toggle-requested(); }
+        reset-requested => { FocusState.reset-requested(); }
+        bpm-changed(bpm) => { FocusState.bpm-changed(bpm); }
+        metronome-toggle-requested => { FocusState.metronome-toggle-requested(); }
+        stretch-pause-requested => { FocusState.stretch-pause-requested(); }
+        stretch-resume-requested => { FocusState.stretch-resume-requested(); }
+        stretch-stop-requested => { FocusState.stretch-stop-requested(); }
+    }
+}

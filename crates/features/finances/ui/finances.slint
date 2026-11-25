@@ -1,0 +1,335 @@
+// The Finances page (ported from crates/app/src/finances.rs; behaviour from the web FinancesManager). It draws only.
+// The Rust controller (src/lib.rs of this crate) holds the state; apps/desktop/src/pages/finances.rs wires the two.
+// The forms open in the shared Dialog. Choice fields use the shared Select, dates the shared DatePicker. No colour,
+// size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { Dialog, DialogSize, DialogAction } from "@rimelight_ui/components/dialog.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+
+export struct FinanceStat {
+    label: string,
+    value: string,
+}
+
+export struct FinanceRow {
+    id: string,
+    title: string,
+    subtitle: string,
+    value: string,
+    note: string,
+    primary-label: string,
+    secondary-label: string,
+    can-edit: bool,
+    can-delete: bool,
+    // Text for the copy button (an account's PIX key). Empty hides the button.
+    copy-text: string,
+}
+
+export struct FinanceSection {
+    title: string,
+    empty: string,
+    rows: [FinanceRow],
+}
+
+// A chip: a filter (group kind, account, category) or a new-form button (group new, value is the form key).
+export struct FinanceChip {
+    group: string,
+    value: string,
+    label: string,
+    selected: bool,
+}
+
+// One form field. kind is "text", "select" (options) or "date" (calendar, calendar-title, weekday-labels).
+export struct FinanceField {
+    key: string,
+    label: string,
+    value: string,
+    placeholder: string,
+    required: bool,
+    kind: string,
+    options: [SelectOption],
+    calendar: [CalendarDay],
+    calendar-title: string,
+    weekday-labels: [string],
+}
+
+// Tab keys, in order: overview, accounts, transactions, incomes, bills, budgets, debts, wishlist.
+export component FinancesPage inherits VerticalLayout {
+    in property <string> tab: "overview";
+    in property <bool> loading;
+    in property <string> error;
+    in property <bool> rates-missing;
+    in property <[FinanceStat]> stats;
+    in property <[FinanceChip]> chips;
+    in property <[FinanceSection]> sections;
+    in property <string> search;
+    in property <bool> form-open;
+    in property <string> form-title;
+    in property <string> form-submit;
+    in property <string> form-error;
+    in property <[FinanceField]> form-fields;
+
+    callback tab-requested(string);
+    callback refresh-requested();
+    callback search-changed(string);
+    callback chip-requested(string, string);
+    callback field-changed(string, string);
+    callback date-picked(string, int);
+    callback date-stepped(string, int);
+    callback submit-requested();
+    callback cancel-requested();
+    callback row-primary-requested(string);
+    callback row-secondary-requested(string);
+    callback row-edit-requested(string);
+    callback row-delete-requested(string);
+    // The text to put on the clipboard. The glue writes it through the shell's copy path.
+    callback copy-requested(string);
+    callback dismiss-error-requested();
+
+    spacing: Tokens.space-3;
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        for tab-key in ["overview", "accounts", "transactions", "incomes", "bills", "budgets", "debts", "wishlist"] : Button {
+            text: tab-key;
+            variant: root.tab == tab-key ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            accessible-name: tab-key;
+            clicked => { root.tab-requested(tab-key); }
+        }
+        Button {
+            text: "Refresh";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => { root.refresh-requested(); }
+        }
+    }
+
+    if root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+    }
+
+    if root.rates-missing : Banner {
+        tone: BannerTone.warning;
+        title: "Exchange rates unavailable";
+        description: "Foreign currency totals may default to BRL equivalence.";
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: page.preferred-height;
+
+        page := VerticalLayout {
+            width: parent.width;
+            spacing: Tokens.space-3;
+            alignment: start;
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                for stat in root.stats : VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text {
+                        text: stat.label;
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                    }
+                    Text {
+                        text: stat.value;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                for chip in root.chips : Button {
+                    text: chip.label;
+                    variant: chip.group == "new" ? ButtonVariant.secondary : (chip.selected ? ButtonVariant.primary : ButtonVariant.ghost);
+                    size: ButtonSize.sm;
+                    accessible-name: chip.label;
+                    clicked => { root.chip-requested(chip.group, chip.value); }
+                }
+            }
+
+            if root.tab == "transactions" : Input {
+                size: InputSize.md;
+                placeholder: "Search description or category";
+                accessible-name: "Search transactions";
+                text: root.search;
+                changed(value) => { root.search-changed(value); }
+            }
+
+            for section in root.sections : VerticalLayout {
+                spacing: Tokens.space-2;
+                Text {
+                    text: section.title;
+                    font-family: Type.heading.family;
+                    font-size: Type.heading.size;
+                    font-weight: Type.heading.weight;
+                }
+                if section.rows.length == 0 : Text {
+                    text: section.empty;
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                }
+                for row in section.rows : HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.title;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                        Text {
+                            text: row.subtitle;
+                            color: Tokens.text-muted;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                        }
+                        if row.note != "" : Text {
+                            text: row.note;
+                            color: Tokens.text-muted;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                        }
+                    }
+                    Text {
+                        text: row.value;
+                        vertical-alignment: center;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    if row.primary-label != "" : Button {
+                        text: row.primary-label;
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        accessible-name: row.primary-label + " " + row.title;
+                        clicked => { root.row-primary-requested(row.id); }
+                    }
+                    if row.secondary-label != "" : Button {
+                        text: row.secondary-label;
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        accessible-name: row.secondary-label + " " + row.title;
+                        clicked => { root.row-secondary-requested(row.id); }
+                    }
+                    if row.copy-text != "" : Button {
+                        text: "Copy PIX";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        accessible-name: "Copy PIX key of " + row.title;
+                        clicked => { root.copy-requested(row.copy-text); }
+                    }
+                    if row.can-edit : Button {
+                        text: "Edit";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        accessible-name: "Edit " + row.title;
+                        clicked => { root.row-edit-requested(row.id); }
+                    }
+                    if row.can-delete : Button {
+                        text: "Delete";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        accessible-name: "Delete " + row.title;
+                        clicked => { root.row-delete-requested(row.id); }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.form-open : Dialog {
+        title: root.form-title;
+        size: DialogSize.md;
+        actions: [
+            { text: root.form-submit, variant: ButtonVariant.primary },
+            { text: "Cancel", variant: ButtonVariant.ghost },
+        ];
+        action-clicked(index) => {
+            if (index == 0) { root.submit-requested(); } else { root.cancel-requested(); }
+        }
+        closed => { root.cancel-requested(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            if root.form-error != "" : Text {
+                text: root.form-error;
+                color: Tokens.palette-error-text;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+            }
+            for field in root.form-fields : VerticalLayout {
+                spacing: Tokens.space-1;
+                Text {
+                    text: field.required ? field.label + " *" : field.label;
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                }
+                if field.kind == "select" : Select {
+                    size: SelectSize.md;
+                    accessible-name: field.label;
+                    value: field.value;
+                    options: field.options;
+                    changed(value) => { root.field-changed(field.key, value); }
+                }
+                if field.kind == "date" : DatePicker {
+                    text: field.value;
+                    placeholder: "Pick a date";
+                    accessible-name: field.label;
+                    days: field.calendar;
+                    weekday-labels: field.weekday-labels;
+                    title: field.calendar-title;
+                    picked(index) => { root.date-picked(field.key, index); }
+                    month-step(delta) => { root.date-stepped(field.key, delta); }
+                }
+                if field.kind == "text" : Input {
+                    size: InputSize.md;
+                    placeholder: field.placeholder;
+                    accessible-name: field.label;
+                    text: field.value;
+                    changed(value) => { root.field-changed(field.key, value); }
+                    submitted(value) => { root.submit-requested(); }
+                }
+            }
+        }
+    }
+}

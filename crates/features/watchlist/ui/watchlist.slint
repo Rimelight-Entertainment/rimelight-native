@@ -1,0 +1,583 @@
+// The Watchlist page (ported from crates/app/src/watchlist.rs). It draws only.
+// Data comes in through the properties; every user action goes out through a `*-requested` callback. The Rust controller
+// (src/lib.rs of this crate) holds the state, and apps/desktop/src/pages/watchlist.rs wires the two.
+// The text the form fields hold is `in-out` here, so Rust reads it when the form is saved and the page keeps what the
+// user typed between views. No colour, size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Checkbox, CheckState } from "@rimelight_ui/components/checkbox.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Dialog, DialogSize, ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+// The shared list template (ST5.4): header, search, filter row, bulk bar, table and its states.
+import { ListPage } from "@rimelight_shell/templates/list-page.slint";
+
+
+// One category of the Manage Categories dialog.
+export struct WatchlistCategory {
+    id: string,
+    label: string,
+    count-text: string,
+}
+
+// One table column, in the table's order. `sorted` is -1 when the table is not sorted by it, 0 ascending, 1 descending.
+// Column indexes: 0 title, 1 creator, 2 category, 3 genre, 4 rating, 5 status, 6 details, 7 notes.
+export struct WatchlistColumn {
+    label: string,
+    visible: bool,
+    sorted: int,
+}
+
+// The table's column widths: the header and every row use these, so the cells line up. The title column takes the rest
+// of the width, never less than `title-min`.
+global WatchlistCols {
+    out property <length> done: 40px;
+    out property <length> title-min: 160px;
+    out property <length> category: 110px;
+    out property <length> genre: 100px;
+    out property <length> rating: 70px;
+    out property <length> status: 140px;
+    out property <length> details: 150px;
+    out property <length> actions: 160px;
+}
+
+export component WatchlistPage inherits Rectangle {
+    // Data in.
+    in property <[TableRow]> rows;
+    // The table's visible columns (the list template's header), with their widths.
+    in property <[TableColumn]> columns;
+    in property <PageLoadState> load-state: PageLoadState.loaded;
+    in property <int> selected-count: 0;
+    // The sort the table shows: the visible column's index (-1 for none) and its direction.
+    in property <int> sort-column: -1;
+    in property <bool> sort-descending: false;
+    // The section key: movies, series or books.
+    in property <string> section;
+    in property <bool> archived;
+    in property <string> heading;
+    in property <string> count-label;
+    // Empty title means the table has rows, so no empty line is drawn.
+    in property <string> empty-title;
+    in property <string> empty-text;
+    // Empty means no error.
+    in property <string> error;
+    in property <string> categories-label;
+    in property <bool> category-open;
+    in property <string> category-title;
+    in property <string> categories-count-label;
+    in property <[WatchlistCategory]> category-rows;
+    in property <bool> confirm-open;
+    in property <bool> form-open;
+    in property <bool> form-editing;
+    in property <string> form-title;
+    in property <string> form-description;
+    in property <bool> form-busy;
+    in property <[SelectOption]> form-category-options;
+    in property <bool> form-no-category-hint;
+    in property <bool> form-can-save;
+    in property <string> form-save-label;
+    in property <[SelectOption]> section-options;
+    in property <[SelectOption]> status-options;
+    in property <[SelectOption]> form-status-options;
+    // The table's columns, in order, with their visibility and sort state.
+    in property <[WatchlistColumn]> column-chips;
+
+    // Text the page holds and Rust reads.
+    in-out property <string> search;
+    in-out property <string> new-category;
+    in-out property <string> form-section;
+    in-out property <string> form-category;
+    in-out property <string> draft-title;
+    in-out property <string> draft-creator;
+    in-out property <string> draft-genre;
+    in-out property <string> draft-duration;
+    in-out property <string> draft-year;
+    in-out property <string> draft-rating;
+    in-out property <string> draft-status;
+    in-out property <string> draft-seasons;
+    in-out property <string> draft-episodes;
+    in-out property <string> draft-pages;
+    in-out property <string> draft-notes;
+    in-out property <string> draft-recommended-by;
+
+    // Actions out.
+    callback new-requested();
+    callback archive-requested();
+    callback categories-requested();
+    callback search-changed(string);
+    callback export-requested();
+    callback dismiss-error-requested();
+    callback sort-requested(int);
+    callback column-toggle-requested(int);
+    callback pick-requested(int, bool, bool);
+    callback bulk-complete-requested();
+    callback edit-selected-requested();
+    callback delete-selected-requested();
+    callback status-requested(string, string, string);
+    callback edit-requested(string, string);
+    callback delete-requested(string, string);
+    callback category-add-requested(string);
+    callback category-delete-requested(string);
+    callback category-closed();
+    callback confirm-answered(bool);
+    callback form-section-requested(string);
+    callback form-category-requested(string);
+    callback form-submit-requested();
+    callback form-closed();
+
+    // The content, laid out top to bottom. The dialogs sit outside this layout: a dialog places its own popup.
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: Tokens.space-3;
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    // The shared list template: the header, the search, the filter row (the children), the bulk bar, the table and its
+    // load, empty and error states. The filter row holds the page's own controls: one chip per column (the title has
+    // none), the count, the categories, the archive bin, the selected-row actions and the CSV export.
+    ListPage {
+        title: root.heading;
+        state: root.load-state;
+        error: root.error;
+        empty-title: root.empty-title;
+        empty-description: root.empty-text;
+        search-text <=> root.search;
+        search-placeholder: "Filter watchlist...";
+        action-label: "Add Entry";
+        bulk-label: "Mark completed";
+        selected-count: root.selected-count;
+        columns: root.columns;
+        rows: root.rows;
+        sort-column: root.sort-column;
+        sort-descending: root.sort-descending;
+        search(text) => { root.search-changed(text); }
+        sort(column) => { root.sort-requested(column); }
+        picked(index, shift, ctrl) => { root.pick-requested(index, shift, ctrl); }
+        action() => { root.new-requested(); }
+        bulk-action() => { root.bulk-complete-requested(); }
+
+        Text {
+            text: root.count-label;
+            vertical-alignment: center;
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+        for column[index] in root.column-chips : Button {
+            visible: index > 0;
+            variant: column.visible ? ButtonVariant.secondary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            text: column.visible ? "Hide " + column.label : "Show " + column.label;
+            accessible-name: column.visible ? "Hide column " + column.label : "Show column " + column.label;
+            clicked => { root.column-toggle-requested(index); }
+        }
+        Button {
+            text: root.categories-label;
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            accessible-name: "Manage categories";
+            clicked => { root.categories-requested(); }
+        }
+        Button {
+            text: root.archived ? "Hide Archive" : "Archive Bin";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            accessible-name: "Archive bin";
+            clicked => { root.archive-requested(); }
+        }
+        Button {
+            text: "Edit";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            enabled: root.selected-count == 1;
+            accessible-name: "Edit selected entry";
+            clicked => { root.edit-selected-requested(); }
+        }
+        Button {
+            text: "Delete selected";
+            variant: ButtonVariant.danger;
+            size: ButtonSize.md;
+            enabled: root.selected-count > 0;
+            accessible-name: "Delete selected entries";
+            clicked => { root.delete-selected-requested(); }
+        }
+        Button {
+            text: "Export CSV";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            accessible-name: "Export CSV";
+            clicked => { root.export-requested(); }
+        }
+    }
+
+    }
+
+    // Manage Categories: an add row, the existing categories, and Done.
+    category-dlg := Dialog {
+        title: root.category-title;
+        description: "Organize your library collections and groupings";
+        size: DialogSize.md;
+        close-label: "Close";
+        closed => { root.category-closed(); }
+
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            Input {
+                horizontal-stretch: 1;
+                size: InputSize.md;
+                placeholder: "New Category (e.g. Favorites, Re-watch)...";
+                accessible-name: "New category";
+                text <=> root.new-category;
+            }
+            Button {
+                text: "Add";
+                accessible-name: "Add category";
+                variant: ButtonVariant.primary;
+                size: ButtonSize.md;
+                clicked => { root.category-add-requested(root.new-category); }
+            }
+        }
+        Text {
+            text: root.categories-count-label;
+            color: Tokens.text-primary;
+            font-family: Type.body-strong.family;
+            font-size: Type.body-strong.size;
+            font-weight: Type.body-strong.weight;
+        }
+        for category in root.category-rows : HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            Text {
+                horizontal-stretch: 1;
+                text: category.label;
+                vertical-alignment: center;
+                color: Tokens.text-primary;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+            Text {
+                text: category.count-text;
+                vertical-alignment: center;
+                color: Tokens.text-muted;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+            Button {
+                text: "Delete category";
+                accessible-name: "Delete category " + category.label;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.category-delete-requested(category.id); }
+            }
+        }
+        HorizontalLayout {
+            alignment: end;
+
+            Button {
+                text: "Done";
+                accessible-name: "Done";
+                variant: ButtonVariant.secondary;
+                size: ButtonSize.md;
+                clicked => { category-dlg.close(); }
+            }
+        }
+    }
+
+    // Delete a category: the confirm the Solid app asks before it removes a category and its items.
+    confirm-dlg := ConfirmDialog {
+        title: "Delete category";
+        message: "Are you sure you want to delete this category and all its media items?";
+        confirm-label: "Delete";
+        cancel-label: "Cancel";
+        danger: true;
+        confirmed => { root.confirm-answered(true); }
+        cancelled => { root.confirm-answered(false); }
+    }
+
+    // The add form and the edit form (the same dialog). Media Type and Category are hidden or disabled as in egui.
+    form-dlg := Dialog {
+        title: root.form-title;
+        description: root.form-description;
+        size: DialogSize.lg;
+        dismissible: !root.form-busy;
+        closed => { root.form-closed(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+
+            if !root.form-editing : Text {
+                text: "Media Type";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            if !root.form-editing : Select {
+                size: SelectSize.md;
+                accessible-name: "Media Type";
+                options: root.section-options;
+                value <=> root.form-section;
+                changed(value) => { root.form-section-requested(value); }
+            }
+
+            Text {
+                text: "Category";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Select {
+                size: SelectSize.md;
+                accessible-name: "Category";
+                placeholder: "No category";
+                options: root.form-category-options;
+                value <=> root.form-category;
+                enabled: !root.form-editing && root.form-category-options.length > 0;
+                changed(value) => { root.form-category-requested(value); }
+            }
+            if root.form-no-category-hint : Text {
+                text: "Create a category first, then add items to it.";
+                color: Tokens.text-muted;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+
+            Text {
+                text: "Title *";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "e.g. Interstellar, Severance, Neuromancer...";
+                accessible-name: "Title";
+                text <=> root.draft-title;
+            }
+
+            Text {
+                text: root.form-section == "books" ? "Author" : "Director / Creator";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                accessible-name: root.form-section == "books" ? "Author" : "Director / Creator";
+                text <=> root.draft-creator;
+            }
+
+            Text {
+                text: "Status";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Select {
+                size: SelectSize.md;
+                accessible-name: "Status";
+                options: root.form-status-options;
+                value <=> root.draft-status;
+            }
+
+            Text {
+                text: "Rating";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "9.5";
+                accessible-name: "Rating";
+                text <=> root.draft-rating;
+            }
+
+            Text {
+                text: "Genre";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "Sci-Fi, Cyberpunk...";
+                accessible-name: "Genre";
+                text <=> root.draft-genre;
+            }
+
+            Text {
+                text: "Release Year";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "2024";
+                accessible-name: "Release Year";
+                text <=> root.draft-year;
+            }
+
+            if root.form-section == "movies" : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                Text {
+                    text: "Duration";
+                    color: Tokens.text-primary;
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body-strong.size;
+                    font-weight: Type.body-strong.weight;
+                }
+                Input {
+                    size: InputSize.md;
+                    placeholder: "e.g. 164m, 2h 44m";
+                    accessible-name: "Duration";
+                    text <=> root.draft-duration;
+                }
+            }
+
+            if root.form-section == "series" : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                Text {
+                    text: "Seasons";
+                    color: Tokens.text-primary;
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body-strong.size;
+                    font-weight: Type.body-strong.weight;
+                }
+                Input {
+                    size: InputSize.md;
+                    accessible-name: "Seasons";
+                    text <=> root.draft-seasons;
+                }
+                Text {
+                    text: "Episodes";
+                    color: Tokens.text-primary;
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body-strong.size;
+                    font-weight: Type.body-strong.weight;
+                }
+                Input {
+                    size: InputSize.md;
+                    accessible-name: "Episodes";
+                    text <=> root.draft-episodes;
+                }
+            }
+
+            if root.form-section == "books" : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                Text {
+                    text: "Page Count";
+                    color: Tokens.text-primary;
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body-strong.size;
+                    font-weight: Type.body-strong.weight;
+                }
+                Input {
+                    size: InputSize.md;
+                    accessible-name: "Page Count";
+                    text <=> root.draft-pages;
+                }
+            }
+
+            Text {
+                text: "Recommended By";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Input {
+                size: InputSize.md;
+                placeholder: "Friend, Twitter, Podcast...";
+                accessible-name: "Recommended By";
+                text <=> root.draft-recommended-by;
+            }
+
+            Text {
+                text: "Notes / Review";
+                color: Tokens.text-primary;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Textarea {
+                placeholder: "Thoughts or streaming link...";
+                accessible-name: "Notes / Review";
+                rows: 3;
+                text <=> root.draft-notes;
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Tokens.space-2;
+
+                Button {
+                    text: "Cancel";
+                    accessible-name: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { form-dlg.close(); }
+                }
+                Button {
+                    text: root.form-save-label;
+                    accessible-name: root.form-save-label;
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    enabled: root.form-can-save && root.draft-title != "";
+                    clicked => { root.form-submit-requested(); }
+                }
+            }
+        }
+    }
+
+    // The dialogs are opened and closed by the flags Rust sets. Closing one by the user reports back through its callback.
+    changed category-open => {
+        if root.category-open {
+            category-dlg.open();
+        } else {
+            category-dlg.close();
+        }
+    }
+    changed confirm-open => {
+        if root.confirm-open {
+            confirm-dlg.open();
+        } else {
+            confirm-dlg.close();
+        }
+    }
+    changed form-open => {
+        if root.form-open {
+            form-dlg.open();
+        } else {
+            form-dlg.close();
+        }
+    }
+}

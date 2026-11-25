@@ -1,0 +1,32 @@
+[package]
+name = "idantity_desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# unsafe_code is denied here instead of forbidden (the workspace setting): Slint's generated code for the update window
+# contains unsafe vtable statics. Only the generated module allows it (src/update.rs). Keep the rest equal to the root lints.
+[lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+# The app shell (Slint, sign-in, feature pages) and the route manifest for the --route check.
+idantity_ui_slint.workspace = true
+idantity_nav.workspace = true
+rimelight_ui_kit.workspace = true
+
+# Windows only: the installed-copy update gate (rimelight_update), the update window (its Slint markup is compiled by
+# build.rs), and the log file (rimelight_platform). The same pins as rimelight-space's desktop app.
+[target.'cfg(windows)'.dependencies]
+rimelight_update.workspace = true
+rimelight_platform.workspace = true
+slint.workspace = true
+
+[target.'cfg(windows)'.build-dependencies]
+slint-build.workspace = true

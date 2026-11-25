@@ -1,0 +1,464 @@
+// The Todos page (ported from crates/app/src/todos.rs, full web TodosManager feature set). It draws only.
+// Data comes in through properties; every user action goes out through a `*-requested` callback. The Rust controller
+// (src/lib.rs of this crate) holds the state, and the shell glue wires the two.
+// No colour, size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Checkbox, CheckState, CheckboxSize } from "@rimelight_ui/components/checkbox.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Dialog, DialogSize, ConfirmDialog } from "@rimelight_ui/components/dialog.slint";
+
+// One filter tab: its label already carries the count, e.g. "Pending (3)".
+export struct TodoTab {
+    label: string,
+    count: int,
+}
+
+// One row of the list.
+export struct TodoRow {
+    id: string,
+    title: string,
+    category: string,
+    priority: string,
+    completed: bool,
+    selected: bool,
+    recurring: bool,
+    recurring-label: string,
+    due-label: string,
+    due-today: bool,
+}
+
+// The priorities the add form and the quick modal offer.
+export component TodoPriorityPicker inherits HorizontalLayout {
+    in-out property <string> value: "medium";
+    in property <[string]> options;
+    spacing: Tokens.space-1;
+    for option in root.options : Button {
+        text: option;
+        accessible-name: option;
+        variant: root.value == option ? ButtonVariant.primary : ButtonVariant.ghost;
+        size: ButtonSize.sm;
+        clicked => { root.value = option; }
+    }
+}
+
+export component TodosPage inherits VerticalLayout {
+    // Data in.
+    in property <[TodoRow]> rows;
+    in property <[TodoTab]> tabs;
+    in property <int> filter: 0;
+    in property <int> selected-count: 0;
+    in property <bool> loading;
+    // Empty means no error.
+    in property <string> error;
+    in property <bool> confirm-open;
+    // The categories offered by the add form's category field (free text; default "General").
+    in property <[string]> priorities: ["low", "medium", "high", "urgent"];
+    in property <[string]> intervals: ["daily", "weekly", "monthly"];
+
+    // Add form state, kept here so the page can clear it after a valid add.
+    in-out property <string> new-title;
+    in-out property <string> new-category: "General";
+    in-out property <string> new-priority: "medium";
+    in-out property <string> new-due;
+    in-out property <bool> new-recurring: false;
+    in-out property <string> new-interval: "daily";
+    // The search box text. Filtering runs in Rust.
+    in-out property <string> search;
+
+    // Actions out.
+    callback add-requested(string, string, string, string, bool, string);
+    callback search-changed(string);
+    callback filter-requested(int);
+    callback refresh-requested();
+    callback toggle-requested(string, bool);
+    callback delete-requested(string);
+    callback select-requested(string);
+    callback batch-complete-requested();
+    callback batch-delete-requested();
+    callback batch-cancel-requested();
+    callback batch-delete-confirmed();
+    callback batch-delete-cancelled();
+    callback dismiss-error-requested();
+
+    spacing: Tokens.space-3;
+
+    // Add form.
+    Rectangle {
+        background: Tokens.surface-raised;
+        border-color: Tokens.border-subtle;
+        border-width: 1px;
+        border-radius: Tokens.radius-surface;
+        VerticalLayout {
+            padding: Tokens.space-4;
+            spacing: Tokens.space-3;
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                Text {
+                    text: "Add action item";
+                    color: Tokens.text-primary;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body-strong.weight;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Input {
+                    width: Tokens.size-control-lg;
+                    size: InputSize.md;
+                    placeholder: "Search tasks";
+                    accessible-name: "Search tasks";
+                    text <=> root.search;
+                    changed(value) => { root.search-changed(value); }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                Input {
+                    horizontal-stretch: 2;
+                    size: InputSize.md;
+                    placeholder: "Task title";
+                    accessible-name: "Task title";
+                    text <=> root.new-title;
+                    submitted(value) => { root.submit-add(); }
+                }
+                Input {
+                    horizontal-stretch: 1;
+                    size: InputSize.md;
+                    placeholder: "Category";
+                    accessible-name: "Category";
+                    text <=> root.new-category;
+                }
+                Input {
+                    horizontal-stretch: 1;
+                    size: InputSize.md;
+                    placeholder: "Due date (YYYY-MM-DD)";
+                    accessible-name: "Due date";
+                    text <=> root.new-due;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: Tokens.space-3;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: Tokens.space-3;
+                    alignment: start;
+                    Text {
+                        text: "Priority";
+                        vertical-alignment: center;
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body-strong.weight;
+                    }
+                    TodoPriorityPicker {
+                        options: root.priorities;
+                        value <=> root.new-priority;
+                    }
+                    Checkbox {
+                        text: "Recurring";
+                        accessible-name: "Recurring";
+                        size: CheckboxSize.sm;
+                        check-state: root.new-recurring ? CheckState.checked : CheckState.unchecked;
+                        changed(checked) => { root.new-recurring = checked; }
+                    }
+                    if root.new-recurring : Select {
+                        size: SelectSize.sm;
+                        accessible-name: "Recurring interval";
+                        options: [
+                            { value: "daily", label: "Daily" },
+                            { value: "weekly", label: "Weekly" },
+                            { value: "monthly", label: "Monthly" },
+                        ];
+                        value <=> root.new-interval;
+                    }
+                }
+                Button {
+                    text: "Add Task";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    clicked => { root.submit-add(); }
+                }
+            }
+        }
+    }
+
+    // Batch toolbar, shown when at least one todo is selected.
+    if root.selected-count > 0 : Rectangle {
+        background: Tokens.surface-sunken;
+        border-radius: Tokens.radius-surface;
+        HorizontalLayout {
+            padding: Tokens.space-3;
+            spacing: Tokens.space-2;
+            Text {
+                text: root.selected-count + " selected";
+                vertical-alignment: center;
+                color: Tokens.text-primary;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body-strong.weight;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "Mark Complete";
+                variant: ButtonVariant.secondary;
+                size: ButtonSize.sm;
+                clicked => { root.batch-complete-requested(); }
+            }
+            Button {
+                text: "Delete Selected";
+                variant: ButtonVariant.danger;
+                size: ButtonSize.sm;
+                clicked => { root.batch-delete-requested(); }
+            }
+            Button {
+                text: "Cancel";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.batch-cancel-requested(); }
+            }
+        }
+    }
+
+    // Filter tabs with counts.
+    HorizontalLayout {
+        spacing: Tokens.space-1;
+        alignment: start;
+        for tab[index] in root.tabs : Button {
+            text: tab.label + " (" + tab.count + ")";
+            accessible-name: tab.label;
+            variant: root.filter == index ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.filter-requested(index); }
+        }
+    }
+
+    if root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    if root.rows.length == 0 && !root.loading : EmptyState {
+        title: "No tasks found";
+        description: "All caught up or try adjusting your filter.";
+    }
+
+    // Builtin Flickable (feature markup cannot import std-widgets' ScrollView).
+    Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: list.preferred-height;
+
+        list := VerticalLayout {
+            width: parent.width;
+            spacing: Tokens.space-2;
+            alignment: start;
+
+            for row in root.rows : Rectangle {
+                background: row.completed ? Tokens.surface-sunken : Tokens.surface-raised;
+                border-color: row.selected ? Tokens.accent-default : Tokens.border-subtle;
+                border-width: row.selected ? 2px : 1px;
+                border-radius: Tokens.radius-surface;
+                height: item-row.preferred-height + Tokens.space-3 * 2;
+
+                item-row := HorizontalLayout {
+                    x: Tokens.space-3;
+                    y: Tokens.space-3;
+                    width: parent.width - Tokens.space-3 * 2;
+                    spacing: Tokens.space-3;
+                    alignment: start;
+
+                    Checkbox {
+                        size: CheckboxSize.sm;
+                        accessible-name: "Select " + row.title;
+                        check-state: row.selected ? CheckState.checked : CheckState.unchecked;
+                        changed(checked) => { root.select-requested(row.id); }
+                    }
+                    Checkbox {
+                        horizontal-stretch: 1;
+                        text: row.title;
+                        accessible-name: row.title;
+                        check-state: row.completed ? CheckState.checked : CheckState.unchecked;
+                        changed(checked) => { root.toggle-requested(row.id, checked); }
+                    }
+                    if row.recurring : Text {
+                        text: "↻ " + row.recurring-label;
+                        vertical-alignment: center;
+                        color: Tokens.accent-default;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body-strong.weight;
+                    }
+                    Text {
+                        text: row.category;
+                        vertical-alignment: center;
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    if row.due-label != "" : Text {
+                        text: row.due-label;
+                        vertical-alignment: center;
+                        color: row.due-today ? Tokens.accent-default : Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: row.due-today ? Type.body-strong.weight : Type.body.weight;
+                    }
+                    Text {
+                        text: row.priority;
+                        vertical-alignment: center;
+                        color: row.priority == "urgent" || row.priority == "high" ? Tokens.status-danger : Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body-strong.weight;
+                    }
+                    Button {
+                        text: "Delete";
+                        accessible-name: "Delete task " + row.title;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { root.delete-requested(row.id); }
+                    }
+                }
+            }
+        }
+    }
+
+    // Batch delete confirmation.
+    confirm-dialog := ConfirmDialog {
+        title: "Delete selected tasks";
+        message: "Are you sure you want to delete " + root.selected-count + " selected task(s)? This action cannot be undone.";
+        confirm-label: "Delete Tasks";
+        cancel-label: "Cancel";
+        danger: true;
+        confirmed => { root.batch-delete-confirmed(); }
+        cancelled => { root.batch-delete-cancelled(); }
+    }
+
+    changed confirm-open => {
+        if (root.confirm-open) {
+            confirm-dialog.open();
+        } else {
+            confirm-dialog.close();
+        }
+    }
+
+    // The add form's submit: a non-blank title is sent, then the title and due date are cleared.
+    // The category and priority stay, as on the web.
+    public function submit-add() {
+        if (root.new-title != "") {
+            root.add-requested(root.new-title, root.new-category, root.new-priority, root.new-due, root.new-recurring, root.new-interval);
+            root.new-title = "";
+            root.new-due = "";
+            root.new-recurring = false;
+        }
+    }
+}
+
+// The global quick-create to-do modal (the egui port's "Create To-do" window and Solid's quick to-do). Its state
+// lives in the Slint page; the controller is QuickTodoController in src/lib.rs.
+export component QuickTodoModal inherits VerticalLayout {
+    in property <bool> open;
+    in property <bool> busy;
+    in property <string> error;
+    in property <[string]> categories: ["General", "Work", "Home", "Shopping", "Health"];
+    in property <[string]> priorities: ["low", "medium", "high"];
+    in-out property <string> title;
+    in-out property <string> category: "General";
+    in-out property <string> priority: "medium";
+
+    callback save-requested(string, string, string);
+    callback cancel-requested();
+
+    spacing: Tokens.space-2;
+
+    Text {
+        text: "Add a task to your checklist";
+        color: Tokens.text-muted;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        font-weight: Type.body.weight;
+    }
+    Input {
+        size: InputSize.md;
+        placeholder: "What needs to be done?";
+        accessible-name: "To-do title";
+        text <=> root.title;
+        submitted(value) => { root.save-requested(root.title, root.category, root.priority); }
+    }
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        Select {
+            size: SelectSize.md;
+            accessible-name: "Category";
+            options: [
+                { value: "General", label: "General" },
+                { value: "Work", label: "Work" },
+                { value: "Home", label: "Home" },
+                { value: "Shopping", label: "Shopping" },
+                { value: "Health", label: "Health" },
+            ];
+            value <=> root.category;
+        }
+        Select {
+            size: SelectSize.md;
+            accessible-name: "Priority";
+            options: [
+                { value: "low", label: "Low priority" },
+                { value: "medium", label: "Medium priority" },
+                { value: "high", label: "High priority" },
+            ];
+            value <=> root.priority;
+        }
+    }
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Could not create the to-do";
+        description: root.error;
+    }
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: end;
+        Button {
+            text: "Cancel";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.cancel-requested(); }
+        }
+        Button {
+            text: root.busy ? "Creating..." : "Create To-do";
+            variant: ButtonVariant.primary;
+            size: ButtonSize.md;
+            enabled: root.title != "" && !root.busy;
+            clicked => { root.save-requested(root.title, root.category, root.priority); }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:label="Rimelight Space"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Rimelight">
+
+        <!-- A NativeActivity subclass with one override (RimelightActivity.java) that keeps the newest intent, so the sign-in
+             return is read with getIntent() (decision 0018). Slint's android-activity backend loads the cdylib named in
+             android.app.lib_name. -->
+        <activity
+            android:name=".RimelightActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="rimelight_android" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- The sign-in return from the browser: rimelight-space://auth?code=...&state=... (SA.7). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rimelight-space" android:host="auth" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

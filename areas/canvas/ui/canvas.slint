@@ -1,0 +1,1302 @@
+// Canvas page (CV.6, decision 0045; batch CV.7 to CV.13). One shared canvas: images, text notes, frames and shapes on an infinite surface, edited live
+// with the other people in the room. All hit testing and editing logic is in Rust (src/): the markup only draws the
+// CanvasState global that Rust fills, and forwards pointer, key, scroll and toolbar input back to Rust.
+//
+// Coordinates. Items are in world units. A screen position is world * zoom + pan (pan in screen px, relative to the canvas
+// area's top left). Angles are in degrees, clockwise.
+//
+// Layers, bottom to top: grid, items, peers, selection overlay, crop, marquee, guides, eraser circle, text editor, input layer,
+// video controls, toolbar (bottom centre), zoom controls, status chips, presence avatars, hierarchy panel, slideshow, dialogs, the menu, the drop overlay, the pop-out
+// placeholder and the page state (loading or error) over everything.
+//
+// The text editor sits above the input layer so its TextInput receives the pointer (the input layer would otherwise cover it).
+// In a pop-out window (embedded: true) the same page draws the canvas; the main window shows only the placeholder while it is open.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { CanvasItem } from "canvas-item.slint";
+import {
+    CanvasGridLayer, CanvasPeersLayer, CanvasCropLayer, CanvasAvatars, CanvasHierarchyPanel, CanvasSlideshow,
+    CanvasAssetsDialog, CanvasWindowPicker, CanvasPoppedOut
+} from "canvas-overlays.slint";
+
+import { CanvasState, CanvasPalette, CanvasItemView, CanvasGuide, CanvasMenuPanel, CanvasMenuRow } from "canvas-types.slint";
+export { CanvasItemView, CanvasGuide, CanvasPalette, CanvasState, CanvasMenuPanel, CanvasMenuRow } from "canvas-types.slint";
+
+// A selection handle: a small white square with an accent border. Drawn only, it takes no input.
+component CanvasHandle inherits Rectangle {
+    width: 8px;
+    height: 8px;
+    background: #ffffff;
+    border-width: 1px;
+    border-color: Tokens.accent-default;
+}
+
+// A status chip at the bottom left ("View only", "Connecting...").
+component CanvasChip inherits Rectangle {
+    in property <string> text;
+    height: Tokens.size-tag-height;
+    width: chip-label.preferred-width + 2 * Tokens.space-2;
+    background: Tokens.surface-raised;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: Tokens.radius-r6;
+
+    chip-label := Text {
+        x: Tokens.space-2;
+        y: (parent.height - self.height) / 2;
+        text: root.text;
+        color: Tokens.text-muted;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: Type.caption.weight;
+    }
+}
+
+// A busy chip at the bottom left: a spinner and the work in progress ("Adding 3 images...").
+component CanvasBusyChip inherits Rectangle {
+    in property <string> text;
+    height: Tokens.size-tag-height;
+    width: busy-row.preferred-width;
+    background: Tokens.surface-raised;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: Tokens.radius-r6;
+
+    busy-row := HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        padding-left: Tokens.space-2;
+        padding-right: Tokens.space-2;
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        // The spinner sits in a full-height box so it centres on the text line.
+        Rectangle {
+            width: busy-spinner.preferred-width;
+            busy-spinner := Spinner {
+                y: (parent.height - self.height) / 2;
+                size: SpinnerSize.sm;
+                ink: Tokens.text-muted;
+            }
+        }
+        Text {
+            text: root.text;
+            color: Tokens.text-muted;
+            vertical-alignment: center;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+    }
+}
+
+// A drawing tool button in the toolbar: checkable, selected while the page is in that tool, and a click selects it.
+component CanvasToolButton inherits IconButton {
+    // The tool name Rust knows ("rect", "ellipse", ...).
+    in property <string> tool-name;
+    variant: ButtonVariant.ghost;
+    checkable: true;
+    selected: CanvasState.tool == root.tool-name;
+    clicked => {
+        CanvasState.set-tool(root.tool-name);
+    }
+}
+
+export component CanvasPage inherits Rectangle {
+    // The route of the page (the tab's route), passed in by the shell.
+    in property <string> route;
+    // True in a pop-out window: the window draws the canvas itself, whatever the main window's state says.
+    in property <bool> embedded: false;
+
+    background: Tokens.surface-sunken;
+    clip: true;
+    init => {
+        if !root.embedded {
+            CanvasState.opened(root.route);
+        }
+    }
+
+    // Maps the cursor name from Rust to the mouse cursor.
+    function cursor-of(name: string) -> MouseCursor {
+        if name == "move" { return MouseCursor.move; }
+        if name == "grab" { return MouseCursor.grab; }
+        if name == "grabbing" { return MouseCursor.grabbing; }
+        if name == "crosshair" { return MouseCursor.crosshair; }
+        if name == "none" { return MouseCursor.none; }
+        if name == "text" { return MouseCursor.text; }
+        if name == "nwse" { return MouseCursor.nwse-resize; }
+        if name == "nesw" { return MouseCursor.nesw-resize; }
+        if name == "ns" { return MouseCursor.ns-resize; }
+        if name == "ew" { return MouseCursor.ew-resize; }
+        return MouseCursor.default;
+    }
+
+    canvas := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+        clip: true;
+        // While the canvas is open in its own window, the main window shows only the placeholder (below).
+        visible: !(CanvasState.popped-out && !root.embedded);
+
+        init => {
+            CanvasState.viewport(self.width / 1px, self.height / 1px);
+        }
+        changed width => {
+            CanvasState.viewport(self.width / 1px, self.height / 1px);
+        }
+        changed height => {
+            CanvasState.viewport(self.width / 1px, self.height / 1px);
+        }
+
+        // 1. Grid (View setting), under the items.
+        if CanvasState.grid-mode != "none" : CanvasGridLayer {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+
+        // 2. Items, in draw order. A caption or title is hidden while its item is being edited (the editor shows it).
+        for it in CanvasState.items : CanvasItem {
+            item: it;
+            zoom: CanvasState.zoom;
+            pan-x: CanvasState.pan-x;
+            pan-y: CanvasState.pan-y;
+            hide-text: it.editing || it.id == CanvasState.editing-id;
+        }
+
+        // 3. Presence: each peer's selection outline and cursor (CV.10).
+        CanvasPeersLayer {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+
+        // 4. Selection overlay: the box in screen space, rotated, with handles when the selection can be edited.
+        if CanvasState.has-selection : Rectangle {
+            property <bool> handles-on: !CanvasState.read-only && !CanvasState.sel-locked;
+            x: (CanvasState.sel-x * CanvasState.zoom + CanvasState.pan-x) * 1px;
+            y: (CanvasState.sel-y * CanvasState.zoom + CanvasState.pan-y) * 1px;
+            width: CanvasState.sel-w * CanvasState.zoom * 1px;
+            height: CanvasState.sel-h * CanvasState.zoom * 1px;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-rotation: CanvasState.sel-rotation * 1deg;
+            background: transparent;
+            border-width: 1px;
+            border-color: CanvasState.sel-locked ? Tokens.text-muted : Tokens.accent-default;
+
+            if handles-on : CanvasHandle { x: -4px; y: -4px; }
+            if handles-on : CanvasHandle { x: parent.width / 2 - 4px; y: -4px; }
+            if handles-on : CanvasHandle { x: parent.width - 4px; y: -4px; }
+            if handles-on : CanvasHandle { x: parent.width - 4px; y: parent.height / 2 - 4px; }
+            if handles-on : CanvasHandle { x: parent.width - 4px; y: parent.height - 4px; }
+            if handles-on : CanvasHandle { x: parent.width / 2 - 4px; y: parent.height - 4px; }
+            if handles-on : CanvasHandle { x: -4px; y: parent.height - 4px; }
+            if handles-on : CanvasHandle { x: -4px; y: parent.height / 2 - 4px; }
+
+            // The rotate knob: a 10px circle 24px above the top edge, joined to the edge by a 1px line.
+            if handles-on : Rectangle {
+                x: parent.width / 2 - 0.5px;
+                y: -24px;
+                width: 1px;
+                height: 24px;
+                background: Tokens.accent-default;
+            }
+            if handles-on : Rectangle {
+                x: parent.width / 2 - 5px;
+                y: -29px;
+                width: 10px;
+                height: 10px;
+                border-radius: 5px;
+                background: #ffffff;
+                border-width: 1px;
+                border-color: Tokens.accent-default;
+            }
+        }
+
+        // 5. Crop mode (CV.7): the picture dimmed outside the crop window, with its outline and handles.
+        if CanvasState.crop-active : CanvasCropLayer {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+
+        // 6. Marquee, in screen px while a drag selects on empty canvas.
+        if CanvasState.marquee-active : Rectangle {
+            x: CanvasState.marquee-x * 1px;
+            y: CanvasState.marquee-y * 1px;
+            width: CanvasState.marquee-w * 1px;
+            height: CanvasState.marquee-h * 1px;
+            background: Tokens.accent-default.with-alpha(0.1);
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+
+        // 7. Snap guides, in screen px. A vertical guide has x1 == x2; otherwise it is horizontal.
+        for g in CanvasState.guides : Rectangle {
+            x: min(g.x1, g.x2) * 1px;
+            y: min(g.y1, g.y2) * 1px;
+            width: g.x1 == g.x2 ? 1px : abs(g.x2 - g.x1) * 1px;
+            height: g.x1 == g.x2 ? abs(g.y2 - g.y1) * 1px : 1px;
+            background: Tokens.accent-default;
+        }
+
+        // Eraser circle (owner review 2): drawn while the Eraser tool is active over the canvas. It takes no input.
+        if CanvasState.eraser-shown : Rectangle {
+            x: (CanvasState.eraser-x - CanvasState.eraser-r) * 1px;
+            y: (CanvasState.eraser-y - CanvasState.eraser-r) * 1px;
+            width: CanvasState.eraser-r * 2px;
+            height: CanvasState.eraser-r * 2px;
+            border-radius: CanvasState.eraser-r * 1px;
+            border-width: 1.5px;
+            border-color: Tokens.text-primary;
+            background: Tokens.text-primary.with-alpha(0.08);
+        }
+
+        // 8. Input. It covers the canvas and is declared after the item layers, so it gets every pointer event. Items, handles
+        // and guides have no input of their own.
+        fs := FocusScope {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            init => {
+                self.focus();
+            }
+            key-pressed(e) => {
+                if CanvasState.editing-id != "" {
+                    return reject;
+                }
+                return CanvasState.key(e.text, e.modifiers.shift, e.modifiers.control, e.modifiers.alt) ? accept : reject;
+            }
+
+            ta := TouchArea {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: root.cursor-of(CanvasState.cursor);
+
+                // Every pointer kind goes to Rust: down, move (hover and drag) and up. A cancel is sent as an up without a button.
+                pointer-event(e) => {
+                    if e.kind == PointerEventKind.down {
+                        fs.focus();
+                    }
+                    CanvasState.pointer(
+                        e.kind == PointerEventKind.down ? "down" : (e.kind == PointerEventKind.move ? "move" : "up"),
+                        self.mouse-x / 1px,
+                        self.mouse-y / 1px,
+                        e.kind == PointerEventKind.cancel ? "none" : (e.button == PointerEventButton.left ? "left" : (e.button == PointerEventButton.right ? "right" : (e.button == PointerEventButton.middle ? "middle" : "none"))),
+                        e.modifiers.shift,
+                        e.modifiers.control,
+                        e.modifiers.alt
+                    );
+                }
+                // The pointer left the canvas: Rust drops the cursor (its presence is sent without a cursor).
+                changed has-hover => {
+                    if !self.has-hover {
+                        CanvasState.pointer("leave", 0, 0, "none", false, false, false);
+                    }
+                }
+                double-clicked => {
+                    CanvasState.double-click(self.mouse-x / 1px, self.mouse-y / 1px);
+                }
+                scroll-event(e) => {
+                    CanvasState.scroll(self.mouse-x / 1px, self.mouse-y / 1px, e.delta-x / 1px, e.delta-y / 1px, e.modifiers.control, e.modifiers.shift);
+                    return accept;
+                }
+            }
+        }
+
+        // 8a. Video controls (CV-V.4), above the input layer so their buttons get presses. A play button at the centre of a
+        // video that is not playing (or "Loading..." while its file comes), and a bar along its bottom edge while it plays or is
+        // selected. Each holder is transparent and takes no input: only the buttons, the scrub track and the bar's own
+        // buttons catch presses, so the rest of the video reaches the input layer (select, drag).
+        for v in CanvasState.video-controls : Rectangle {
+            x: v.x * 1px;
+            y: v.y * 1px;
+            width: v.w * 1px;
+            height: v.h * 1px;
+            background: transparent;
+
+            if !v.playing && !v.loading : Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 48px;
+                height: 48px;
+                border-radius: 24px;
+                background: #000000.with-alpha(0.55);
+
+                Image {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 22px;
+                    height: 22px;
+                    source: Icons.play;
+                    colorize: #ffffff;
+                }
+                TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+                    clicked => {
+                        CanvasState.video-toggle(v.id);
+                    }
+                }
+
+                // A dot on the button: a shared playback is on for this video (CV-V.5).
+                if v.shared : Rectangle {
+                    x: parent.width - 12px;
+                    y: 2px;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 5px;
+                    background: Tokens.accent-default;
+                }
+            }
+
+            if v.loading : Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 128px;
+                height: 32px;
+                border-radius: 16px;
+                background: #000000.with-alpha(0.55);
+
+                Text {
+                    width: parent.width;
+                    height: parent.height;
+                    text: "Loading…";
+                    color: #ffffff;
+                    font-family: Type.caption.family;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            if v.playing || v.selected : Rectangle {
+                x: 0px;
+                y: parent.height - self.height;
+                width: max(160px, parent.width);
+                height: 32px;
+                background: #000000.with-alpha(0.6);
+
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    spacing: 8px;
+                    alignment: center;
+
+                    // Play or pause (24 px).
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: transparent;
+                        Image {
+                            width: 18px;
+                            height: 18px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: v.playing ? Icons.pause : Icons.play;
+                            colorize: #ffffff;
+                        }
+                        TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            clicked => {
+                                CanvasState.video-toggle(v.id);
+                            }
+                        }
+                    }
+
+                    // The scrub track: a press or a drag seeks to the fraction under the pointer.
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        min-width: 40px;
+                        height: 24px;
+                        background: transparent;
+                        Rectangle {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2;
+                            width: parent.width;
+                            height: 4px;
+                            border-radius: 2px;
+                            background: #ffffff.with-alpha(0.3);
+                            Rectangle {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width * max(0, min(1, v.progress));
+                                height: parent.height;
+                                border-radius: 2px;
+                                background: Tokens.accent-default;
+                            }
+                        }
+                        TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            pointer-event(e) => {
+                                if e.kind == PointerEventKind.down {
+                                    CanvasState.video-seek(v.id, max(0, min(1, self.mouse-x / self.width)));
+                                }
+                            }
+                            moved => {
+                                if self.pressed {
+                                    CanvasState.video-seek(v.id, max(0, min(1, self.mouse-x / self.width)));
+                                }
+                            }
+                        }
+                    }
+
+                    // The time, "1:23 / 8:40".
+                    Text {
+                        vertical-alignment: center;
+                        text: v.time-text;
+                        color: #ffffff;
+                        font-family: Type.caption.family;
+                        font-size: 12px;
+                    }
+
+                    // Play for everyone (CV-V.5): starts a shared playback, or follows / leaves / ends it. Accent while this
+                    // person follows it.
+                    Rectangle {
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+                        background: transparent;
+                        Image {
+                            width: 16px;
+                            height: 16px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.users;
+                            colorize: v.following ? Tokens.accent-default : #ffffff.with-alpha(0.6);
+                        }
+                        TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            clicked => {
+                                CanvasState.video-together(v.id);
+                            }
+                        }
+                    }
+
+                    // Loop (accent when on).
+                    Rectangle {
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+                        background: transparent;
+                        Image {
+                            width: 16px;
+                            height: 16px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.repeat;
+                            colorize: v.looping ? Tokens.accent-default : #ffffff.with-alpha(0.6);
+                        }
+                        TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            clicked => {
+                                CanvasState.video-loop(v.id);
+                            }
+                        }
+                    }
+
+                    // Mute (the speaker crossed out when muted).
+                    Rectangle {
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+                        background: transparent;
+                        Image {
+                            width: 16px;
+                            height: 16px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: v.muted ? Icons.volume-x : Icons.volume-2;
+                            colorize: #ffffff;
+                        }
+                        TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            clicked => {
+                                CanvasState.video-mute(v.id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 9. Text editor, over the box of the item being edited. Three fields: a note's text (over its box), an image's caption
+        // (under the image, 40 px tall at the zoom) and a frame's title (a 24 px band above the frame). It sits above the input
+        // layer so the TextInput gets the pointer. Slint has no `for ... : if ...`: a zero-size holder per row carries the `if`.
+        for it in CanvasState.items : Rectangle {
+            x: 0px;
+            y: 0px;
+            width: 0px;
+            height: 0px;
+          if it.id == CanvasState.editing-id : Rectangle {
+            property <bool> is-text: CanvasState.editing-field == "text";
+            property <bool> is-comment: CanvasState.editing-field == "comment";
+            property <bool> is-title: CanvasState.editing-field == "title";
+            property <length> pad: (is-text && it.fill != "") ? 6px * CanvasState.zoom : 0px;
+            x: (it.x * CanvasState.zoom + CanvasState.pan-x) * 1px;
+            y: is-title
+                ? (it.y * CanvasState.zoom + CanvasState.pan-y) * 1px - 24px
+                : (is-comment
+                    ? (it.y * CanvasState.zoom + CanvasState.pan-y + it.h * CanvasState.zoom) * 1px + 4px
+                    : (it.y * CanvasState.zoom + CanvasState.pan-y) * 1px);
+            width: it.w * CanvasState.zoom * 1px;
+            height: is-title ? 24px : (is-comment ? 40px * CanvasState.zoom : it.h * CanvasState.zoom * 1px);
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-rotation: is-text ? it.rotation * 1deg : 0deg;
+            background: (is-text && it.fill != "") ? CanvasPalette.fill(it.fill) : Tokens.surface-raised.with-alpha(0.6);
+            border-radius: (is-text && it.fill != "") ? 4px : 0px;
+
+            TextInput {
+                // TextInput has no padding: the note's inset is its position and size.
+                x: parent.pad;
+                y: parent.pad;
+                width: max(1px, parent.width - 2 * parent.pad);
+                height: max(1px, parent.height - 2 * parent.pad);
+                text: CanvasState.editing-text;
+                single-line: parent.is-title;
+                font-family: parent.is-text ? Type.body.family : Type.caption.family;
+                font-size: parent.is-text
+                    ? max(1px, it.font-size * CanvasState.zoom * 1px)
+                    : (parent.is-title ? 12px : max(9px, 12px * CanvasState.zoom));
+                color: parent.is-text ? CanvasPalette.color(it.color) : Tokens.text-muted;
+                wrap: word-wrap;
+                horizontal-alignment: it.align == "center" ? center : (it.align == "right" ? right : left);
+                vertical-alignment: top;
+
+                init => {
+                    self.focus();
+                }
+                edited => {
+                    CanvasState.editing-text = self.text;
+                }
+                changed has-focus => {
+                    if !self.has-focus {
+                        CanvasState.text-commit(self.text);
+                    }
+                }
+                key-pressed(e) => {
+                    if e.text == Key.Escape {
+                        CanvasState.text-cancel();
+                        return accept;
+                    }
+                    if e.text == Key.Return && !e.modifiers.shift {
+                        CanvasState.text-commit(self.text);
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+          }
+        }
+
+        // 10. Toolbar, floating at the bottom centre (owner review 2). Tools on the left (the drawing tools only when the canvas can
+        // be edited), then add image, then undo and redo, then Pop out (main window only). The write tools are hidden when the
+        // canvas is read-only. Tooltips open above the buttons (the IconButton default, TooltipPlacement.top).
+        Rectangle {
+            y: parent.height - self.height - Tokens.space-3;
+            x: (parent.width - self.width) / 2;
+            width: tools.preferred-width + 2 * Tokens.space-1;
+            height: Tokens.size-control-md + 2 * Tokens.space-1;
+            background: Tokens.surface-raised;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            border-radius: Tokens.radius-r8;
+            drop-shadow-color: Tokens.shadow-overlay;
+            drop-shadow-offset-y: Tokens.shadow-overlay-offset-y;
+            drop-shadow-blur: Tokens.shadow-overlay-blur;
+
+            tools := HorizontalLayout {
+                x: Tokens.space-1;
+                y: Tokens.space-1;
+                width: parent.width - 2 * Tokens.space-1;
+                height: parent.height - 2 * Tokens.space-1;
+                spacing: Tokens.space-1;
+                alignment: center;
+
+                IconButton {
+                    label: "Select";
+                    tooltip: "Select";
+                    tooltip-shortcut: ["V"];
+                    icon: Icons.mouse-pointer-2;
+                    variant: ButtonVariant.ghost;
+                    checkable: true;
+                    selected: CanvasState.tool == "select";
+                    clicked => {
+                        CanvasState.set-tool("select");
+                    }
+                }
+                if !CanvasState.read-only : IconButton {
+                    label: "Text";
+                    tooltip: "Text";
+                    tooltip-shortcut: ["T"];
+                    icon: Icons.type;
+                    variant: ButtonVariant.ghost;
+                    checkable: true;
+                    selected: CanvasState.tool == "text";
+                    clicked => {
+                        CanvasState.set-tool("text");
+                    }
+                }
+                IconButton {
+                    label: "Hand";
+                    tooltip: "Hand";
+                    tooltip-shortcut: ["H"];
+                    icon: Icons.hand;
+                    variant: ButtonVariant.ghost;
+                    checkable: true;
+                    selected: CanvasState.tool == "hand";
+                    clicked => {
+                        CanvasState.set-tool("hand");
+                    }
+                }
+                // Drawing tools (CV.9). Icons: rectangle is app-window, diamond has no icon (star), eraser has no icon (trash).
+                if !CanvasState.read-only : Rectangle {
+                    width: 1px;
+                    height: Tokens.icon-large;
+                    background: Tokens.border-subtle;
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Rectangle";
+                    tooltip: "Rectangle";
+                    tooltip-shortcut: ["R"];
+                    icon: Icons.square;
+                    tool-name: "rect";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Ellipse";
+                    tooltip: "Ellipse";
+                    tooltip-shortcut: ["O"];
+                    icon: Icons.circle;
+                    tool-name: "ellipse";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Diamond";
+                    tooltip: "Diamond";
+                    tooltip-shortcut: ["D"];
+                    icon: Icons.diamond;
+                    tool-name: "diamond";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Line";
+                    tooltip: "Line";
+                    tooltip-shortcut: ["L"];
+                    icon: Icons.slash;
+                    tool-name: "line";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Arrow";
+                    tooltip: "Arrow";
+                    tooltip-shortcut: ["A"];
+                    icon: Icons.move-up-right;
+                    tool-name: "arrow";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Pen";
+                    tooltip: "Pen";
+                    tooltip-shortcut: ["P"];
+                    icon: Icons.pen-tool;
+                    tool-name: "pen";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Eraser";
+                    tooltip: "Eraser";
+                    tooltip-shortcut: ["E"];
+                    icon: Icons.eraser;
+                    tool-name: "eraser";
+                }
+                if !CanvasState.read-only : CanvasToolButton {
+                    label: "Frame";
+                    tooltip: "Frame";
+                    tooltip-shortcut: ["M"];
+                    icon: Icons.frame;
+                    tool-name: "frame";
+                }
+                if !CanvasState.read-only : Rectangle {
+                    width: 1px;
+                    height: Tokens.icon-large;
+                    background: Tokens.border-subtle;
+                }
+                if !CanvasState.read-only : IconButton {
+                    label: "Add image";
+                    tooltip: "Add image";
+                    icon: Icons.image-plus;
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.add-image();
+                    }
+                }
+                if !CanvasState.read-only : Rectangle {
+                    width: 1px;
+                    height: Tokens.icon-large;
+                    background: Tokens.border-subtle;
+                }
+                if !CanvasState.read-only : IconButton {
+                    label: "Undo";
+                    tooltip: "Undo (Ctrl+Z)";
+                    tooltip-shortcut: ["Ctrl", "Z"];
+                    icon: Icons.undo-2;
+                    variant: ButtonVariant.ghost;
+                    enabled: CanvasState.can-undo;
+                    clicked => {
+                        CanvasState.undo();
+                    }
+                }
+                if !CanvasState.read-only : IconButton {
+                    label: "Redo";
+                    tooltip: "Redo";
+                    icon: Icons.redo-2;
+                    variant: ButtonVariant.ghost;
+                    enabled: CanvasState.can-redo;
+                    clicked => {
+                        CanvasState.redo();
+                    }
+                }
+                if !root.embedded : Rectangle {
+                    width: 1px;
+                    height: Tokens.icon-large;
+                    background: Tokens.border-subtle;
+                }
+                // Pop out: the canvas opens in its own window (Ctrl+Shift+P). Not shown inside the pop-out window itself.
+                if !root.embedded : IconButton {
+                    label: "Pop out";
+                    tooltip: "Pop out (Ctrl+Shift+P)";
+                    icon: Icons.external-link;
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.pop-out();
+                    }
+                }
+            }
+        }
+
+        // 11. Zoom controls, bottom right: zoom out, the zoom level (click resets it to 100%), zoom in, and zoom to fit.
+        Rectangle {
+            x: parent.width - self.width - Tokens.space-3;
+            y: parent.height - self.height - Tokens.space-3;
+            width: zoom-row.preferred-width + 2 * Tokens.space-1;
+            height: Tokens.size-control-md + 2 * Tokens.space-1;
+            background: Tokens.surface-raised;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            border-radius: Tokens.radius-r8;
+            drop-shadow-color: Tokens.shadow-overlay;
+            drop-shadow-offset-y: Tokens.shadow-overlay-offset-y;
+            drop-shadow-blur: Tokens.shadow-overlay-blur;
+
+            zoom-row := HorizontalLayout {
+                x: Tokens.space-1;
+                y: Tokens.space-1;
+                width: parent.width - 2 * Tokens.space-1;
+                height: parent.height - 2 * Tokens.space-1;
+                spacing: Tokens.space-1;
+                alignment: center;
+
+                IconButton {
+                    label: "Zoom out";
+                    tooltip: "Zoom out";
+                    icon: Icons.zoom-out;
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.zoom-out();
+                    }
+                }
+                Button {
+                    text: CanvasState.zoom-label;
+                    accessible-name: "Reset zoom to 100%";
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.zoom-reset();
+                    }
+                }
+                IconButton {
+                    label: "Zoom in";
+                    tooltip: "Zoom in";
+                    icon: Icons.zoom-in;
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.zoom-in();
+                    }
+                }
+                IconButton {
+                    label: "Zoom to fit";
+                    tooltip: "Zoom to fit (F)";
+                    tooltip-shortcut: ["F"];
+                    icon: Icons.scan;
+                    variant: ButtonVariant.ghost;
+                    clicked => {
+                        CanvasState.zoom-fit();
+                    }
+                }
+            }
+        }
+
+        // 12. Title box, floating top left (above the input layer, so it takes its own clicks). Click it, when the canvas can
+        // be edited, to rename: the TextInput takes the label's place. Enter or focus loss saves; Escape cancels.
+        Rectangle {
+            // The editor sizes to its text like the label (owner, 2026-11-19): at least 120px, at most 320px.
+            property <string> draft: CanvasState.title;
+            x: 12px;
+            y: 12px;
+            height: 36px;
+            width: CanvasState.renaming
+                ? max(120px, min(320px, draft-measure.preferred-width + 32px))
+                : min(320px, title-text.preferred-width + 24px);
+
+            // Measures the text being typed (never drawn).
+            draft-measure := Text {
+                visible: false;
+                text: parent.draft;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+            }
+            background: Tokens.surface-raised;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            border-radius: 8px;
+            clip: true;
+
+            title-row := HorizontalLayout {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                padding-left: Tokens.space-3;
+                padding-right: Tokens.space-3;
+                visible: !CanvasState.renaming;
+
+                title-text := Text {
+                    horizontal-stretch: 1;
+                    text: CanvasState.title;
+                    color: Tokens.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+            }
+
+            if !CanvasState.read-only && !CanvasState.renaming : TouchArea {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: pointer;
+                clicked => {
+                    CanvasState.renaming = true;
+                }
+            }
+
+            if CanvasState.renaming : TextInput {
+                x: 12px;
+                y: (parent.height - self.height) / 2;
+                width: parent.width - 24px;
+                height: 24px;
+                text: CanvasState.title;
+                single-line: true;
+                color: Tokens.text-primary;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+
+                init => {
+                    self.focus();
+                    self.select-all();
+                    parent.draft = CanvasState.title;
+                }
+                edited => {
+                    parent.draft = self.text;
+                }
+                key-pressed(e) => {
+                    if e.text == Key.Return {
+                        CanvasState.rename(self.text);
+                        CanvasState.renaming = false;
+                        return accept;
+                    }
+                    if e.text == Key.Escape {
+                        CanvasState.renaming = false;
+                        return accept;
+                    }
+                    return reject;
+                }
+                changed has-focus => {
+                    if !self.has-focus && CanvasState.renaming {
+                        CanvasState.rename(self.text);
+                        CanvasState.renaming = false;
+                    }
+                }
+            }
+        }
+
+        // 13. Status chips, bottom left.
+        VerticalLayout {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            padding: Tokens.space-3;
+            alignment: end;
+            spacing: Tokens.space-1;
+
+            // The busy chip sits above the status chips while work runs (for example adding images).
+            HorizontalLayout {
+                alignment: start;
+
+                if CanvasState.busy-text != "" : CanvasBusyChip {
+                    text: CanvasState.busy-text;
+                }
+            }
+
+            HorizontalLayout {
+                alignment: start;
+                spacing: Tokens.space-1;
+
+                if CanvasState.read-only : CanvasChip {
+                    text: "View only";
+                }
+                if CanvasState.connection == "reconnecting" : CanvasChip {
+                    text: "Reconnecting...";
+                }
+                if CanvasState.connection == "connecting" : CanvasChip {
+                    text: "Connecting...";
+                }
+            }
+        }
+
+        // 14. Presence avatars, top right (CV.10). Kept 12px from the edges; the zoom controls are at the bottom right.
+        if CanvasState.peers.length > 0 : CanvasAvatars {
+            x: parent.width - self.width - 12px;
+            y: 12px;
+        }
+
+        // 15. Hierarchy panel (Ctrl+J), down the right edge below the top bar.
+        if CanvasState.hierarchy-open : CanvasHierarchyPanel {
+            x: parent.width - self.width - 12px;
+            y: 56px;
+            height: parent.height - 56px - 12px;
+        }
+
+        // 16. Slideshow (Alt+S): a full overlay over the canvas. It takes the pointer and the keys while open.
+        if CanvasState.slideshow-open : CanvasSlideshow {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+
+        // 17. Dialogs: manage images (Ctrl+Shift+J) and the window picker (Always on top of..., Windows only).
+        CanvasAssetsDialog {
+            shown: CanvasState.assets-open;
+            host-width: root.width;
+            host-height: root.height;
+        }
+        CanvasWindowPicker {
+            shown: CanvasState.windows-open;
+            host-width: root.width;
+            host-height: root.height;
+        }
+
+        // 18. Menu, drawn from Rust data (CanvasState.menu-panels and menu-rows). It is the last layer of the canvas, above the
+        // toolbar and the chips. Each panel draws its own rows inside it; panels are in level order, so a deeper panel (a higher
+        // index) covers its parent. The dismiss area is below all panels and closes the menu on a press outside them; each panel
+        // has its own area above the dismiss area, so a press on its empty space does nothing. The rows' areas are above the
+        // panel's, so the rows get the clicks. No row takes keyboard focus, so the canvas keeps the keys while the menu is open.
+        if CanvasState.menu-open : Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            background: transparent;
+
+            // Declared first, so every panel and row is above it.
+            TouchArea {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                pointer-event(e) => {
+                    if e.kind == PointerEventKind.down {
+                        CanvasState.menu-dismiss();
+                    }
+                }
+            }
+
+            for p[pi] in CanvasState.menu-panels : Rectangle {
+                x: p.x * 1px;
+                y: p.y * 1px;
+                width: p.w * 1px;
+                height: p.h * 1px;
+                background: Tokens.surface-overlay;
+                border-width: 1px;
+                border-color: Tokens.border-subtle;
+                border-radius: Tokens.radius-surface;
+                drop-shadow-color: Tokens.shadow-overlay;
+                drop-shadow-offset-y: Tokens.shadow-overlay-offset-y;
+                drop-shadow-blur: Tokens.shadow-overlay-blur;
+
+                // Swallows presses on the panel's empty space (declared before the rows, so the rows are above it).
+                TouchArea {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                }
+
+                for r[ri] in CanvasState.menu-rows : Rectangle {
+                    visible: r.panel == pi;
+                    x: (r.x - p.x) * 1px;
+                    y: (r.y - p.y) * 1px;
+                    width: r.w * 1px;
+                    height: r.h * 1px;
+                    background: transparent;
+
+                    // Separator: a 1px rule, inset 4px each side.
+                    if r.kind == "separator" : Rectangle {
+                        x: Tokens.space-1;
+                        y: (parent.height - self.height) / 2;
+                        width: parent.width - 2 * Tokens.space-1;
+                        height: 1px;
+                        background: Tokens.border-subtle;
+                    }
+
+                    // Item or submenu: hover tint when highlighted and enabled, the label, then the shortcut, a check mark when on, or a chevron.
+                    if r.kind == "item" || r.kind == "submenu" : Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: parent.height;
+                        background: (r.highlighted && r.enabled) ? Tokens.button-ghost-bg-hover : transparent;
+                        border-radius: Tokens.radius-r4;
+
+                        HorizontalLayout {
+                            x: 0px;
+                            y: 0px;
+                            width: parent.width;
+                            height: parent.height;
+                            padding-left: Tokens.space-2;
+                            padding-right: Tokens.space-2;
+                            spacing: Tokens.space-2;
+
+                            Text {
+                                horizontal-stretch: 1;
+                                text: r.label;
+                                color: r.enabled ? Tokens.text-primary : Tokens.disabled-text;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+
+                            if r.kind == "item" && r.shortcut != "" : Text {
+                                text: r.shortcut;
+                                color: r.enabled ? Tokens.text-muted : Tokens.disabled-text;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                                vertical-alignment: center;
+                            }
+
+                            // An on toggle item shows a check mark after its label and shortcut; nothing is reserved when it is off,
+                            // so every label starts at the same place.
+                            if r.checked == 1 : Rectangle {
+                                width: Tokens.icon-small;
+
+                                Image {
+                                    x: 0px;
+                                    y: (parent.height - self.height) / 2;
+                                    width: Tokens.icon-small;
+                                    height: Tokens.icon-small;
+                                    source: Icons.check;
+                                    colorize: r.enabled ? Tokens.text-primary : Tokens.disabled-text;
+                                }
+                            }
+
+                            if r.kind == "submenu" : Rectangle {
+                                width: Tokens.icon-small;
+
+                                Image {
+                                    x: 0px;
+                                    y: (parent.height - self.height) / 2;
+                                    width: Tokens.icon-small;
+                                    height: Tokens.icon-small;
+                                    source: Icons.chevron-right;
+                                    colorize: r.enabled ? Tokens.text-muted : Tokens.disabled-text;
+                                }
+                            }
+                        }
+                    }
+
+                    // Toggle: two pill halves side by side, 4px apart, centred vertically. The selected half has the accent fill
+                    // (toggle-right-on picks the right one); the other has a subtle raised background.
+                    if r.kind == "toggle" : Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: parent.height;
+                        background: transparent;
+
+                        Rectangle {
+                            x: Tokens.space-2;
+                            y: (parent.height - self.height) / 2;
+                            width: (parent.width - 2 * Tokens.space-2 - Tokens.space-1) / 2;
+                            height: parent.height - 2 * Tokens.space-1;
+                            border-radius: Tokens.radius-r4;
+                            background: r.toggle-right-on ? Tokens.surface-raised : Tokens.accent-fill;
+                            border-width: r.toggle-right-on ? 1px : 0px;
+                            border-color: Tokens.border-subtle;
+
+                            Text {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width;
+                                height: parent.height;
+                                text: r.toggle-left;
+                                color: r.toggle-right-on ? Tokens.text-primary : Tokens.text-on-accent;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle {
+                            x: Tokens.space-2 + (parent.width - 2 * Tokens.space-2 - Tokens.space-1) / 2 + Tokens.space-1;
+                            y: (parent.height - self.height) / 2;
+                            width: (parent.width - 2 * Tokens.space-2 - Tokens.space-1) / 2;
+                            height: parent.height - 2 * Tokens.space-1;
+                            border-radius: Tokens.radius-r4;
+                            background: r.toggle-right-on ? Tokens.accent-fill : Tokens.surface-raised;
+                            border-width: r.toggle-right-on ? 0px : 1px;
+                            border-color: Tokens.border-subtle;
+
+                            Text {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width;
+                                height: parent.height;
+                                text: r.toggle-right;
+                                color: r.toggle-right-on ? Tokens.text-on-accent : Tokens.text-primary;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Hover and click for every row but a separator. Declared last, so it is on top of the row's drawing.
+                    if r.kind != "separator" : TouchArea {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: parent.height;
+                        changed has-hover => {
+                            if self.has-hover {
+                                CanvasState.menu-hover(ri);
+                            }
+                        }
+                        clicked => {
+                            CanvasState.menu-click(ri, self.mouse-x / self.width);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 19. Drop overlay: files dragged over the window from the OS. A tint, a border and a label. It has no input.
+    if CanvasState.drop-hover : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: Tokens.accent-default.with-alpha(0.08);
+        border-width: 2px;
+        border-color: Tokens.accent-default;
+
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: "Drop images to add them";
+            color: Tokens.accent-text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-family: Type.heading.family;
+            font-size: Type.heading.size;
+            font-weight: Type.heading.weight;
+        }
+    }
+
+    // 20. Pop-out placeholder: in the main window, while the canvas is open in its own window (CV.12). The pop-out itself
+    // (embedded) draws the canvas instead.
+    if CanvasState.popped-out && !root.embedded : CanvasPoppedOut {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+    }
+
+    // 21. Page state: a spinner while the canvas loads, or an error with Try again. It covers the canvas and takes the pointer.
+    if CanvasState.state != PageLoadState.loaded && !(CanvasState.popped-out && !root.embedded) : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: Tokens.surface-sunken;
+
+        TouchArea {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+        VerticalLayout {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            padding: Tokens.space-4;
+            alignment: center;
+
+            PageState {
+                state: CanvasState.state;
+                icon: Icons.presentation;
+                loading-text: "Loading canvas...";
+                error-title: "Could not open this canvas";
+                error-description: "The canvas could not be loaded.";
+                error-details: CanvasState.error;
+                retry => {
+                    CanvasState.retry();
+                }
+            }
+        }
+    }
+}

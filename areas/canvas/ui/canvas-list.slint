@@ -1,0 +1,601 @@
+// Canvases list (CV.6, CV.11). The canvases of the workspace (or of one project) as a Table: Name, Last updated, Created and Access.
+// A toolbar above it holds the storage quota (left), the Archived toggle and New canvas (right). A double-click or Enter opens
+// the canvas; a right press on a row, or its ellipsis button, opens its menu (Open, Rename, Archive, Share, Move to project,
+// Delete). The data and actions come from src/ through `CanvasListState`. The page reports `opened` from its
+// `init`, so the list loads whenever its route becomes active. The page has no heading of its own: the app's page header
+// shows the title.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Field } from "@rimelight_ui/components/field.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { ContextMenu, MenuItem, MenuKind, MenuChecked } from "@rimelight_ui/components/menu.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Progress } from "@rimelight_ui/components/progress.slint";
+
+// The list page's state, set by src/list.rs. `can-create` shows New canvas. `creating` disables it while one is
+// made. `show-archived` means the rows are the archived canvases.
+// The table: `table-columns` and `table-rows` are in display order, and `sort-column` (0 Name, 1 Last updated, 2 Created,
+// 3 Access) and `sort-descending` say how. `selected-index` is the selected row's place in that order (-1 for none), and
+// `selected-can-manage`, `selected-archived`, `selected-can-share` and `selected-can-move` describe the selected canvas.
+// The quota line: `quota-shown`, `quota-text` and `quota-fraction` (0 to 1).
+// The Share dialog: `share-rows` are the shares (cells: name, email, role "Viewer" or "Editor"), `share-results` the people
+// the Add person search found (cells: name, title), `share-message` a line under them.
+// The Move dialog: `move-options` are the projects the caller can move to, and `move-key` the one picked.
+export global CanvasListState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <bool> can-create;
+    in-out property <bool> creating;
+    in-out property <bool> show-archived;
+    in-out property <[TableColumn]> table-columns;
+    in-out property <[TableRow]> table-rows;
+    in-out property <int> sort-column: 1;
+    in-out property <bool> sort-descending: true;
+    in-out property <int> selected-index: -1;
+    in-out property <string> selected-id;
+    in-out property <bool> selected-can-manage;
+    in-out property <bool> selected-archived;
+    in-out property <bool> selected-can-share;
+    in-out property <bool> selected-can-move;
+    callback opened(string);   // route
+    callback retry();
+    callback create();
+    callback toggle-archived();
+    callback sort-by(int);     // column index
+    callback pick(int);        // row index
+    callback open-row(int);    // row index
+    callback resize-column(int, float); // column index, new width
+    // A row's action: the canvas id, then "open", "rename", "archive", "unarchive", "share", "move" or "delete".
+    callback row-action(string, string);
+    in-out property <bool> create-open;      // the New canvas dialog
+    in-out property <string> new-title;
+    callback create-named(string);           // the title from the dialog ("" = Untitled canvas)
+    in-out property <bool> rename-open;      // the Rename canvas dialog
+    in-out property <string> rename-id;
+    in-out property <string> rename-title;
+    callback rename-confirmed(string, string); // canvas id, the title typed
+    in-out property <bool> delete-open;      // the Delete canvas dialog
+    in-out property <string> delete-id;
+    in-out property <string> delete-title;
+    callback delete-confirmed(string);       // canvas id
+
+    // The storage quota line.
+    in-out property <bool> quota-shown;
+    in-out property <string> quota-text;
+    in-out property <float> quota-fraction;
+
+    // The Share dialog.
+    in-out property <bool> share-open;
+    in-out property <string> share-id;
+    in-out property <string> share-title;
+    in-out property <[TableRow]> share-rows;
+    in-out property <string> share-query;
+    in-out property <[TableRow]> share-results;
+    in-out property <string> share-message;
+    in-out property <[SelectOption]> share-role-options;
+    callback share-query-changed(string);    // the Add person text (the search waits 300 ms)
+    callback share-add(int);                 // index into share-results
+    callback share-role-changed(int, string); // index into share-rows, the new role
+    callback share-remove(int);              // index into share-rows
+
+    // The Move to project dialog.
+    in-out property <bool> move-open;
+    in-out property <string> move-id;
+    in-out property <string> move-title;
+    in-out property <string> move-key;
+    in-out property <[SelectOption]> move-options;
+    callback move-confirmed(string, string); // canvas id, project key
+}
+
+export component CanvasListPage inherits Rectangle {
+    // The window the dialogs cover (their popups are clipped to it). The shell passes its size.
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+    // The route of the page (the tab's route), passed in by the shell.
+    in property <string> route;
+
+    // An empty image: the menu items have no icon.
+    property <image> no-icon;
+    // The menu of a row: Open, the editing actions (disabled unless the person can manage the selected canvas), the sharing
+    // and move actions (personal canvases the person manages), and Delete.
+    property <[MenuItem]> row-menu-items: [
+        { id: "open", kind: MenuKind.item, label: "Open", icon: root.no-icon, shortcut: "", disabled: false, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "sep-1", kind: MenuKind.separator, label: "", icon: root.no-icon, shortcut: "", disabled: false, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "rename", kind: MenuKind.item, label: "Rename", icon: root.no-icon, shortcut: "", disabled: !CanvasListState.selected-can-manage, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: CanvasListState.selected-archived ? "unarchive" : "archive", kind: MenuKind.item, label: CanvasListState.selected-archived ? "Unarchive" : "Archive", icon: root.no-icon, shortcut: "", disabled: !CanvasListState.selected-can-manage, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "sep-2", kind: MenuKind.separator, label: "", icon: root.no-icon, shortcut: "", disabled: false, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "share", kind: MenuKind.item, label: "Share…", icon: root.no-icon, shortcut: "", disabled: !CanvasListState.selected-can-share, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "move", kind: MenuKind.item, label: "Move to project…", icon: root.no-icon, shortcut: "", disabled: !CanvasListState.selected-can-move, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "sep-3", kind: MenuKind.separator, label: "", icon: root.no-icon, shortcut: "", disabled: false, danger: false, checked: MenuChecked.none, parent: "" },
+        { id: "delete", kind: MenuKind.item, label: "Delete…", icon: root.no-icon, shortcut: "", disabled: !CanvasListState.selected-can-manage, danger: true, checked: MenuChecked.none, parent: "" },
+    ];
+
+    background: transparent;
+    vertical-stretch: 1;
+    init => {
+        CanvasListState.opened(root.route);
+    }
+
+    // The New canvas dialog follows `create-open`. Cancel, Escape and the close control clear it.
+    property <bool> create-shown: CanvasListState.create-open;
+    changed create-shown => {
+        if (root.create-shown) {
+            create-dlg.open();
+        } else {
+            create-dlg.close();
+        }
+    }
+
+    // The Rename canvas dialog follows `rename-open`.
+    property <bool> rename-shown: CanvasListState.rename-open;
+    changed rename-shown => {
+        if (root.rename-shown) {
+            rename-dlg.open();
+        } else {
+            rename-dlg.close();
+        }
+    }
+
+    // The Delete canvas dialog follows `delete-open`.
+    property <bool> delete-shown: CanvasListState.delete-open;
+    changed delete-shown => {
+        if (root.delete-shown) {
+            delete-dlg.open();
+        } else {
+            delete-dlg.close();
+        }
+    }
+
+    // The Share dialog follows `share-open`.
+    property <bool> share-shown: CanvasListState.share-open;
+    changed share-shown => {
+        if (root.share-shown) {
+            share-dlg.open();
+        } else {
+            share-dlg.close();
+        }
+    }
+
+    // The Move dialog follows `move-open`.
+    property <bool> move-shown: CanvasListState.move-open;
+    changed move-shown => {
+        if (root.move-shown) {
+            move-dlg.open();
+        } else {
+            move-dlg.close();
+        }
+    }
+
+    create-dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        host-width: root.host-width;
+        host-height: root.host-height;
+        title: "New canvas";
+        size: DialogSize.sm;
+        close-label: "Close new canvas";
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Create", variant: ButtonVariant.primary },
+        ];
+        // The Dialog focuses its first stop (the name field) when it opens.
+        closed => {
+            CanvasListState.create-open = false;
+        }
+        action-clicked(index) => {
+            // The footer cannot disable Create (Dialog's actions have no enabled flag), so a create in progress is ignored here.
+            if index == 1 && !CanvasListState.creating {
+                CanvasListState.create-named(CanvasListState.new-title);
+                CanvasListState.create-open = false;
+                create-dlg.close();
+            } else if index == 0 {
+                CanvasListState.create-open = false;
+                create-dlg.close();
+            }
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Field {
+                label: "Name";
+                name-input := Input {
+                    text <=> CanvasListState.new-title;
+                    placeholder: "Untitled canvas";
+                    accessible-name: "Name";
+                    submitted(value) => {
+                        if !CanvasListState.creating {
+                            CanvasListState.create-named(CanvasListState.new-title);
+                            CanvasListState.create-open = false;
+                            create-dlg.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    rename-dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        host-width: root.host-width;
+        host-height: root.host-height;
+        title: "Rename canvas";
+        size: DialogSize.sm;
+        close-label: "Close rename canvas";
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Rename", variant: ButtonVariant.primary },
+        ];
+        closed => {
+            CanvasListState.rename-open = false;
+        }
+        action-clicked(index) => {
+            if index == 1 {
+                CanvasListState.rename-confirmed(CanvasListState.rename-id, CanvasListState.rename-title);
+                CanvasListState.rename-open = false;
+                rename-dlg.close();
+            } else if index == 0 {
+                CanvasListState.rename-open = false;
+                rename-dlg.close();
+            }
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Field {
+                label: "Name";
+                rename-input := Input {
+                    text <=> CanvasListState.rename-title;
+                    placeholder: "Canvas name";
+                    accessible-name: "Name";
+                    submitted(value) => {
+                        CanvasListState.rename-confirmed(CanvasListState.rename-id, CanvasListState.rename-title);
+                        CanvasListState.rename-open = false;
+                        rename-dlg.close();
+                    }
+                }
+            }
+        }
+    }
+
+    delete-dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        host-width: root.host-width;
+        host-height: root.host-height;
+        title: "Delete canvas?";
+        description: "\"" + CanvasListState.delete-title + "\" and all its images will be deleted for good. This cannot be undone. Archive it instead to keep it.";
+        size: DialogSize.sm;
+        close-label: "Close delete canvas";
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Delete", variant: ButtonVariant.danger },
+        ];
+        closed => {
+            CanvasListState.delete-open = false;
+        }
+        action-clicked(index) => {
+            if index == 1 {
+                CanvasListState.delete-confirmed(CanvasListState.delete-id);
+                CanvasListState.delete-open = false;
+                delete-dlg.close();
+            } else if index == 0 {
+                CanvasListState.delete-open = false;
+                delete-dlg.close();
+            }
+        }
+    }
+
+    share-dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        host-width: root.host-width;
+        host-height: root.host-height;
+        title: "Share \"" + CanvasListState.share-title + "\"";
+        size: DialogSize.md;
+        close-label: "Close share canvas";
+        actions: [
+            { text: "Done", variant: ButtonVariant.primary },
+        ];
+        closed => {
+            CanvasListState.share-open = false;
+        }
+        action-clicked(index) => {
+            CanvasListState.share-open = false;
+            share-dlg.close();
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Text {
+                text: "People with access";
+                color: Tokens.text-muted;
+                font-family: Type.label.family;
+                font-size: Type.label.size;
+                font-weight: Type.label.weight;
+            }
+
+            if CanvasListState.share-rows.length == 0 : Text {
+                text: "Only you can see this canvas.";
+                color: Tokens.text-muted;
+                wrap: word-wrap;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+
+            for share-row[si] in CanvasListState.share-rows : HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Text {
+                    horizontal-stretch: 1;
+                    text: share-row.cells[0];
+                    color: Tokens.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: share-row.cells[1];
+                    color: Tokens.text-muted;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                Select {
+                    width: 120px;
+                    value: share-row.cells[2];
+                    options: CanvasListState.share-role-options;
+                    size: SelectSize.sm;
+                    accessible-name: "Role for \{share-row.cells[0]}";
+                    changed(role) => {
+                        CanvasListState.share-role-changed(si, role);
+                    }
+                }
+                Button {
+                    text: "Remove";
+                    variant: ButtonVariant.ghost;
+                    accessible-name: "Remove \{share-row.cells[0]}";
+                    clicked => {
+                        CanvasListState.share-remove(si);
+                    }
+                }
+            }
+
+            Field {
+                label: "Add person";
+                Input {
+                    text <=> CanvasListState.share-query;
+                    placeholder: "Search people by name";
+                    accessible-name: "Add person";
+                    changed(query) => {
+                        CanvasListState.share-query-changed(query);
+                    }
+                }
+            }
+
+            for result[ri] in CanvasListState.share-results : Button {
+                text: result.cells[1] == "" ? result.cells[0] : result.cells[0] + " · " + result.cells[1];
+                variant: ButtonVariant.ghost;
+                accessible-name: "Add \{result.cells[0]} as viewer";
+                clicked => {
+                    CanvasListState.share-add(ri);
+                }
+            }
+
+            if CanvasListState.share-message != "" : Text {
+                text: CanvasListState.share-message;
+                color: Tokens.text-muted;
+                wrap: word-wrap;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+        }
+    }
+
+    move-dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        host-width: root.host-width;
+        host-height: root.host-height;
+        title: "Move to project";
+        description: "\"" + CanvasListState.move-title + "\" moves into the project you pick and leaves your personal canvases.";
+        size: DialogSize.sm;
+        close-label: "Close move canvas";
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Move", variant: ButtonVariant.primary },
+        ];
+        closed => {
+            CanvasListState.move-open = false;
+        }
+        action-clicked(index) => {
+            if index == 1 {
+                CanvasListState.move-confirmed(CanvasListState.move-id, CanvasListState.move-key);
+                CanvasListState.move-open = false;
+                move-dlg.close();
+            } else if index == 0 {
+                CanvasListState.move-open = false;
+                move-dlg.close();
+            }
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Field {
+                label: "Project";
+                Select {
+                    value <=> CanvasListState.move-key;
+                    options: CanvasListState.move-options;
+                    placeholder: "Pick a project";
+                    accessible-name: "Project";
+                }
+            }
+        }
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        // The toolbar. The storage quota line at the left. A spacer takes the rest of the width, so the Archived toggle and
+        // New canvas (the active list only) sit at the right edge, whether or not the quota line shows.
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                horizontal-stretch: 0;
+
+                if CanvasListState.quota-shown : Text {
+                    text: CanvasListState.quota-text;
+                    color: Tokens.text-muted;
+                    vertical-alignment: center;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                if CanvasListState.quota-shown : VerticalLayout {
+                    alignment: center;
+
+                    Progress {
+                        width: 120px;
+                        value: CanvasListState.quota-fraction;
+                        accessible-name: "Storage used";
+                    }
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            HorizontalLayout {
+                horizontal-stretch: 0;
+                spacing: Tokens.space-2;
+
+                Button {
+                    text: CanvasListState.show-archived ? "Back to canvases" : "Archived";
+                    accessible-name: CanvasListState.show-archived ? "Back to canvases" : "Archived";
+                    variant: ButtonVariant.secondary;
+                    clicked => {
+                        CanvasListState.toggle-archived();
+                    }
+                }
+                if CanvasListState.can-create && !CanvasListState.show-archived : Button {
+                    text: "New canvas";
+                    accessible-name: "New canvas";
+                    leading-icon: Icons.plus;
+                    variant: ButtonVariant.primary;
+                    enabled: !CanvasListState.creating;
+                    loading: CanvasListState.creating;
+                    clicked => {
+                        CanvasListState.new-title = "";
+                        CanvasListState.create-open = true;
+                    }
+                }
+            }
+        }
+
+        if CanvasListState.state == PageLoadState.loading || CanvasListState.state == PageLoadState.error : PageState {
+            vertical-stretch: 1;
+            state: CanvasListState.state;
+            icon: Icons.presentation;
+            loading-text: "Loading canvases...";
+            error-description: "Canvases could not be loaded.";
+            error-details: CanvasListState.error;
+            retry => {
+                CanvasListState.retry();
+            }
+        }
+
+        // Loaded with no rows: the empty message.
+        if (CanvasListState.state == PageLoadState.loaded || CanvasListState.state == PageLoadState.empty) && CanvasListState.table-rows.length == 0 : Text {
+            text: CanvasListState.show-archived ? "No archived canvases." : "No canvases yet. Create one to collect images and notes.";
+            color: Tokens.text-muted;
+            wrap: word-wrap;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+
+        // Loaded with rows: the table takes the leftover height. The context menu sits at the table's top left, so the
+        // positions the table reports are its own.
+        if (CanvasListState.state == PageLoadState.loaded || CanvasListState.state == PageLoadState.empty) && CanvasListState.table-rows.length > 0 : Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            ctx-menu := ContextMenu {
+                x: 0px;
+                y: 0px;
+                width: 0px;
+                height: 0px;
+                accessible-name: "Canvas actions";
+                menu-width: 220px;
+                items: root.row-menu-items;
+                selected(id) => {
+                    CanvasListState.row-action(CanvasListState.selected-id, id);
+                }
+            }
+
+            Table {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                accessible-name: CanvasListState.show-archived ? "Archived canvases" : "Canvases";
+                columns: CanvasListState.table-columns;
+                rows: CanvasListState.table-rows;
+                sort-column: CanvasListState.sort-column;
+                sort-descending: CanvasListState.sort-descending;
+                sort-requested(column) => {
+                    CanvasListState.sort-by(column);
+                }
+                picked(index, shift, ctrl) => {
+                    CanvasListState.pick(index);
+                }
+                activated(index) => {
+                    CanvasListState.open-row(index);
+                }
+                column-resized(column, width) => {
+                    CanvasListState.resize-column(column, width);
+                }
+                context-requested(index, x, y) => {
+                    CanvasListState.pick(index);
+                    ctx-menu.open-at(x, y);
+                }
+                row-menu: true;
+                row-menu-requested(index, x, y) => {
+                    CanvasListState.pick(index);
+                    ctx-menu.open-at(x, y);
+                }
+            }
+        }
+    }
+}

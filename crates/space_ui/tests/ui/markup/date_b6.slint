@@ -1,0 +1,73 @@
+// Test markup for tests/ui/date_b6.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { CalendarGrid, CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { DateRangePicker } from "@rimelight_ui/components/date-range-picker.slint";
+import { TimePicker } from "@rimelight_ui/components/time-picker.slint";
+export { CalendarDay }
+
+export component B6Form inherits Window {
+    width: 480px;
+    height: 760px;
+
+    in property <[CalendarDay]> days;
+    in property <[string]> weekdays;
+    in property <string> month-title;
+    in-out property <int> focus-day: 0;
+    in-out property <int> picks: -1;
+    in-out property <int> steps: 0;
+    in-out property <int> last-step: 0;
+    in-out property <float> hour: 9;
+    in-out property <float> minute: 0;
+    in-out property <int> time-events: 0;
+
+    grid := CalendarGrid {
+        x: 0px;
+        y: 0px;
+        width: 320px;
+        height: 304px;
+        days: root.days;
+        weekday-labels: root.weekdays;
+        title: root.month-title;
+        focus-index <=> root.focus-day;
+        picked(index) => { root.picks = index; }
+        month-step(step) => {
+            root.steps += 1;
+            root.last-step = step;
+        }
+    }
+
+    DatePicker {
+        x: 0px;
+        y: 320px;
+        width: 240px;
+        text: "";
+        accessible-name: "Due date";
+        days: root.days;
+        weekday-labels: root.weekdays;
+        title: root.month-title;
+    }
+
+    DateRangePicker {
+        x: 0px;
+        y: 380px;
+        width: 300px;
+        text: "";
+        accessible-name: "Sprint";
+        days: root.days;
+        weekday-labels: root.weekdays;
+        title: root.month-title;
+    }
+
+    TimePicker {
+        x: 0px;
+        y: 440px;
+        width: 260px;
+        accessible-name: "Start time";
+        hour <=> root.hour;
+        minute <=> root.minute;
+        time-changed(h, m) => { root.time-events += 1; }
+    }
+
+    // Test hook: give the grid the keyboard focus, as a Tab into it would.
+    public function focus-grid() { grid.focus-grid(); }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "space_area_home"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space home area: Home > Dashboard, the cards that have a backend today. Plain logic here; the window glue is wire_home!."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+space_page_kit = { path = "../../crates/space_page_kit" }
+# The issue route (`/p/:key/issues/:id`) is owned by the Projects area.

@@ -1,0 +1,301 @@
+// Admin > Projects > Types & Tags. The issue types (built in) and the areas (tags) an issue can carry, each in a table with a colour
+// an admin can pick. An admin adds an area here; the New issue dialog only picks from this list. The data and the actions come from
+// src/types_tags.rs through the `AdminTypesTagsState` global.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { ColorField, ColorMath } from "@rimelight_ui/components/color-picker.slint";
+
+// One issue type in its table. `name` is the stored value, and `label` shows it as stored.
+export struct TypeRow {
+    name: string,
+    label: string,
+    shade: color,
+}
+
+// One area in its table.
+export struct AreaRow {
+    id: string,
+    name: string,
+    shade: color,
+}
+
+// The page's state, set by src/types_tags.rs.
+export global AdminTypesTagsState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <bool> denied;
+    in-out property <string> action-error;
+    in-out property <[TypeRow]> type-rows;
+    in-out property <[AreaRow]> areas;
+    in-out property <string> new-name;
+    // The colour of the New area dialog. Set by Rust to the default and read by `add`.
+    in-out property <color> new-colour;
+
+    callback opened();
+    callback retry();
+    // Creates an area with the name in `new-name`.
+    callback add();
+    // Deletes the area with this id.
+    callback remove(string);
+    // Sets an area's colour: the id, then the hex colour (#RRGGBB).
+    callback set-area-colour(string, string);
+    // Sets an issue type's colour: the stored name, then the hex colour (#RRGGBB).
+    callback set-type-colour(string, string);
+}
+
+component SectionTitle inherits Text {
+    color: Tokens.text-primary;
+    font-family: Type.heading.family;
+    font-size: Type.heading.size;
+    font-weight: Type.heading.weight;
+}
+
+// A column title in a table header: caption size, muted.
+component ColumnTitle inherits Text {
+    color: Tokens.text-muted;
+    font-family: Type.caption.family;
+    font-size: Type.caption.size;
+    font-weight: Type.caption.weight;
+    vertical-alignment: center;
+    overflow: elide;
+}
+
+// A body cell's text.
+component CellText inherits Text {
+    color: Tokens.text-primary;
+    font-family: Type.body.family;
+    font-size: Type.body.size;
+    font-weight: Type.body.weight;
+    vertical-alignment: center;
+    overflow: elide;
+}
+
+export component AdminTypesTagsPage inherits Rectangle {
+    // New area: a modal with the name. Add creates it and closes; a failure shows in the banner.
+    area-dlg := Dialog {
+        title: "New area";
+        description: "An area is a tag an issue can carry. Admins add them here.";
+        size: DialogSize.sm;
+        close-label: "Close new area";
+        host-width: root.width;
+        host-height: root.height;
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Add", variant: ButtonVariant.primary },
+        ];
+        action-clicked(index) => {
+            if index == 1 {
+                AdminTypesTagsState.add();
+            }
+            area-dlg.close();
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            Input {
+                text <=> AdminTypesTagsState.new-name;
+                placeholder: "Area name";
+                accessible-name: "Area name";
+            }
+            ColorField {
+                accessible-name: "Area colour";
+                color <=> AdminTypesTagsState.new-colour;
+            }
+        }
+    }
+
+    background: transparent;
+    init => {
+        AdminTypesTagsState.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if AdminTypesTagsState.denied : EmptyState {
+            vertical-stretch: 1;
+            icon: Icons.shield;
+            title: "You need the admin role";
+            description: "Types and tags are managed by admins. Ask an admin to give you the admin role.";
+        }
+
+        if !AdminTypesTagsState.denied && AdminTypesTagsState.action-error != "" : Banner {
+            tone: BannerTone.danger;
+            title: "Could not save";
+            description: AdminTypesTagsState.action-error;
+        }
+
+        if !AdminTypesTagsState.denied && AdminTypesTagsState.state != PageLoadState.loaded : PageState {
+            vertical-stretch: 1;
+            state: AdminTypesTagsState.state;
+            icon: Icons.tag;
+            empty-title: "Nothing here yet";
+            empty-description: "Types and tags could not be shown.";
+            error-description: "Types and tags could not be loaded.";
+            error-details: AdminTypesTagsState.error;
+            retry => {
+                AdminTypesTagsState.retry();
+            }
+        }
+
+        if !AdminTypesTagsState.denied && AdminTypesTagsState.state == PageLoadState.loaded : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Types and tags";
+
+            VerticalLayout {
+                width: parent.width;
+                spacing: Tokens.space-5;
+
+                // Issue types: a name and a colour per row.
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+                    SectionTitle {
+                        text: "Issue types";
+                    }
+                    Text {
+                        text: "Built in. Every project uses these. Pick a colour for each type.";
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                        wrap: word-wrap;
+                    }
+                    // Column titles.
+                    HorizontalLayout {
+                        height: Tokens.size-control-md;
+                        spacing: Tokens.space-3;
+                        ColumnTitle {
+                            horizontal-stretch: 1;
+                            text: "Name";
+                        }
+                        ColumnTitle {
+                            width: 200px;
+                            text: "Colour";
+                        }
+                    }
+                    Rectangle {
+                        height: 1px;
+                        background: Tokens.border-subtle;
+                    }
+                    for type-row in AdminTypesTagsState.type-rows : VerticalLayout {
+                        HorizontalLayout {
+                            height: Tokens.size-control-md;
+                            spacing: Tokens.space-3;
+                            CellText {
+                                horizontal-stretch: 1;
+                                text: type-row.label;
+                            }
+                            ColorField {
+                                width: 200px;
+                                color: type-row.shade;
+                                accessible-name: "Colour of " + type-row.label;
+                                changed(c) => {
+                                    AdminTypesTagsState.set-type-colour(type-row.name, ColorMath.color-to-hex(c));
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 1px;
+                            background: Tokens.border-subtle;
+                        }
+                    }
+                }
+
+                // Areas: a name, a colour and the Remove action per row.
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+                    HorizontalLayout {
+                        SectionTitle {
+                            text: "Areas";
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            text: "New area";
+                            variant: ButtonVariant.primary;
+                            accessible-name: "New area";
+                            clicked => {
+                                area-dlg.open();
+                            }
+                        }
+                    }
+                    Text {
+                        text: "The areas an issue can carry. Issues choose from this list.";
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                        wrap: word-wrap;
+                    }
+                    if AdminTypesTagsState.areas.length == 0 : CellText {
+                        text: "No areas yet.";
+                        color: Tokens.text-muted;
+                    }
+                    if AdminTypesTagsState.areas.length > 0 : HorizontalLayout {
+                        height: Tokens.size-control-md;
+                        spacing: Tokens.space-3;
+                        ColumnTitle {
+                            horizontal-stretch: 1;
+                            text: "Name";
+                        }
+                        ColumnTitle {
+                            width: 200px;
+                            text: "Colour";
+                        }
+                        ColumnTitle {
+                            width: 96px;
+                            text: "";
+                        }
+                    }
+                    if AdminTypesTagsState.areas.length > 0 : Rectangle {
+                        height: 1px;
+                        background: Tokens.border-subtle;
+                    }
+                    for area in AdminTypesTagsState.areas : VerticalLayout {
+                        HorizontalLayout {
+                            height: Tokens.size-control-md;
+                            spacing: Tokens.space-3;
+                            CellText {
+                                horizontal-stretch: 1;
+                                text: area.name;
+                            }
+                            ColorField {
+                                width: 200px;
+                                color: area.shade;
+                                accessible-name: "Colour of " + area.name;
+                                changed(c) => {
+                                    AdminTypesTagsState.set-area-colour(area.id, ColorMath.color-to-hex(c));
+                                }
+                            }
+                            Button {
+                                width: 96px;
+                                text: "Remove";
+                                variant: ButtonVariant.ghost;
+                                accessible-name: "Remove " + area.name;
+                                clicked => {
+                                    AdminTypesTagsState.remove(area.id);
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 1px;
+                            background: Tokens.border-subtle;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

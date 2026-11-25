@@ -1,0 +1,177 @@
+// Project settings (route /p/:key/settings). Project admins edit the name, key, description and icon; anyone else sees the
+// values read-only. The markup holds no logic: crates/areas/management/src/settings.rs fills the `ProjectSettingsState` global,
+// answers its callbacks and sends the changes.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+
+// The settings page's state. `can-edit` is true for a project admin or a global admin.
+export global ProjectSettingsState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> action-error;
+    in-out property <string> name;
+    in-out property <string> key;
+    in-out property <string> description;
+    in-out property <bool> can-edit;
+    in-out property <bool> has-image;
+    in-out property <image> image;
+    in-out property <string> initials;
+    in-out property <bool> saving;
+
+    callback opened();
+    callback retry();
+    callback save();
+    callback pick-icon();
+}
+
+// A labelled control of the form.
+component FormField inherits VerticalLayout {
+    in property <string> label;
+    spacing: Tokens.space-1;
+
+    Text {
+        text: root.label;
+        color: Tokens.text-muted;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: Type.caption.weight;
+    }
+
+    @children
+}
+
+export component ProjectSettingsPage inherits Rectangle {
+    background: transparent;
+    init => {
+        ProjectSettingsState.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if ProjectSettingsState.state == PageLoadState.loaded && !ProjectSettingsState.can-edit : Text {
+            text: "Only the project's admins can change these settings. You can see them here.";
+            color: Tokens.text-muted;
+            wrap: word-wrap;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+
+        if ProjectSettingsState.action-error != "" : Banner {
+            tone: BannerTone.danger;
+            title: "Could not save the settings";
+            description: ProjectSettingsState.action-error;
+        }
+
+        if ProjectSettingsState.state != PageLoadState.loaded : PageState {
+            vertical-stretch: 1;
+            state: ProjectSettingsState.state;
+            icon: Icons.settings;
+            empty-title: "No settings";
+            empty-description: "This project has no settings to show.";
+            error-description: "The project settings could not be loaded.";
+            error-details: ProjectSettingsState.error;
+            retry => {
+                ProjectSettingsState.retry();
+            }
+        }
+
+        if ProjectSettingsState.state == PageLoadState.loaded : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Project settings";
+
+            VerticalLayout {
+                spacing: Tokens.space-4;
+                alignment: start;
+
+                FormField {
+                    label: "Icon";
+                    HorizontalLayout {
+                        spacing: Tokens.space-3;
+                        alignment: start;
+
+                        if ProjectSettingsState.has-image : Image {
+                            width: 56px;
+                            height: 56px;
+                            source: ProjectSettingsState.image;
+                            image-fit: contain;
+                            accessible-label: "Project icon";
+                        }
+                        if !ProjectSettingsState.has-image : Avatar {
+                            name: ProjectSettingsState.name;
+                            initials: ProjectSettingsState.initials;
+                            size: AvatarSize.lg;
+                        }
+                        Button {
+                            text: "Change icon";
+                            accessible-name: "Change project icon";
+                            variant: ButtonVariant.secondary;
+                            enabled: ProjectSettingsState.can-edit && !ProjectSettingsState.saving;
+                            clicked => {
+                                ProjectSettingsState.pick-icon();
+                            }
+                        }
+                    }
+                }
+                FormField {
+                    label: "Key";
+                    Input {
+                        text <=> ProjectSettingsState.key;
+                        placeholder: "EMB";
+                        accessible-name: "Key";
+                        enabled: ProjectSettingsState.can-edit;
+                    }
+                }
+
+                FormField {
+                    label: "Name";
+                    Input {
+                        text <=> ProjectSettingsState.name;
+                        placeholder: "Project name";
+                        accessible-name: "Name";
+                        enabled: ProjectSettingsState.can-edit;
+                    }
+                }
+
+                FormField {
+                    label: "Description";
+                    Textarea {
+                        text <=> ProjectSettingsState.description;
+                        placeholder: "Describe the project";
+                        accessible-name: "Description";
+                        rows: 4;
+                        max-rows: 10;
+                        enabled: ProjectSettingsState.can-edit;
+                    }
+                }
+
+
+                HorizontalLayout {
+                    alignment: end;
+                    Button {
+                        text: "Save changes";
+                        accessible-name: "Save changes";
+                        variant: ButtonVariant.primary;
+                        enabled: ProjectSettingsState.can-edit && !ProjectSettingsState.saving;
+                        loading: ProjectSettingsState.saving;
+                        clicked => {
+                            ProjectSettingsState.save();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

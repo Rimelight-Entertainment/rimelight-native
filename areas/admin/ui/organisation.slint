@@ -1,0 +1,354 @@
+// Admin > Organisation (SP.3e). Five tabs: Departments, Teams, Positions, Seats and Budgets. Each tab lists its rows. "New" and a
+// row's edit action open the form as a modal dialog over the page (the same Dialog as the create-project dialog); Cancel, Escape
+// and the close control close it, and a save or delete that succeeds closes it too. The form creates or saves the selected item,
+// and Delete removes it (the server refuses with 409 and a message while the item is in use, shown in the dialog). The data and
+// actions come from src/organisation.rs through the `AdminOrgState` global. The page reports `opened` from its `init`.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Field } from "@rimelight_ui/components/field.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { Combobox } from "@rimelight_ui/components/combobox.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { Tabs, ContentTab } from "@rimelight_ui/components/content-tabs.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+
+// One row of the current tab. `detail` is a short line under the title.
+export struct AdminRow {
+    id: string,
+    title: string,
+    detail: string,
+    selected: bool,
+}
+
+// The organisation page's state, set by src/organisation.rs. `tab` is 0 Departments, 1 Teams, 2 Positions, 3 Seats,
+// 4 Budgets. The form fields are shared by the tabs: Departments use name, parent (parent department), person (head); Teams use
+// name, parent (department), person (lead); Positions use name (title), level (a preset Select: None, Junior, Associate, Senior,
+// Lead, Director, shown through `level-choice`; an old free-text level shows None and is kept until a preset is picked),
+// description and the salary range (a position has no team or department, decision 0042). Seats use team (`parent`), position
+// (`position`, the job profile), reports, state and person; a seat has no title, level or salary of its own. `form-open`
+// shows the form dialog: the page and Rust set it, and the dialog clears it when it closes.
+export global AdminOrgState {
+    in-out property <int> tab: 0;
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <bool> denied;
+    in-out property <[AdminRow]> rows;
+    // The table drawn over the rows: its columns for the current tab, and one table row per item in the same order as `rows`.
+    in-out property <[TableColumn]> table-columns;
+    in-out property <[TableRow]> table-rows;
+    // The selected item's id, or empty for a new one.
+    in-out property <string> selected;
+    in-out property <string> form-title;
+    // True while the form dialog is open.
+    in-out property <bool> form-open: false;
+    in-out property <string> name;
+    in-out property <string> parent;
+    in-out property <string> person;
+    in-out property <string> level;
+    // The Level picker's value (Positions and Seats): the preset that matches `level`, or empty (None). Picking an option sets `level`.
+    in-out property <string> level-choice;
+    in-out property <[SelectOption]> level-options;
+    in-out property <string> description;
+    in-out property <string> form-error;
+    in-out property <[SelectOption]> parent-options;
+    in-out property <[SelectOption]> person-options;
+    // Seats (tab 3): the team is `parent`, the position is `position` (its id), the reporting seat, and the state (planned, open,
+    // closed; a person makes it filled). Positions (tab 2) and Budgets (tab 4) use `currency`; positions also use the salary
+    // range. Budgets (tab 4): the team is the selected id, `cap` is its yearly cap (empty removes it).
+    in-out property <string> reports;
+    in-out property <string> seat-state;
+    in-out property <string> position;
+    in-out property <string> salary-min;
+    in-out property <string> salary-max;
+    in-out property <string> currency;
+    in-out property <string> cap;
+    in-out property <[SelectOption]> team-options;
+    in-out property <[SelectOption]> position-options;
+    in-out property <[SelectOption]> seat-options;
+    in-out property <[SelectOption]> state-options;
+
+    callback opened();
+    callback retry();
+    callback tab-changed(int);
+    callback pick(string);
+    callback new-item();
+    callback save();
+    callback delete-item();
+}
+
+export component AdminOrganisationPage inherits Rectangle {
+    // The window the form dialog covers (its popup is clipped to it). The shell passes its size.
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    background: transparent;
+    vertical-stretch: 1;
+    init => {
+        AdminOrgState.opened();
+    }
+
+    // The dialog follows `form-open`. Setting it false here (Cancel, Escape, the close control) or from Rust (a save or delete
+    // that succeeded) closes the dialog.
+    property <bool> form-shown: AdminOrgState.form-open;
+    changed form-shown => {
+        if (root.form-shown) {
+            dlg.open();
+        } else {
+            dlg.close();
+        }
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if AdminOrgState.denied : EmptyState {
+            vertical-stretch: 1;
+            icon: Icons.shield;
+            title: "You need the admin role";
+            description: "The organisation is managed by admins. Ask an admin to give you the admin role.";
+        }
+
+        // The tab row, with New at its right end.
+        if !AdminOrgState.denied : HorizontalLayout {
+            spacing: Tokens.space-2;
+            alignment: start;
+
+            Tabs {
+                horizontal-stretch: 1;
+                tabs: [{ label: "Departments" }, { label: "Teams" }, { label: "Positions" }, { label: "Seats" }, { label: "Budgets" }];
+                active <=> AdminOrgState.tab;
+                accessible-name: "Organisation";
+                activated(index) => {
+                    AdminOrgState.tab-changed(index);
+                }
+            }
+            if (AdminOrgState.state == PageLoadState.loaded || AdminOrgState.state == PageLoadState.empty) && AdminOrgState.tab != 4 : Button {
+                text: "New";
+                accessible-name: "New " + (AdminOrgState.tab == 1 ? "team" : (AdminOrgState.tab == 2 ? "position" : (AdminOrgState.tab == 3 ? "seat" : "department")));
+                leading-icon: Icons.plus;
+                variant: ButtonVariant.primary;
+                clicked => {
+                    AdminOrgState.new-item();
+                    AdminOrgState.form-open = true;
+                }
+            }
+        }
+
+        // An empty tab keeps the list on screen, so New can add the first item.
+        if !AdminOrgState.denied && (AdminOrgState.state == PageLoadState.loading || AdminOrgState.state == PageLoadState.error) : PageState {
+            vertical-stretch: 1;
+            state: AdminOrgState.state;
+            icon: Icons.building-2;
+            empty-title: "Nothing here yet";
+            empty-description: "Use New to add the first one.";
+            error-description: "The organisation could not be loaded.";
+            error-details: AdminOrgState.error;
+            retry => {
+                AdminOrgState.retry();
+            }
+        }
+
+        if !AdminOrgState.denied && (AdminOrgState.state == PageLoadState.loaded || AdminOrgState.state == PageLoadState.empty) : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-2;
+
+            if AdminOrgState.state == PageLoadState.empty : Text {
+                text: "Nothing here yet. Use New to add the first one.";
+                color: Tokens.text-muted;
+                wrap: word-wrap;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+
+            // One row per item. A pick opens the form for that row's item (`rows` holds the ids, in the same order).
+            // The wrapper takes the leftover height, and the table fills it, so the table's height is not part of a layout loop.
+            Rectangle {
+                vertical-stretch: 1;
+                clip: true;
+
+                Table {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    accessible-name: "Organisation list";
+                    columns: AdminOrgState.table-columns;
+                    rows: AdminOrgState.table-rows;
+                    picked(index, shift, ctrl) => {
+                        AdminOrgState.pick(AdminOrgState.rows[index].id);
+                        AdminOrgState.form-open = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Zero-sized in the page. The popup it opens covers the window (see the dialog header).
+    dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        title: AdminOrgState.form-title;
+        size: DialogSize.md;
+        close-label: "Close form";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        closed => {
+            AdminOrgState.form-open = false;
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+            alignment: start;
+
+            if AdminOrgState.form-error != "" : Banner {
+                tone: BannerTone.danger;
+                title: "Could not save";
+                description: AdminOrgState.form-error;
+            }
+            if AdminOrgState.tab == 0 || AdminOrgState.tab == 1 || AdminOrgState.tab == 2 : Field {
+                label: AdminOrgState.tab == 2 ? "Title" : "Name";
+                required: true;
+                Input {
+                    text <=> AdminOrgState.name;
+                    accessible-name: AdminOrgState.tab == 2 ? "Title" : "Name";
+                }
+            }
+            if AdminOrgState.tab == 3 : Field {
+                label: "Team";
+                required: true;
+                Select {
+                    value <=> AdminOrgState.parent;
+                    options: AdminOrgState.team-options;
+                    accessible-name: "Team";
+                }
+            }
+            if AdminOrgState.tab == 3 : Field {
+                label: "Position";
+                required: true;
+                Select {
+                    value <=> AdminOrgState.position;
+                    options: AdminOrgState.position-options;
+                    accessible-name: "Position";
+                }
+            }
+            if AdminOrgState.tab == 3 : Field {
+                label: "Reports to (optional)";
+                Select {
+                    value <=> AdminOrgState.reports;
+                    options: AdminOrgState.seat-options;
+                    accessible-name: "Reports to";
+                }
+            }
+            if AdminOrgState.tab == 3 : Field {
+                label: "State";
+                Select {
+                    value <=> AdminOrgState.seat-state;
+                    options: AdminOrgState.state-options;
+                    accessible-name: "Seat state";
+                }
+            }
+            if AdminOrgState.tab == 2 : Field {
+                label: "Salary minimum (optional)";
+                Input {
+                    text <=> AdminOrgState.salary-min;
+                    accessible-name: "Salary minimum";
+                }
+            }
+            if AdminOrgState.tab == 2 : Field {
+                label: "Salary maximum (optional)";
+                Input {
+                    text <=> AdminOrgState.salary-max;
+                    accessible-name: "Salary maximum";
+                }
+            }
+            if AdminOrgState.tab == 2 || AdminOrgState.tab == 4 : Field {
+                label: "Currency (for example GBP)";
+                Input {
+                    text <=> AdminOrgState.currency;
+                    accessible-name: "Currency";
+                }
+            }
+            if AdminOrgState.tab == 4 : Field {
+                label: "Yearly budget cap (empty removes it)";
+                Input {
+                    text <=> AdminOrgState.cap;
+                    accessible-name: "Budget cap";
+                }
+            }
+            if AdminOrgState.tab == 0 : Field {
+                label: "Parent department";
+                Select {
+                    value <=> AdminOrgState.parent;
+                    options: AdminOrgState.parent-options;
+                    accessible-name: "Parent department";
+                }
+            }
+            if AdminOrgState.tab == 1 : Field {
+                label: "Department";
+                Select {
+                    value <=> AdminOrgState.parent;
+                    options: AdminOrgState.parent-options;
+                    accessible-name: "Department";
+                }
+            }
+            if AdminOrgState.tab == 0 || AdminOrgState.tab == 1 || AdminOrgState.tab == 3 : Field {
+                label: AdminOrgState.tab == 0 ? "Head (optional)" : (AdminOrgState.tab == 1 ? "Lead (optional)" : "Person (empty when vacant)");
+                Combobox {
+                    value <=> AdminOrgState.person;
+                    options: AdminOrgState.person-options;
+                    accessible-name: AdminOrgState.tab == 0 ? "Head" : (AdminOrgState.tab == 1 ? "Lead" : "Person");
+                }
+            }
+            if AdminOrgState.tab == 2 : Field {
+                label: "Level";
+                Select {
+                    value <=> AdminOrgState.level-choice;
+                    options: AdminOrgState.level-options;
+                    accessible-name: "Level";
+                    changed(choice) => {
+                        AdminOrgState.level = choice;
+                    }
+                }
+            }
+            if AdminOrgState.tab == 2 : Field {
+                label: "Description";
+                Input {
+                    text <=> AdminOrgState.description;
+                    accessible-name: "Description";
+                }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                Button {
+                    text: AdminOrgState.selected == "" ? "Create" : "Save";
+                    accessible-name: AdminOrgState.selected == "" ? "Create" : "Save changes";
+                    variant: ButtonVariant.primary;
+                    clicked => {
+                        AdminOrgState.save();
+                    }
+                }
+                if AdminOrgState.selected != "" && AdminOrgState.tab != 4 : Button {
+                    text: "Delete";
+                    accessible-name: "Delete item";
+                    variant: ButtonVariant.danger;
+                    clicked => {
+                        AdminOrgState.delete-item();
+                    }
+                }
+            }
+        }
+    }
+}

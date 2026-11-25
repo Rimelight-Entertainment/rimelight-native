@@ -1,0 +1,21 @@
+[package]
+name = "space_update_slint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The start-up update window (REL.3, decision 0047), compiled on its own so the desktop app keeps `unsafe_code = "forbid"`.
+# Same lint set as space_ui_slint: unsafe is denied and allowed on the generated module only (decision 0007, S1).
+[lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+slint = { workspace = true }
+
+[build-dependencies]
+slint-build = { workspace = true }

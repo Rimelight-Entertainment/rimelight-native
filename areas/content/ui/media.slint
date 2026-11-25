@@ -1,0 +1,106 @@
+// Content > Media library (CMS.6, /admin/content/media): a grid of assets with thumbnail, name and size; upload (desktop file
+// picker), alt text, copy URL, delete, folders. The same page is the picker other pages open: `pick` sends the asset up.
+// State is ContentMediaState.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { MediaCellItem } from "types.slint";
+
+export global ContentMediaState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> notice;
+    in-out property <string> folder;
+    in-out property <[string]> folders;
+    in-out property <[MediaCellItem]> cells;
+
+    callback reload();
+    callback open-folder(string);
+    callback upload();
+    callback alt(string, string);
+    callback delete(string);
+    callback copy(string);
+    callback pick(string);
+}
+
+// One cell: the thumbnail (images only), the name, the size, and the alt text with its save.
+component MediaCell inherits Rectangle {
+    in property <MediaCellItem> cell;
+    callback copy();
+    callback delete();
+    callback pick();
+    callback alt(string);
+
+    width: 200px;
+    background: Tokens.surface-raised;
+    border-radius: Tokens.radius-r6;
+    VerticalLayout {
+        padding: Tokens.space-2;
+        spacing: Tokens.space-1;
+        Rectangle {
+            height: 120px;
+            background: Tokens.surface-sunken;
+            // UNSURE: thumbnails need the picture decoder (space_page_kit page_data::decode_picture) fed from Rust; until then an
+            // image shows its name here.
+            Text { text: root.cell.image ? "Image" : "File"; color: Tokens.text-muted; horizontal-alignment: center; vertical-alignment: center; }
+            TouchArea { clicked => { root.pick(); } }
+        }
+        Text { text: root.cell.name; color: Tokens.text-primary; overflow: elide; }
+        Text { text: root.cell.size; color: Tokens.text-muted; font-size: Type.caption.size; }
+        alt-input := Input { text: root.cell.alt; placeholder: "Alt text"; accessible-name: "Alt text"; }
+        HorizontalLayout {
+            spacing: Tokens.space-1;
+            Button { text: "Save alt"; variant: ButtonVariant.ghost; clicked => { root.alt(alt-input.text); } }
+            Button { text: "Copy URL"; variant: ButtonVariant.ghost; clicked => { root.copy(); } }
+            Button { text: "Delete"; variant: ButtonVariant.danger; clicked => { root.delete(); } }
+        }
+    }
+}
+
+export component ContentMediaPage inherits Rectangle {
+    background: Tokens.surface-base;
+    in property <string> route;
+    callback opened(string);
+    init => { root.opened(root.route); }
+    changed route => { root.opened(root.route); }
+
+    VerticalLayout {
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+            Text { text: "Media"; font-size: Type.heading.size; color: Tokens.text-primary; horizontal-stretch: 1; vertical-alignment: center; }
+            Button { text: "Upload"; variant: ButtonVariant.primary; clicked => { ContentMediaState.upload(); } }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "All folders"; variant: ContentMediaState.folder == "" ? ButtonVariant.primary : ButtonVariant.ghost; clicked => { ContentMediaState.open-folder(""); } }
+            for f in ContentMediaState.folders: Button {
+                text: f;
+                variant: ContentMediaState.folder == f ? ButtonVariant.primary : ButtonVariant.ghost;
+                clicked => { ContentMediaState.open-folder(f); }
+            }
+        }
+        if ContentMediaState.notice != "": Text { text: ContentMediaState.notice; color: Tokens.text-muted; }
+        if ContentMediaState.error != "": Text { text: ContentMediaState.error; color: Tokens.text-muted; }
+
+        ScrollArea {
+            vertical-stretch: 1;
+            // Cells wrap in rows of the available width; a plain flow of the same cells keeps the layout simple.
+            VerticalLayout {
+                spacing: Tokens.space-2;
+                for cell in ContentMediaState.cells: MediaCell {
+                    cell: cell;
+                    copy => { ContentMediaState.copy(cell.id); }
+                    delete => { ContentMediaState.delete(cell.id); }
+                    pick => { ContentMediaState.pick(cell.id); }
+                    alt(text) => { ContentMediaState.alt(cell.id, text); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,270 @@
+// Company > Locations. The company's offices, sites and remote hubs as a table (name, kind, city, country, timezone). Everyone
+// can read the list. Admins also see New and can open a row to edit it, in a form dialog over the page; Delete there asks for
+// a confirmation first. The data and actions come from crates/areas/company/src/locations.rs through the `LocationsState` global.
+// The page reports `opened` from its `init`, so the list loads whenever its route becomes active.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Field } from "@rimelight_ui/components/field.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+
+// The locations page's state, set by crates/areas/company/src/locations.rs. `can-manage` is true for an admin: only then do New, the
+// row's edit and the form work. `ids` holds the location id of each table row, in the same order as the rows. `selected` is
+// the id of the location in the form (empty for a new one). `form-open` shows the form dialog; the page and Rust set it, and
+// the dialog clears it when it closes. `confirming` shows the delete confirmation inside the form.
+export global LocationsState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <bool> can-manage: false;
+    in-out property <[TableColumn]> table-columns;
+    in-out property <[TableRow]> table-rows;
+    in-out property <[string]> ids;
+    in-out property <string> selected;
+    in-out property <string> form-title;
+    in-out property <bool> form-open: false;
+    in-out property <bool> confirming: false;
+    in-out property <string> name;
+    in-out property <string> kind;
+    in-out property <[SelectOption]> kind-options;
+    in-out property <string> address;
+    in-out property <string> city;
+    in-out property <string> country;
+    in-out property <string> timezone;
+    in-out property <string> note;
+    in-out property <string> form-error;
+
+    callback opened();
+    callback retry();
+    callback pick(string);
+    callback new-item();
+    callback save();
+    callback delete-item();
+}
+
+export component LocationsPage inherits Rectangle {
+    // The window the form dialog covers (its popup is clipped to it). The shell passes its size.
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    background: transparent;
+    vertical-stretch: 1;
+    init => {
+        LocationsState.opened();
+    }
+
+    // The dialog follows `form-open`. Cancel, Escape and the close control clear it here; Rust clears it after a save or delete.
+    property <bool> form-shown: LocationsState.form-open;
+    changed form-shown => {
+        LocationsState.confirming = false;
+        if (root.form-shown) {
+            dlg.open();
+        } else {
+            dlg.close();
+        }
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        // The title row, with New at its right end for an admin.
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            alignment: start;
+
+            Text {
+                horizontal-stretch: 1;
+                text: "Locations";
+                color: Tokens.text-primary;
+                vertical-alignment: center;
+                font-family: Type.subheading.family;
+                font-size: Type.subheading.size;
+                font-weight: Type.subheading.weight;
+            }
+            if LocationsState.can-manage && (LocationsState.state == PageLoadState.loaded || LocationsState.state == PageLoadState.empty) : Button {
+                text: "New";
+                accessible-name: "New location";
+                leading-icon: Icons.plus;
+                variant: ButtonVariant.primary;
+                clicked => {
+                    LocationsState.new-item();
+                }
+            }
+        }
+
+        if LocationsState.state == PageLoadState.loading || LocationsState.state == PageLoadState.error : PageState {
+            vertical-stretch: 1;
+            state: LocationsState.state;
+            icon: Icons.building-2;
+            empty-title: "No locations yet";
+            empty-description: "Locations appear here once they are added.";
+            error-description: "Locations could not be loaded.";
+            error-details: LocationsState.error;
+            retry => {
+                LocationsState.retry();
+            }
+        }
+
+        if LocationsState.state == PageLoadState.loaded || LocationsState.state == PageLoadState.empty : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-2;
+
+            if LocationsState.state == PageLoadState.empty : Text {
+                text: "No locations yet.";
+                color: Tokens.text-muted;
+                wrap: word-wrap;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+
+            // The wrapper takes the leftover height, and the table fills it. A pick opens the form for an admin only.
+            Rectangle {
+                vertical-stretch: 1;
+                clip: true;
+
+                Table {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    accessible-name: "Locations";
+                    columns: LocationsState.table-columns;
+                    rows: LocationsState.table-rows;
+                    picked(index, shift, ctrl) => {
+                        if LocationsState.can-manage {
+                            LocationsState.pick(LocationsState.ids[index]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Zero-sized in the page. The popup it opens covers the window (see the dialog header).
+    dlg := Dialog {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        title: LocationsState.form-title;
+        size: DialogSize.md;
+        close-label: "Close form";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        closed => {
+            LocationsState.form-open = false;
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+            alignment: start;
+
+            if LocationsState.form-error != "" : Banner {
+                tone: BannerTone.danger;
+                title: "Could not save";
+                description: LocationsState.form-error;
+            }
+            Field {
+                label: "Name";
+                required: true;
+                Input {
+                    text <=> LocationsState.name;
+                    accessible-name: "Name";
+                }
+            }
+            Field {
+                label: "Kind";
+                required: true;
+                Select {
+                    value <=> LocationsState.kind;
+                    options: LocationsState.kind-options;
+                    accessible-name: "Kind";
+                }
+            }
+            Field {
+                label: "Address";
+                Input {
+                    text <=> LocationsState.address;
+                    accessible-name: "Address";
+                }
+            }
+            Field {
+                label: "City";
+                Input {
+                    text <=> LocationsState.city;
+                    accessible-name: "City";
+                }
+            }
+            Field {
+                label: "Country";
+                Input {
+                    text <=> LocationsState.country;
+                    accessible-name: "Country";
+                }
+            }
+            Field {
+                label: "Timezone (for example Europe/London)";
+                Input {
+                    text <=> LocationsState.timezone;
+                    accessible-name: "Timezone";
+                }
+            }
+            Field {
+                label: "Note";
+                Input {
+                    text <=> LocationsState.note;
+                    accessible-name: "Note";
+                }
+            }
+            if LocationsState.confirming : Banner {
+                tone: BannerTone.danger;
+                title: "Delete this location?";
+                description: "This cannot be undone.";
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                Button {
+                    text: LocationsState.selected == "" ? "Create" : "Save";
+                    accessible-name: LocationsState.selected == "" ? "Create" : "Save changes";
+                    variant: ButtonVariant.primary;
+                    clicked => {
+                        LocationsState.save();
+                    }
+                }
+                if LocationsState.selected != "" && !LocationsState.confirming : Button {
+                    text: "Delete";
+                    accessible-name: "Delete location";
+                    variant: ButtonVariant.danger;
+                    clicked => {
+                        LocationsState.confirming = true;
+                    }
+                }
+                if LocationsState.selected != "" && LocationsState.confirming : Button {
+                    text: "Confirm delete";
+                    accessible-name: "Confirm delete";
+                    variant: ButtonVariant.danger;
+                    clicked => {
+                        LocationsState.delete-item();
+                    }
+                }
+                if LocationsState.confirming : Button {
+                    text: "Keep";
+                    accessible-name: "Keep location";
+                    clicked => {
+                        LocationsState.confirming = false;
+                    }
+                }
+            }
+        }
+    }
+}

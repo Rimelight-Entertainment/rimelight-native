@@ -1,0 +1,249 @@
+// Company > Teams (SP.3d). Two views: the team list, and the org chart (the Tree view) from the whole-company org tree. The rows,
+// the find box and the states are drawn here. The data comes from crates/areas/company/src/teams.rs, which sets the window's `teams-*`
+// properties. The page reports `opened` from its `init`, so its lists load whenever its route becomes active.
+//
+// The org chart draws only the rows that are open (the Rust side lists them). A row's arrow opens and closes it; the name opens
+// the person's profile. "Find person" opens the path to the first match and highlights it.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+
+// The team list's view model: its columns, its rows, and the team id of each row (in the same order as the rows).
+export global TeamsTable {
+    in-out property <[TableColumn]> columns;
+    in-out property <[TableRow]> rows;
+    in-out property <[string]> ids;
+}
+
+// One team in the list. `lead-avatar` is empty until the lead's photo has loaded; the avatar then shows the initials.
+export struct TeamRow {
+    id: string,
+    name: string,
+    department: string,
+    lead-id: string,
+    lead-name: string,
+    lead-initials: string,
+    lead-avatar: image,
+    members: int,
+}
+
+// One seat in the org chart (a person, or an open or planned seat with `placeholder` set). `depth` is 0 for a root, `reports` the direct-report count, `expandable` whether the row has
+// reports, `expanded` whether its reports are listed, `highlighted` whether the find box picked this person.
+export struct OrgRow {
+    id: string,
+    name: string,
+    title: string,
+    initials: string,
+    avatar: image,
+    placeholder: bool,
+    person-id: string,
+    depth: int,
+    reports: int,
+    expandable: bool,
+    expanded: bool,
+    highlighted: bool,
+}
+
+export component TeamsPage inherits Rectangle {
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <[OrgRow]> org-rows;
+    in property <string> find-note;
+
+    callback opened();
+    callback retry();
+    callback open-team(string);
+    callback open-person(string);
+    callback toggle(string);
+    callback find(string);
+
+    // 0 is the team list, 1 the org chart (the Tree view). Local to the page.
+    property <int> view: 0;
+
+    background: transparent;
+    init => {
+        root.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        HorizontalLayout {
+            alignment: start;
+            spacing: Tokens.space-2;
+
+            Button {
+                text: "List";
+                accessible-name: "List view";
+                variant: root.view == 0 ? ButtonVariant.primary : ButtonVariant.secondary;
+                clicked => {
+                    root.view = 0;
+                }
+            }
+            Button {
+                text: "Tree";
+                accessible-name: "Tree view, the org chart";
+                variant: root.view == 1 ? ButtonVariant.primary : ButtonVariant.secondary;
+                clicked => {
+                    root.view = 1;
+                }
+            }
+        }
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.users;
+            empty-title: "No teams yet";
+            empty-description: "Teams and the org chart appear once people are added.";
+            error-description: "Teams could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        // The team list, as a table.
+        if root.state == PageLoadState.loaded && root.view == 0 : Table {
+            vertical-stretch: 1;
+            accessible-name: "Teams";
+            columns: TeamsTable.columns;
+            rows: TeamsTable.rows;
+            picked(index, shift, ctrl) => {
+                root.open-team(TeamsTable.ids[index]);
+            }
+        }
+
+        // The org chart (the Tree view).
+        if root.state == PageLoadState.loaded && root.view == 1 : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-2;
+
+            SearchField {
+                placeholder: "Find person";
+                accessible-name: "Find person";
+                changed(text) => {
+                    root.find(text);
+                }
+            }
+            if root.find-note != "" : Text {
+                text: root.find-note;
+                color: Tokens.text-muted;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            ScrollArea {
+                vertical-stretch: 1;
+                accessible-name: "Org chart";
+
+                VerticalLayout {
+                    spacing: Tokens.space-1;
+                    alignment: start;
+
+                    for row in root.org-rows : Rectangle {
+                        height: 56px;
+                        border-radius: Tokens.radius-r6;
+                        background: row.highlighted ? Tokens.status-info-surface : (person-row-touch.has-hover ? Tokens.surface-raised : transparent);
+
+                        person-row-touch := TouchArea {
+                            accessible-role: button;
+                            accessible-label: row.name;
+                        }
+
+                        HorizontalLayout {
+                            padding-left: Tokens.space-3;
+                            padding-right: Tokens.space-3;
+                            spacing: Tokens.space-2;
+                            alignment: start;
+
+                            // Each level indents by 24px. The arrow is 24px wide whether or not the row has reports.
+                            Rectangle {
+                                width: row.depth * 24px;
+                            }
+                            Rectangle {
+                                width: 24px;
+                                height: 24px;
+                                border-radius: Tokens.radius-r4;
+                                background: chevron-touch.has-hover && row.expandable ? Tokens.surface-sunken : transparent;
+
+                                chevron-touch := TouchArea {
+                                    enabled: row.expandable;
+                                    accessible-role: button;
+                                    accessible-label: row.expanded ? "Collapse " + row.name : "Expand " + row.name;
+                                    clicked => {
+                                        root.toggle(row.id);
+                                    }
+                                }
+                                if row.expandable : Image {
+                                    source: row.expanded ? Icons.chevron-down : Icons.chevron-right;
+                                    width: 16px;
+                                    height: 16px;
+                                    x: 4px;
+                                    y: 4px;
+                                    colorize: Tokens.text-muted;
+                                }
+                            }
+                            if !row.placeholder : Avatar {
+                                name: row.name;
+                                initials: row.initials;
+                                source: row.avatar;
+                                size: AvatarSize.md;
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+
+                                name-touch := TouchArea {
+                                    accessible-role: button;
+                                    accessible-label: "Open " + row.name;
+                                    clicked => {
+                                        root.open-person(row.person-id);
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: Tokens.space-1;
+
+                                    Text {
+                                        text: row.name;
+                                        color: row.placeholder ? Tokens.text-muted : Tokens.text-primary;
+                                        font-italic: row.placeholder;
+                                        overflow: elide;
+                                        font-family: Type.body-strong.family;
+                                        font-size: Type.body-strong.size;
+                                        font-weight: Type.body-strong.weight;
+                                    }
+                                    Text {
+                                        text: row.title != "" ? row.title : "No title";
+                                        color: Tokens.text-muted;
+                                        overflow: elide;
+                                        font-family: Type.caption.family;
+                                        font-size: Type.caption.size;
+                                        font-weight: Type.caption.weight;
+                                    }
+                                }
+                            }
+                            Text {
+                                text: row.reports == 0 ? "No reports" : "\{row.reports} reports";
+                                color: Tokens.text-muted;
+                                vertical-alignment: center;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

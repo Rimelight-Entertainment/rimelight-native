@@ -1,0 +1,40 @@
+// Test markup for tests/ui/status_bar.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { StatusBar, JobsMenu, JobItem } from "@rimelight_shell/components/status-bar.slint";
+export { JobItem }
+
+export component StatusForm inherits Window {
+    width: 900px;
+    height: 80px;
+
+    in-out property <bool> timer-running: false;
+    in-out property <string> timer-text: "1:02:03";
+    in-out property <[JobItem]> jobs: [];
+    out property <bool> jobs-open: bar.jobs-open;
+    out property <string> timer-label: bar.timer-label;
+    out property <bool> jobs-indicator: bar.jobs-indicator;
+    out property <string> jobs-count-text: bar.jobs-count-text;
+    out property <string> jobs-label: bar.jobs-label;
+
+    public function close-jobs() { bar.close-jobs(); }
+    // Test hook: a click on the jobs indicator, as the bar's button runs it.
+    public function click-jobs() { bar.click-jobs(); }
+
+    bar := StatusBar {
+        width: 900px;
+        timer-running <=> root.timer-running;
+        timer-text <=> root.timer-text;
+        jobs <=> root.jobs;
+    }
+}
+
+export component JobsForm inherits Window {
+    width: 320px;
+    height: 200px;
+
+    in-out property <[JobItem]> jobs: [];
+    out property <int> rows: menu.row-count;
+
+    menu := JobsMenu {
+        jobs <=> root.jobs;
+    }
+}

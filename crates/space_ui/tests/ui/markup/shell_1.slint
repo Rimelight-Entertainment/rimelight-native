@@ -1,0 +1,40 @@
+// Test markup for tests/ui/shell.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { Rail, RailItem } from "@rimelight_shell/components/rail.slint";
+import { Sidebar, SidebarItem, SidebarKind } from "@rimelight_shell/components/sidebar.slint";
+export { RailItem, SidebarItem, SidebarKind }
+
+export component ShellForm inherits Window {
+    width: 640px;
+    height: 480px;
+
+    in property <[RailItem]> rail-items;
+    in property <[SidebarItem]> sidebar-items;
+    in property <string> area-title;
+    in-out property <int> area: 0;
+    in-out property <int> selected-row: -1;
+    callback area-picked(int);
+    callback row-picked(int);
+
+    out property <length> sidebar-offset: sb.scroll-offset;
+    out property <length> sidebar-extent: sb.scroll-extent;
+    out property <length> sidebar-width: sb.width;
+    out property <length> sidebar-row-width: sb.test-row-width;
+
+    // Test hooks: fire the rail's and the sidebar's own `activated` callbacks, as a click on an item does.
+    public function pick-area(index: int) { root.area = index; rail.activated(index); }
+    public function pick-row(index: int) { root.selected-row = index; sb.activated(index); }
+
+    HorizontalLayout {
+        rail := Rail {
+            items: root.rail-items;
+            selected <=> root.area;
+            activated(index) => { root.area-picked(index); }
+        }
+        sb := Sidebar {
+            title: root.area-title;
+            items: root.sidebar-items;
+            selected <=> root.selected-row;
+            activated(index) => { root.row-picked(index); }
+        }
+    }
+}

@@ -1,0 +1,214 @@
+// Admin > Roles (SP.3e). The two built-in roles, admin and HR, each with its members. A member is removed with Remove; a person is
+// added by choosing them in the picker under the list and pressing Add. The server keeps at least one admin (its 409 message is
+// shown). The data and the actions come from src/roles.rs through the `AdminRolesState` global.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Combobox } from "@rimelight_ui/components/combobox.slint";
+import { SelectOption } from "@rimelight_ui/components/select.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+
+// One member of a role.
+export struct RolePerson {
+    id: string,
+    name: string,
+    title: string,
+    initials: string,
+}
+
+// The roles page's state, set by src/roles.rs. `pick-admin` and `pick-hr` are the person chosen for each role.
+export global AdminRolesState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <bool> denied;
+    in-out property <string> action-error;
+    in-out property <[RolePerson]> admins;
+    in-out property <[RolePerson]> hr;
+    in-out property <[SelectOption]> person-options;
+    in-out property <string> pick-admin;
+    in-out property <string> pick-hr;
+
+    callback opened();
+    callback retry();
+    // Adds the person picked for `role` ("admin" or "hr").
+    callback add(string);
+    // Removes a person from a role: the role, then the person's id.
+    callback remove(string, string);
+}
+
+component RoleList inherits VerticalLayout {
+    in property <string> role-name;
+    in property <string> role-key;
+    in property <[RolePerson]> members;
+    in-out property <string> pick;
+    in property <[SelectOption]> options;
+    in property <string> description;
+
+    spacing: Tokens.space-2;
+    alignment: start;
+
+    Text {
+        text: root.role-name;
+        color: Tokens.text-primary;
+        font-family: Type.heading.family;
+        font-size: Type.heading.size;
+        font-weight: Type.heading.weight;
+    }
+    Text {
+        text: root.description;
+        color: Tokens.text-muted;
+        wrap: word-wrap;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: Type.caption.weight;
+    }
+    ScrollArea {
+        vertical-stretch: 1;
+        accessible-name: root.role-name + " members";
+
+        VerticalLayout {
+            spacing: Tokens.space-1;
+            alignment: start;
+
+            for member in root.members : Rectangle {
+                height: 56px;
+                border-radius: Tokens.radius-r6;
+                background: transparent;
+
+                HorizontalLayout {
+                    padding-left: Tokens.space-3;
+                    padding-right: Tokens.space-3;
+                    spacing: Tokens.space-3;
+                    alignment: start;
+
+                    Text {
+                        text: member.initials;
+                        width: 32px;
+                        color: Tokens.text-muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        font-family: Type.body-strong.family;
+                        font-size: Type.body-strong.size;
+                        font-weight: Type.body-strong.weight;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: member.name;
+                            color: Tokens.text-primary;
+                            overflow: elide;
+                            font-family: Type.body-strong.family;
+                            font-size: Type.body-strong.size;
+                            font-weight: Type.body-strong.weight;
+                        }
+                        Text {
+                            text: member.title;
+                            color: Tokens.text-muted;
+                            overflow: elide;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                    }
+                    Button {
+                        text: "Remove";
+                        accessible-name: "Remove " + member.name + " from " + root.role-name;
+                        size: ButtonSize.sm;
+                        variant: ButtonVariant.secondary;
+                        clicked => {
+                            AdminRolesState.remove(root.role-key, member.id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+        Combobox {
+            horizontal-stretch: 1;
+            value <=> root.pick;
+            options: root.options;
+            placeholder: "Choose a person";
+            accessible-name: "Person to add as " + root.role-name;
+        }
+        Button {
+            text: "Add";
+            accessible-name: "Add to " + root.role-name;
+            variant: ButtonVariant.primary;
+            enabled: root.pick != "";
+            clicked => {
+                AdminRolesState.add(root.role-key);
+            }
+        }
+    }
+}
+
+export component AdminRolesPage inherits Rectangle {
+    background: transparent;
+    init => {
+        AdminRolesState.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if AdminRolesState.denied : EmptyState {
+            vertical-stretch: 1;
+            icon: Icons.shield;
+            title: "You need the admin role";
+            description: "Roles are managed by admins. Ask an admin to give you the admin role.";
+        }
+
+        if !AdminRolesState.denied && AdminRolesState.action-error != "" : Banner {
+            tone: BannerTone.danger;
+            title: "Could not change the role";
+            description: AdminRolesState.action-error;
+        }
+
+        if !AdminRolesState.denied && AdminRolesState.state != PageLoadState.loaded : PageState {
+            vertical-stretch: 1;
+            state: AdminRolesState.state;
+            icon: Icons.shield;
+            empty-title: "No roles";
+            empty-description: "The built-in roles are set up with the org data.";
+            error-description: "Roles could not be loaded.";
+            error-details: AdminRolesState.error;
+            retry => {
+                AdminRolesState.retry();
+            }
+        }
+
+        if !AdminRolesState.denied && AdminRolesState.state == PageLoadState.loaded : HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-4;
+
+            RoleList {
+                horizontal-stretch: 1;
+                role-name: "Admin";
+                role-key: "admin";
+                description: "Full access, including users, the organisation and roles.";
+                members: AdminRolesState.admins;
+                pick <=> AdminRolesState.pick-admin;
+                options: AdminRolesState.person-options;
+            }
+            RoleList {
+                horizontal-stretch: 1;
+                role-name: "HR";
+                role-key: "hr";
+                description: "Sees the personal contact fields of everyone.";
+                members: AdminRolesState.hr;
+                pick <=> AdminRolesState.pick-hr;
+                options: AdminRolesState.person-options;
+            }
+        }
+    }
+}

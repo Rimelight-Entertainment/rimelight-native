@@ -1,0 +1,48 @@
+[package]
+name = "space_area_canvas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space canvas area: the canvas editor (logic, pages, export, pictures, video uploads, pop-out window) and its window traits; wire_canvas! implements them for the generated windows."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+image = { workspace = true, features = ["jpeg", "webp", "gif"] }
+# Canvas picture decoding and thumbnails (CV.7), shared (rimelight-rs); pure Rust, every target.
+rimelight_picture = { workspace = true }
+# Canvas export (CV.13): CPU rendering to PNG, text with the bundled Noto Sans, and backup zips. Pure Rust feature sets.
+imageproc = { version = "0.25", default-features = false }
+ab_glyph = "0.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+serde_json = "1"
+# The shared component library (rimelight-rs): its bundled fonts (`rimelight_ui::fonts`) for the export text.
+rimelight_ui = { workspace = true }
+# Canvas logic (CV.6): geometry, item model, hit testing, undo, arrange.
+space_canvas = { path = "../../crates/space_canvas" }
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+# The shared toast queue (rimelight-rs rimelight_ui_kit), the table sort rules, and the page data pattern.
+rimelight_ui_kit = { workspace = true }
+space_page_kit = { path = "../../crates/space_page_kit" }
+
+# Native file dialogs (add, export, backups, pictures). Desktop only: web and Android have none here.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.15"
+
+# Canvas video (CV-V): probe, poster frame, and the SHA-256 of the upload. Desktop only.
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
+rimelight_media = { workspace = true }
+sha2 = "0.10"
+# Canvas picture disk cache (CV.7).
+dirs = "6"
+# Canvas paste and copy (CV.7): images and files on the OS clipboard.
+arboard = "3.7"
+# Open source (opens a link in the browser).
+open = "5"
+
+[dev-dependencies]
+pollster = "0.4"

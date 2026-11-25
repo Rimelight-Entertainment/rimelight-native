@@ -1,0 +1,23 @@
+[package]
+name = "space_area_company"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space Company area: Employees, Profile, Teams, Team, Departments and Locations. Plain logic here; the window glue is wire_company!."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+jiff = "0.2"
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+space_page_kit = { path = "../../crates/space_page_kit" }
+# The shared toast queue (rimelight-rs rimelight_ui_kit), used by the save and delete messages.
+rimelight_ui_kit = { workspace = true }
+
+# The profile photo picker (SP.3c). Native desktop only: web and Android have no native file dialog here.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.15"

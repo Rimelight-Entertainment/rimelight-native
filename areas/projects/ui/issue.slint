@@ -1,0 +1,1170 @@
+// Projects > Issue (S1.5b). One issue at `/p/:key/issues/:id`, laid out like a YouTrack issue page: a breadcrumb with previous and
+// next arrows, a meta line with votes and a star, the title row with its icon buttons, the attachments, the description, the
+// subtasks and links, the Comments, Spent time and History tabs, the comment box, and a right-hand field panel (below the
+// content when the page is narrow). The data comes from src/pages/projects/issue.rs, which sets the window's `issue-*`
+// properties. A viewer, and a person with no role, see the same page with every edit control read-only (decision 0031).
+//
+// The page reports `opened` from its `init` and when its route changes. Selects and the field panel's inputs report through
+// `field(name, value)`, where the name is the API's field name; text blocks report through their own callbacks with the text.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Popover } from "@rimelight_ui/components/popover.slint";
+import { AttachmentGrid, AttachmentItem } from "@rimelight_ui/components/attachment-tile.slint";
+import { ImageViewer, ImageViewerItem } from "@rimelight_ui/components/image-viewer.slint";
+
+// An area chip: the area's name on its colour, with the ink (black or white) that reads on that colour.
+export struct AreaChip {
+    name: string,
+    color: color,
+    ink: color,
+}
+
+// The page's values and the choices of its selects. Empty strings mean "not set" (no sprint, no assignee, no estimate).
+export struct IssueDetailView {
+    key: string,
+    project-name: string,
+    // "2 of 14" when the issue is in the list on show, else "" (the arrows are hidden).
+    position: string,
+    has-prev: bool,
+    has-next: bool,
+    votes: int,
+    voted: bool,
+    starred: bool,
+    // The sum of the spent time, as "2h 30m", or "None".
+    spent: string,
+    summary: string,
+    issue-type: string,
+    state-id: string,
+    state-name: string,
+    priority: string,
+    assignee-id: string,
+    assignee-name: string,
+    sprint-id: string,
+    sprint-name: string,
+    estimate: string,
+    due-date: string,
+    tags: [string],
+    // The areas on this issue, each with its colour from the project's area catalogue.
+    area-chips: [AreaChip],
+    reporter: string,
+    created: string,
+    updated: string,
+    updated-by: string,
+    // The description as plain text (headings, bullets and bold marks already read).
+    description: string,
+    has-parent: bool,
+    parent-key: string,
+    parent-summary: string,
+    // The attachments as the grid shows them, the viewer's images, and for each tile the index of its image in the viewer
+    // (-1 for a file that is not an image).
+    attachment-tiles: [AttachmentItem],
+    attachment-images: [ImageViewerItem],
+    attachment-image-index: [int],
+    state-options: [SelectOption],
+    type-options: [SelectOption],
+    priority-options: [SelectOption],
+    assignee-options: [SelectOption],
+    sprint-options: [SelectOption],
+}
+
+// An issue in a list (subtasks). Clicking one opens it.
+export struct IssueRef {
+    key: string,
+    summary: string,
+    state: string,
+}
+
+// A link on this issue. `heading` is the group's label (the first row of each group only; empty otherwise).
+export struct LinkRow {
+    id: string,
+    heading: string,
+    key: string,
+    summary: string,
+    state: string,
+}
+
+// A comment. `changeable` is true when the caller may edit and delete it (their own, or a project admin's).
+export struct CommentRow {
+    id: string,
+    initials: string,
+    author: string,
+    when: string,
+    body: string,
+    changeable: bool,
+    editing: bool,
+}
+
+// A spent-time entry. `changeable`: the caller's own, or a project admin's.
+export struct WorkRow {
+    id: string,
+    author: string,
+    minutes: string,
+    spent-on: string,
+    note: string,
+    changeable: bool,
+}
+
+// An attachment. `changeable` is true for a member or an admin (the file's uploader is not in the list data).
+export struct AttachmentRow {
+    id: string,
+    name: string,
+    size: string,
+    changeable: bool,
+}
+
+// One field of the right-hand panel: the label above its value.
+component PanelRow inherits VerticalLayout {
+    in property <string> label;
+    spacing: Tokens.space-1;
+    alignment: start;
+
+    Text {
+        text: root.label;
+        color: Tokens.text-muted;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: Type.caption.weight;
+    }
+    @children
+}
+
+
+// A panel value in the accent colour. A click opens the field's edit control (when `clickable`).
+component PanelValue inherits Rectangle {
+    in property <string> text;
+    in property <bool> clickable: true;
+    callback clicked();
+
+    horizontal-stretch: 1;
+    height: value-text.preferred-height;
+
+    value-text := Text {
+        width: root.width;
+        text: root.text;
+        wrap: word-wrap;
+        color: Tokens.accent-text;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        font-weight: Type.body.weight;
+    }
+
+    TouchArea {
+        width: root.width;
+        height: root.height;
+        enabled: root.clickable;
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component IssueDetailPage inherits Rectangle {
+    // The route of the page (`/p/:key/issues/:id`). The page reports `opened` for it.
+    in property <string> route;
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <IssueDetailView> view;
+    in property <bool> saving;
+    in property <string> action-error;
+    in property <[IssueRef]> subtasks;
+    in property <[LinkRow]> links;
+    in property <[CommentRow]> comments;
+    in property <[string]> activity;
+    in property <[WorkRow]> work;
+    in property <[AttachmentRow]> attachments;
+    // Edit controls: the caller is a project member (admin or member). Moderation: a project admin.
+    in property <bool> can-edit;
+    in property <bool> can-moderate;
+    in property <bool> can-delete;
+    in property <bool> confirm-delete;
+    // The comment being edited is `comments[i].editing`; its text is the edit draft.
+    in-out property <string> comment-edit-draft;
+
+    callback opened(string);
+    callback retry();
+    callback back();
+    callback open-issue(string);
+    // Opens the edit modal, which changes the whole issue (src/pages/projects/new_issue.rs).
+    callback edit-open();
+    callback subtask-add(string);
+    callback link-add(string, string);
+    callback link-remove(string);
+    callback comment-add(string);
+    callback comment-edit-start(string);
+    callback comment-edit-cancel();
+    callback comment-edit-save(string, string);
+    callback comment-delete(string);
+    callback delete-ask();
+    callback delete-cancel();
+    callback delete-confirm();
+    callback vote(bool);
+    callback star(bool);
+    callback prev();
+    callback next();
+    callback copy-key(string);
+    // Spent time: minutes, the date (YYYY-MM-DD, or empty for today), and the note.
+    callback work-add(string, string, string);
+    callback work-delete(string);
+    callback attach();
+    callback attachment-delete(string);
+    // A file that is not an image was chosen: its index in `view.attachment-tiles` (and `attachments`).
+    callback attachment-download(int);
+
+    // Local state. The tab is 0 for Comments, 1 for Spent time and 2 for History.
+    property <int> tab: 0;
+    // Narrow pages put the field panel below the content.
+    property <bool> narrow: root.width < 760px;
+    property <bool> attachments-open: true;
+    // The image viewer: shown when an image tile is chosen, at the image's index in `view.attachment-images`.
+    property <bool> viewer-open: false;
+    property <int> viewer-index: 0;
+    property <bool> link-open: false;
+    property <string> comment-draft;
+    property <string> subtask-draft;
+    property <string> link-target;
+    property <string> link-kind: "relates";
+    property <string> work-minutes;
+    property <string> work-date;
+    property <string> work-note;
+    property <[SelectOption]> kind-options: [
+        { value: "relates", label: "Relates to" },
+        { value: "blocks", label: "Blocks" },
+        { value: "duplicates", label: "Duplicates" },
+    ];
+
+    background: transparent;
+    init => {
+        root.opened(root.route);
+    }
+    changed route => {
+        root.opened(root.route);
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-6;
+        padding-top: 0px;
+        spacing: Tokens.space-3;
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.circle-dot;
+            empty-title: "No issue";
+            empty-description: "This issue could not be found.";
+            error-description: "The issue could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        if root.state == PageLoadState.loaded : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Issue " + root.view.key;
+
+            VerticalLayout {
+                width: parent.width;
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                // Breadcrumb: Projects / <project> / Issues / KEY-N, with the key's copy button, and the previous and next arrows.
+                HorizontalLayout {
+                    width: parent.width;
+                    horizontal-stretch: 1;
+                    spacing: Tokens.space-2;
+                    alignment: stretch;
+
+                    Text {
+                        text: "Projects";
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    Text {
+                        text: "/";
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    Text {
+                        text: root.view.project-name;
+                        color: Tokens.text-primary;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    Text {
+                        text: "/";
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    Button {
+                        text: "Issues";
+                        variant: ButtonVariant.link;
+                        size: ButtonSize.sm;
+                        accessible-name: "Issues";
+                        clicked => {
+                            root.back();
+                        }
+                    }
+                    Text {
+                        text: "/";
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    Text {
+                        text: root.view.key;
+                        color: Tokens.text-primary;
+                        vertical-alignment: center;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    IconButton {
+                        icon: Icons.copy;
+                        label: "Copy issue key";
+                        tooltip: "Copy key";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => {
+                            root.copy-key(root.view.key);
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    if root.view.position != "" : IconButton {
+                        icon: Icons.chevron-left;
+                        label: "Previous issue";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        enabled: root.view.has-prev;
+                        clicked => {
+                            root.prev();
+                        }
+                    }
+                    if root.view.position != "" : Text {
+                        text: root.view.position;
+                        color: Tokens.text-muted;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    if root.view.position != "" : IconButton {
+                        icon: Icons.chevron-right;
+                        label: "Next issue";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        enabled: root.view.has-next;
+                        clicked => {
+                            root.next();
+                        }
+                    }
+                }
+
+                // The content and the field panel. The panel is the second column, or a row below when the page is narrow.
+                GridLayout {
+                    horizontal-stretch: 1;
+                    width: parent.width;
+                    spacing: Tokens.space-5;
+
+                    VerticalLayout {
+                        row: 0;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        // Button's max-width is its content width, and a column's max is the smallest of its children's, so
+                        // without this the column could not grow past the widest button row (about 260 px).
+                        max-width: 100000px;
+                        spacing: Tokens.space-4;
+                        alignment: start;
+
+                        if root.view.has-parent : HorizontalLayout {
+                            alignment: start;
+                            Button {
+                                text: "Parent " + root.view.parent-key + " " + root.view.parent-summary;
+                                variant: ButtonVariant.link;
+                                accessible-name: "Parent " + root.view.parent-key;
+                                clicked => {
+                                    root.open-issue(root.view.parent-key);
+                                }
+                            }
+                        }
+
+                        // The title row: the summary at the top left, then the one edit button (the whole issue opens in the edit modal), link and more at the top right.
+                        HorizontalLayout {
+                            horizontal-stretch: 1;
+                            spacing: Tokens.space-3;
+                            alignment: stretch;
+                            Text {
+                                horizontal-stretch: 1;
+                                horizontal-alignment: left;
+                                vertical-alignment: center;
+                                text: root.view.summary;
+                                color: Tokens.text-primary;
+                                wrap: word-wrap;
+                                font-family: Type.title.family;
+                                font-size: Type.title.size;
+                                font-weight: Type.title.weight;
+                            }
+                            VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 0;
+                            HorizontalLayout {
+                            spacing: Tokens.space-1;
+                            if root.can-edit : IconButton {
+                                icon: Icons.pencil;
+                                label: "Edit issue";
+                                tooltip: "Edit issue";
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.edit-open();
+                                }
+                            }
+                            if root.can-edit : IconButton {
+                                icon: Icons.link;
+                                label: "Add link";
+                                tooltip: "Link";
+                                variant: root.link-open ? ButtonVariant.primary : ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.link-open = !root.link-open;
+                                }
+                            }
+                            // The more button opens a popover anchored to it (zero-sized in the row, so it adds no gap).
+                            if root.can-delete : Rectangle {
+                                width: Tokens.size-control-sm;
+                                height: Tokens.size-control-sm;
+
+                                more-btn := IconButton {
+                                    icon: Icons.ellipsis;
+                                    label: "More actions";
+                                    tooltip: "More";
+                                    variant: more-pop.is-open ? ButtonVariant.primary : ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    pointer-pressed => { more-pop.trigger-pressed(); }
+                                    clicked => {
+                                        more-btn.focus-me();
+                                        more-pop.trigger-clicked();
+                                    }
+                                }
+
+                                more-pop := Popover {
+                                    accessible-name: "More actions";
+                                    anchor-width: more-btn.width;
+                                    anchor-height: more-btn.height;
+                                    align-end: true;
+                                    panel-width: 240px;
+
+                                    if !root.confirm-delete : Button {
+                                        text: "Delete issue";
+                                        variant: ButtonVariant.danger;
+                                        accessible-name: "Delete issue";
+                                        clicked => {
+                                            root.delete-ask();
+                                        }
+                                    }
+                                    if root.confirm-delete : VerticalLayout {
+                                        spacing: Tokens.space-2;
+                                        Text {
+                                            text: "Delete " + root.view.key + "? This cannot be undone.";
+                                            color: Tokens.status-danger-text-on-surface;
+                                            wrap: word-wrap;
+                                            font-family: Type.body-strong.family;
+                                            font-size: Type.body-strong.size;
+                                            font-weight: Type.body-strong.weight;
+                                        }
+                                        HorizontalLayout {
+                                            spacing: Tokens.space-2;
+                                            alignment: end;
+                                            Button {
+                                                text: "Cancel";
+                                                variant: ButtonVariant.ghost;
+                                                clicked => {
+                                                    root.delete-cancel();
+                                                    more-pop.close();
+                                                }
+                                            }
+                                            Button {
+                                                text: "Delete";
+                                                variant: ButtonVariant.danger;
+                                                accessible-name: "Confirm delete";
+                                                clicked => {
+                                                    more-pop.close();
+                                                    root.delete-confirm();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            }
+                            }
+                        }
+                        // Created and updated, with the vote button and the star on the right, below the title row.
+                        HorizontalLayout {
+                            spacing: Tokens.space-3;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: Tokens.space-1;
+                                Text {
+                                    wrap: word-wrap;
+                                    text: "Created by " + root.view.reporter + " " + root.view.created;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                                if root.view.updated-by != "" : Text {
+                                    wrap: word-wrap;
+                                    text: "Updated by " + root.view.updated-by + " " + root.view.updated;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                            }
+                            Button {
+                                text: "\{root.view.votes}";
+                                leading-icon: Icons.thumbs-up;
+                                variant: root.view.voted ? ButtonVariant.primary : ButtonVariant.secondary;
+                                size: ButtonSize.sm;
+                                accessible-name: "Votes, \{root.view.votes}";
+                                clicked => {
+                                    root.vote(!root.view.voted);
+                                }
+                            }
+                            IconButton {
+                                icon: Icons.star;
+                                label: root.view.starred ? "Unstar issue" : "Star issue";
+                                tooltip: root.view.starred ? "Unstar" : "Star";
+                                variant: root.view.starred ? ButtonVariant.primary : ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.star(!root.view.starred);
+                                }
+                            }
+                        }
+
+                        // Link: the add row, shown with the link icon. The links themselves are listed further down.
+                        if root.link-open && root.can-edit : HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            Select {
+                                value <=> root.link-kind;
+                                options: root.kind-options;
+                                accessible-name: "Link kind";
+                            }
+                            Input {
+                                horizontal-stretch: 1;
+                                text <=> root.link-target;
+                                placeholder: "Issue key, for example EMB-12";
+                                accessible-name: "Link target";
+                            }
+                            Button {
+                                text: "Add link";
+                                variant: ButtonVariant.secondary;
+                                enabled: root.link-target != "";
+                                clicked => {
+                                    root.link-add(root.link-target, root.link-kind);
+                                    root.link-target = "";
+                                }
+                            }
+                        }
+
+                        // Attachments: a collapsible section of file tiles, with Attach files.
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+                            Button {
+                                text: "Attachments \{root.attachments.length}";
+                                leading-icon: Icons.paperclip;
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                accessible-name: "Attachments, \{root.attachments.length}";
+                                clicked => {
+                                    root.attachments-open = !root.attachments-open;
+                                }
+                            }
+                            if root.attachments-open : VerticalLayout {
+                                spacing: Tokens.space-2;
+                                AttachmentGrid {
+                                    items: root.view.attachment-tiles;
+                                    open(index) => {
+                                        root.viewer-index = root.view.attachment-image-index[index];
+                                        root.viewer-open = true;
+                                    }
+                                    download(index) => {
+                                        root.attachment-download(index);
+                                    }
+                                    delete(index) => {
+                                        root.attachment-delete(root.attachments[index].id);
+                                    }
+                                }
+                                ImageViewer {
+                                    images: root.view.attachment-images;
+                                    current-index <=> root.viewer-index;
+                                    is-open <=> root.viewer-open;
+                                    host-width: root.width;
+                                    host-height: root.height;
+                                }
+                                if root.attachments.length == 0 : Text {
+                                    text: "No attachments.";
+                                    color: Tokens.text-muted;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                }
+                                if root.can-edit : HorizontalLayout {
+                                    alignment: start;
+                                    Button {
+                                        text: "Attach files";
+                                        leading-icon: Icons.upload;
+                                        variant: ButtonVariant.secondary;
+                                        size: ButtonSize.sm;
+                                        clicked => {
+                                            root.attach();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // The description: read view. It is edited in the edit modal.
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+
+                            Text {
+                                text: "Description";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            Text {
+                                text: root.view.description != "" ? root.view.description : "No description.";
+                                color: root.view.description != "" ? Tokens.text-primary : Tokens.text-muted;
+                                wrap: word-wrap;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                        }
+
+                        // Subtasks: each opens; Add subtask creates one with this issue as its parent.
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+                            Text {
+                                text: "Subtasks";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            for sub in root.subtasks : HorizontalLayout {
+                                spacing: Tokens.space-3;
+                                alignment: start;
+                                Button {
+                                    text: sub.key + " " + sub.summary;
+                                    variant: ButtonVariant.link;
+                                    accessible-name: sub.key;
+                                    clicked => {
+                                        root.open-issue(sub.key);
+                                    }
+                                }
+                                Text {
+                                    text: sub.state;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                            }
+                            if root.can-edit : HorizontalLayout {
+                                spacing: Tokens.space-2;
+                                Input {
+                                    horizontal-stretch: 1;
+                                    text <=> root.subtask-draft;
+                                    placeholder: "Title of a new subtask";
+                                    accessible-name: "Subtask title";
+                                }
+                                Button {
+                                    text: "Add subtask";
+                                    variant: ButtonVariant.secondary;
+                                    enabled: root.subtask-draft != "";
+                                    clicked => {
+                                        root.subtask-add(root.subtask-draft);
+                                        root.subtask-draft = "";
+                                    }
+                                }
+                            }
+                        }
+
+                        // Links, grouped by their label. Each opens; Remove takes the link out.
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+                            Text {
+                                text: "Links";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            for link in root.links : VerticalLayout {
+                                spacing: Tokens.space-1;
+                                if link.heading != "" : Text {
+                                    text: link.heading;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                                HorizontalLayout {
+                                    spacing: Tokens.space-3;
+                                    alignment: start;
+                                    Button {
+                                        text: link.key + " " + link.summary;
+                                        variant: ButtonVariant.link;
+                                        accessible-name: link.key;
+                                        clicked => {
+                                            root.open-issue(link.key);
+                                        }
+                                    }
+                                    Text {
+                                        text: link.state;
+                                        color: Tokens.text-muted;
+                                        font-family: Type.caption.family;
+                                        font-size: Type.caption.size;
+                                        font-weight: Type.caption.weight;
+                                    }
+                                    if root.can-edit : Button {
+                                        text: "Remove";
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        accessible-name: "Remove link to " + link.key;
+                                        clicked => {
+                                            root.link-remove(link.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Tabs as icons: Comments, Spent time, History.
+                        HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            alignment: start;
+                            IconButton {
+                                icon: Icons.message-square;
+                                label: "Comments";
+                                tooltip: "Comments";
+                                variant: root.tab == 0 ? ButtonVariant.primary : ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.tab = 0;
+                                }
+                            }
+                            IconButton {
+                                icon: Icons.clock;
+                                label: "Spent time";
+                                tooltip: "Spent time";
+                                variant: root.tab == 1 ? ButtonVariant.primary : ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.tab = 1;
+                                }
+                            }
+                            IconButton {
+                                icon: Icons.history;
+                                label: "History";
+                                tooltip: "History";
+                                variant: root.tab == 2 ? ButtonVariant.primary : ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => {
+                                    root.tab = 2;
+                                }
+                            }
+                        }
+
+                        if root.tab == 0 : VerticalLayout {
+                            spacing: Tokens.space-3;
+
+                            for comment in root.comments : VerticalLayout {
+                                spacing: Tokens.space-1;
+                                HorizontalLayout {
+                                    spacing: Tokens.space-2;
+                                    alignment: start;
+                                    Text {
+                                        text: comment.initials;
+                                        color: Tokens.text-primary;
+                                        font-family: Type.caption.family;
+                                        font-size: Type.caption.size;
+                                        font-weight: Type.body-strong.weight;
+                                    }
+                                    Text {
+                                        text: comment.author;
+                                        color: Tokens.text-primary;
+                                        font-family: Type.body-strong.family;
+                                        font-size: Type.body-strong.size;
+                                        font-weight: Type.body-strong.weight;
+                                    }
+                                    Text {
+                                        text: comment.when;
+                                        color: Tokens.text-muted;
+                                        font-family: Type.caption.family;
+                                        font-size: Type.caption.size;
+                                        font-weight: Type.caption.weight;
+                                    }
+                                }
+                                if !comment.editing : Text {
+                                    text: comment.body;
+                                    color: Tokens.text-primary;
+                                    wrap: word-wrap;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                }
+                                if comment.editing : VerticalLayout {
+                                    spacing: Tokens.space-2;
+                                    Textarea {
+                                        text <=> root.comment-edit-draft;
+                                        accessible-name: "Edit comment";
+                                        rows: 3;
+                                        line-count: 3;
+                                    }
+                                    HorizontalLayout {
+                                        spacing: Tokens.space-2;
+                                        alignment: end;
+                                        Button {
+                                            text: "Cancel";
+                                            variant: ButtonVariant.ghost;
+                                            clicked => {
+                                                root.comment-edit-cancel();
+                                            }
+                                        }
+                                        Button {
+                                            text: "Save";
+                                            variant: ButtonVariant.primary;
+                                            enabled: root.comment-edit-draft != "";
+                                            clicked => {
+                                                root.comment-edit-save(comment.id, root.comment-edit-draft);
+                                            }
+                                        }
+                                    }
+                                }
+                                if comment.changeable && !comment.editing : HorizontalLayout {
+                                    spacing: Tokens.space-2;
+                                    alignment: start;
+                                    Button {
+                                        text: "Edit";
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        accessible-name: "Edit comment by " + comment.author;
+                                        clicked => {
+                                            root.comment-edit-start(comment.id);
+                                        }
+                                    }
+                                    Button {
+                                        text: "Delete";
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        accessible-name: "Delete comment by " + comment.author;
+                                        clicked => {
+                                            root.comment-delete(comment.id);
+                                        }
+                                    }
+                                }
+                            }
+
+                            if root.comments.length == 0 : Text {
+                                text: "No comments yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                        }
+
+                        if root.tab == 1 : VerticalLayout {
+                            spacing: Tokens.space-2;
+                            for entry in root.work : HorizontalLayout {
+                                spacing: Tokens.space-3;
+                                alignment: start;
+                                Text {
+                                    text: entry.minutes;
+                                    color: Tokens.text-primary;
+                                    font-family: Type.body-strong.family;
+                                    font-size: Type.body-strong.size;
+                                    font-weight: Type.body-strong.weight;
+                                }
+                                Text {
+                                    text: entry.author + " · " + entry.spent-on;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: entry.note;
+                                    color: Tokens.text-primary;
+                                    wrap: word-wrap;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                }
+                                if entry.changeable : Button {
+                                    text: "Delete";
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    accessible-name: "Delete time entry by " + entry.author;
+                                    clicked => {
+                                        root.work-delete(entry.id);
+                                    }
+                                }
+                            }
+                            if root.work.length == 0 : Text {
+                                text: "No spent time yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            if root.can-edit : HorizontalLayout {
+                                spacing: Tokens.space-2;
+                                Input {
+                                    width: 110px;
+                                    text <=> root.work-minutes;
+                                    placeholder: "Minutes";
+                                    accessible-name: "Minutes";
+                                }
+                                Input {
+                                    width: 140px;
+                                    text <=> root.work-date;
+                                    placeholder: "YYYY-MM-DD";
+                                    accessible-name: "Spent on";
+                                }
+                                Input {
+                                    horizontal-stretch: 1;
+                                    text <=> root.work-note;
+                                    placeholder: "Note";
+                                    accessible-name: "Work note";
+                                }
+                                Button {
+                                    text: "Add time";
+                                    variant: ButtonVariant.primary;
+                                    size: ButtonSize.sm;
+                                    enabled: root.work-minutes != "";
+                                    clicked => {
+                                        root.work-add(root.work-minutes, root.work-date, root.work-note);
+                                        root.work-minutes = "";
+                                        root.work-note = "";
+                                    }
+                                }
+                            }
+                        }
+
+                        if root.tab == 2 : VerticalLayout {
+                            spacing: Tokens.space-2;
+                            for line in root.activity : Text {
+                                text: line;
+                                color: Tokens.text-primary;
+                                wrap: word-wrap;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            if root.activity.length == 0 : Text {
+                                text: "No activity yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                        }
+
+                        // The comment box at the bottom of the page.
+                        if root.can-edit : VerticalLayout {
+                            spacing: Tokens.space-2;
+                            Textarea {
+                                text <=> root.comment-draft;
+                                placeholder: "Write a comment";
+                                accessible-name: "New comment";
+                                rows: 3;
+                                line-count: 3;
+                            }
+                            HorizontalLayout {
+                                alignment: end;
+                                Button {
+                                    text: "Comment";
+                                    variant: ButtonVariant.primary;
+                                    enabled: root.comment-draft != "";
+                                    clicked => {
+                                        root.comment-add(root.comment-draft);
+                                        root.comment-draft = "";
+                                    }
+                                }
+                            }
+                        }
+
+                        if root.action-error != "" : Text {
+                            text: root.action-error;
+                            color: Tokens.status-danger-text-on-surface;
+                            wrap: word-wrap;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                    }
+
+                    // The field panel: a card. Each value opens its edit control.
+                    Rectangle {
+                        row: root.narrow ? 1 : 0;
+                        col: root.narrow ? 0 : 1;
+                        horizontal-stretch: 0;
+                        min-width: 240px;
+                        max-width: root.narrow ? 4000px : 320px;
+                        background: Tokens.surface-raised;
+                        border-radius: Tokens.radius-surface;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+
+                        VerticalLayout {
+                            padding: Tokens.space-4;
+                            spacing: Tokens.space-3;
+                            alignment: start;
+
+                            PanelRow {
+                                label: "Project";
+                                PanelValue {
+                                    text: root.view.project-name;
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Type";
+                                PanelValue {
+                                    text: root.view.issue-type;
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "State";
+                                PanelValue {
+                                    text: root.view.state-name;
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Priority";
+                                PanelValue {
+                                    text: root.view.priority;
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Assignee";
+                                PanelValue {
+                                    text: root.view.assignee-name;
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Estimation";
+                                PanelValue {
+                                    text: root.view.estimate != "" ? root.view.estimate + " points" : "None";
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Spent time";
+                                HorizontalLayout {
+                                    spacing: Tokens.space-2;
+                                    PanelValue {
+                                        text: root.view.spent;
+                                        clickable: false;
+                                    }
+                                    if root.can-edit : IconButton {
+                                        icon: Icons.plus;
+                                        label: "Log spent time";
+                                        tooltip: "Log time";
+                                        variant: ButtonVariant.ghost;
+                                        size: ButtonSize.sm;
+                                        clicked => {
+                                            root.tab = 1;
+                                        }
+                                    }
+                                }
+                            }
+                            PanelRow {
+                                label: "Due date";
+                                PanelValue {
+                                    text: root.view.due-date != "" ? root.view.due-date : "None";
+                                    clickable: false;
+                                }
+                            }
+                            PanelRow {
+                                label: "Area";
+                                VerticalLayout {
+                                    spacing: Tokens.space-2;
+                                    horizontal-stretch: 1;
+                                    alignment: start;
+                                    if root.view.area-chips.length == 0 : PanelValue {
+                                        text: "None";
+                                        clickable: false;
+                                    }
+                                    // Each area is a chip in its own colour (the colour the admin gave it).
+                                    for chip in root.view.area-chips : Rectangle {
+                                        height: Tokens.size-tag-height;
+                                        width: chip-text.preferred-width + 2 * Tokens.space-2;
+                                        border-radius: Tokens.radius-control;
+                                        background: chip.color;
+
+                                        chip-text := Text {
+                                            x: Tokens.space-2;
+                                            width: self.preferred-width;
+                                            height: parent.height;
+                                            text: chip.name;
+                                            color: chip.ink;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                    }
+                                }
+                            }
+                            PanelRow {
+                                label: "Sprint";
+                                PanelValue {
+                                    text: root.view.sprint-name;
+                                    clickable: false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

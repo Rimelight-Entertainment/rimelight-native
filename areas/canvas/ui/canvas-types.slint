@@ -1,0 +1,286 @@
+// Canvas page structs and globals (CV.6, decision 0045; batch CV.7 to CV.13). Shared by canvas.slint, canvas-item.slint,
+// canvas-overlays.slint and canvas-popout.slint. Rust (src/) fills CanvasState and handles its callbacks.
+//
+// Coordinates. Items are in world units. A screen position is world * zoom + pan (pan in screen px, relative to the canvas
+// area's top left). Angles are in degrees, clockwise.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+
+// One panel of the canvas menu, in SCREEN px within the canvas area (drawn behind its rows).
+export struct CanvasMenuPanel { x: float, y: float, w: float, h: float }
+
+// One row of the canvas menu. x, y, w, h are SCREEN px within the canvas area (absolute, not panel-relative).
+// kind: "item" | "submenu" | "separator" | "toggle". shortcut "" = none. checked: -1 no check slot, 0 unchecked, 1 checked.
+export struct CanvasMenuRow {
+    panel: int,                               // index into menu-panels
+    x: float, y: float, w: float, h: float,
+    kind: string,
+    label: string,
+    shortcut: string,
+    enabled: bool,
+    checked: int,
+    highlighted: bool,
+    toggle-left: string,                      // kind "toggle": the two halves' labels
+    toggle-right: string,
+    toggle-right-on: bool,                    // which half is selected
+}
+
+// One item of the canvas, in draw order (bottom first). `kind` is "Image" | "Text" | "Shape" | "Stroke" | "Frame".
+export struct CanvasItemView {
+    id: string,
+    kind: string,
+    x: float, y: float, w: float, h: float,   // world units
+    rotation: float,                          // degrees
+    flip-x: bool, flip-y: bool,
+    opacity: float,                           // 0..1
+    image: image,                             // Image items: the decoded picture (may be empty while loading)
+    has-image: bool,                          // false while the picture is loading or failed: draw a placeholder
+    pixelated: bool,                          // Image: true = nearest-neighbour sampling (pixel art), false = smooth
+    text: string,                             // Text: the text; Frame: the title
+    color: string,                            // palette name for text/stroke ("ink", "red", ...)
+    fill: string,                             // palette name for a note background, "" = none
+    font-size: float,                         // world units
+    align: string,                            // "left" | "center" | "right"
+    locked: bool,
+    selected: bool,
+    editing: bool,                            // true for the Text item being edited (hide its static text)
+    // Image: the part of the source picture to show, in PIXELS of the picture. crop-w 0 = whole picture.
+    crop-x: float, crop-y: float, crop-w: float, crop-h: float,
+    // Shape and Stroke: Slint path commands in local 0..w / 0..h (built in Rust, space_canvas::draw).
+    path: string,
+    // Shape kind: "rect" | "ellipse" | "diamond" | "line" | "arrow", "" otherwise.
+    shape: string,
+    stroke-width: float,                      // world units
+    stroke-color: string,                     // palette name
+    fill-color: string,                       // palette name, "" = no fill
+    comment: string,                          // Image: caption drawn under the box
+    gray: bool,                               // Image: the chosen picture is the grey copy (markup ignores it)
+    is-video: bool,                           // Video: drawn like an Image (its thumbnail, or the playing frame)
+    duration-text: string,                    // Video: its length as "8:40" (or "1:02:05"); "" for other kinds
+}
+
+// A snap guide line, in SCREEN px.
+export struct CanvasGuide { x1: float, y1: float, x2: float, y2: float }
+
+// A person in the room (presence). Cursor and box positions are in SCREEN px within the canvas area.
+export struct CanvasPeer {
+    conn-id: string,
+    name: string,
+    initials: string,
+    color: color,
+    cursor-x: float,
+    cursor-y: float,
+    has-cursor: bool,
+    following: bool,
+}
+
+// A peer's selection outline, in SCREEN px (x, y is the top left of the unrotated box, rotated about its centre).
+export struct CanvasPeerBox { color: color, x: float, y: float, w: float, h: float, rotation: float }
+
+// The play controls of one video on the canvas (CV-V.4). x, y, w, h is the video's box in SCREEN px within the canvas area
+// (rotation ignored). progress is 0..1, time-text is "1:23 / 8:40". selected: the video is selected (its bar shows).
+// shared: a shared playback exists for the video (CV-V.5). following: this person follows it.
+export struct CanvasVideoControl {
+    id: string,
+    x: float, y: float, w: float, h: float,
+    playing: bool,
+    progress: float,
+    time-text: string,
+    muted: bool,
+    looping: bool,
+    loading: bool,
+    selected: bool,
+    shared: bool,
+    following: bool,
+}
+
+// One row of the hierarchy panel. depth 0 is top level; kind "Image" | "Text" | "Shape" | "Stroke" | "Frame".
+export struct CanvasHierarchyRow {
+    id: string,
+    depth: int,
+    label: string,
+    kind: string,
+    selected: bool,
+    locked: bool,
+}
+
+// One row of the manage-images dialog.
+export struct CanvasAssetRow {
+    id: string,
+    name: string,
+    size-text: string,
+    pixels-text: string,
+    uses: int,
+    thumb: image,
+    has-thumb: bool,
+}
+
+// One open window in the "Always on top of..." picker (Windows only). handle is the window handle as text.
+export struct CanvasWindowItem { handle: string, title: string }
+
+// Item colours and note backgrounds by palette name, for the current theme (Tokens.dark). Images are never recoloured.
+// Names: ink gray red orange yellow green teal blue purple pink white. An unknown name is ink for colours and gray for fills.
+export global CanvasPalette {
+    // Item colour (text and stroke). Dark mode uses lighter values so they read on the dark canvas.
+    public pure function color(name: string) -> color {
+        if name == "gray" { return Tokens.dark ? #9ca3af : #6b7280; }
+        if name == "red" { return Tokens.dark ? #ff6b6b : #d92d20; }
+        if name == "orange" { return Tokens.dark ? #ff922b : #e8590c; }
+        if name == "yellow" { return Tokens.dark ? #fcc419 : #b08800; }
+        if name == "green" { return Tokens.dark ? #51cf66 : #2b8a3e; }
+        if name == "teal" { return Tokens.dark ? #3bc9db : #0c8599; }
+        if name == "blue" { return Tokens.dark ? #4dabf7 : #1c7ed6; }
+        if name == "purple" { return Tokens.dark ? #9775fa : #7048e8; }
+        if name == "pink" { return Tokens.dark ? #f06595 : #d6336c; }
+        if name == "white" { return Tokens.dark ? #2a2a2a : #ffffff; }
+        return Tokens.dark ? #e8e8e8 : #1e1e1e;
+    }
+
+    // Note background. Pale tints in light mode, deep tints in dark mode. Ink text reads on every one of them.
+    public pure function fill(name: string) -> color {
+        if name == "red" { return Tokens.dark ? #5c1d1d : #ffe3e3; }
+        if name == "orange" { return Tokens.dark ? #5a3416 : #ffe8cc; }
+        if name == "yellow" { return Tokens.dark ? #4a3f10 : #fff3bf; }
+        if name == "green" { return Tokens.dark ? #1d4a2a : #d3f9d8; }
+        if name == "teal" { return Tokens.dark ? #164a4f : #c3fae8; }
+        if name == "blue" { return Tokens.dark ? #173f63 : #d0ebff; }
+        if name == "purple" { return Tokens.dark ? #35275e : #e5dbff; }
+        if name == "pink" { return Tokens.dark ? #5a1f3a : #fcc2d7; }
+        if name == "white" { return Tokens.dark ? #2a2a2a : #ffffff; }
+        return Tokens.dark ? #3a3f47 : #e9ecef;
+    }
+}
+
+// The canvas page's state and callbacks. Rust sets the properties and handles the callbacks (src/).
+export global CanvasState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> title;
+    in-out property <bool> read-only;          // viewer access or archived
+    in-out property <string> connection;       // "connecting" | "live" | "reconnecting" | "ended"
+    in-out property <[CanvasItemView]> items;  // draw order (bottom first)
+    in-out property <float> zoom: 1;
+    in-out property <float> pan-x: 0;
+    in-out property <float> pan-y: 0;
+    in-out property <string> zoom-label: "100%";
+    // "select" | "text" | "hand" | "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "eraser" | "frame" | "eyedropper"
+    in-out property <string> tool: "select";
+    // Selection box in WORLD units (rotated by sel-rotation around its centre). Handles shown when has-selection,
+    // !read-only and !sel-locked. Single item: its own box and rotation; several: their bounds, rotation 0.
+    in-out property <bool> has-selection;
+    in-out property <float> sel-x; in-out property <float> sel-y; in-out property <float> sel-w; in-out property <float> sel-h;
+    in-out property <float> sel-rotation;
+    in-out property <bool> sel-locked;
+    // Marquee rectangle in SCREEN px while dragging on empty canvas.
+    in-out property <bool> marquee-active;
+    in-out property <float> marquee-x; in-out property <float> marquee-y; in-out property <float> marquee-w; in-out property <float> marquee-h;
+    in-out property <[CanvasGuide]> guides;
+    // Text editing: the item being edited and its live text (the editor overlay sits on that item's box).
+    in-out property <string> editing-id;
+    in-out property <string> editing-text;
+    // What the editor is for: "text" (a note's text), "comment" (an image's caption) or "title" (a frame's title).
+    in-out property <string> editing-field: "text";
+    in-out property <bool> can-undo;
+    in-out property <bool> can-redo;
+    // Canvas menu, drawn from Rust data (the menu tree and shortcut table live in src/). Panels and rows are in
+    // SCREEN px within the canvas area. Rust decides what is open; menu-open says whether to draw it.
+    in-out property <bool> menu-open;
+    in-out property <[CanvasMenuPanel]> menu-panels;
+    in-out property <[CanvasMenuRow]> menu-rows;
+    in-out property <string> cursor: "default";  // "default" | "move" | "grab" | "grabbing" | "crosshair" | "text" | "nwse" | "nesw" | "ns" | "ew" | "none"
+
+    // Eraser circle (owner review 2). Drawn by the page while the Eraser tool is active over the canvas.
+    in property <bool> eraser-shown;     // draw the eraser circle
+    in property <float> eraser-x;        // screen px, canvas-local
+    in property <float> eraser-y;
+    in property <float> eraser-r;        // radius px
+
+    callback opened(string);     // page init, with the group's route
+    callback retry();
+    // Pointer on the canvas area, SCREEN px relative to the canvas area. kind: "down" | "move" | "up". button: "left" | "right" | "middle" | "none".
+    callback pointer(string, float, float, string, bool /*shift*/, bool /*ctrl*/, bool /*alt*/);
+    callback double-click(float, float);
+    callback scroll(float /*x*/, float /*y*/, float /*dx*/, float /*dy*/, bool /*ctrl*/, bool /*shift*/);
+    // Keys when the canvas has focus: returns true when used. text is the key's text (Slint KeyEvent.text).
+    callback key(string, bool /*shift*/, bool /*ctrl*/, bool /*alt*/) -> bool;
+    callback viewport(float /*w*/, float /*h*/);
+    callback set-tool(string);
+    callback zoom-in(); callback zoom-out(); callback zoom-reset(); callback zoom-fit();
+    callback undo(); callback redo();
+    callback add-image();
+    callback menu-hover(int);          // row index under the pointer (-1 when it leaves every row)
+    callback menu-click(int, float);   // row index and the click's x as a fraction 0..1 of the row width (toggle halves)
+    callback menu-dismiss();           // pressed outside every panel, or the menu must close
+    callback text-commit(string);   // the editor's text, on Enter (no Shift) or focus loss
+    callback text-cancel();         // Escape
+
+    // Canvas name, editable in place (owner, 2026-11-19). `renaming` shows the editor.
+    in-out property <bool> renaming;
+    callback rename(string);        // the new name, on Enter or focus loss; Rust saves it
+    // Work in progress, e.g. "Adding 3 images...". Empty = nothing running. Shown as a chip with a spinner.
+    in-out property <string> busy-text;
+    // True while files are dragged over the window from the OS: show the drop overlay.
+    in-out property <bool> drop-hover;
+
+    // Presence (CV.10). Peers are the other people in the room; peer-boxes are their selection outlines (SCREEN px).
+    in-out property <[CanvasPeer]> peers;
+    in-out property <[CanvasPeerBox]> peer-boxes;
+    callback follow(string /*conn-id, "" stops following*/);
+
+    // Videos (CV-V.4): one control per visible video. Playing is local to this person; muted and looping are shared item props.
+    in-out property <[CanvasVideoControl]> video-controls;
+    callback video-toggle(string /*item id*/);
+    callback video-seek(string /*item id*/, float /*fraction 0..1 of the duration*/);
+    callback video-mute(string /*item id*/);
+    callback video-loop(string /*item id*/);
+    // Play for everyone (CV-V.5): starts a shared playback, follows or leaves one, ends one (see page.rs).
+    callback video-together(string /*item id*/);
+
+    // View settings (per session, not shared). grid-mode: "none" | "lines" | "dots". grid-xs / grid-ys: the grid lines
+    // in SCREEN px (x positions of the vertical lines, y positions of the horizontal lines).
+    in-out property <string> grid-mode: "none";
+    in-out property <[float]> grid-xs;
+    in-out property <[float]> grid-ys;
+
+    // Crop mode (CV.7). crop-full-* is the whole picture's rect and crop-* the crop window, both SCREEN px.
+    in-out property <bool> crop-active;
+    in-out property <float> crop-full-x; in-out property <float> crop-full-y;
+    in-out property <float> crop-full-w; in-out property <float> crop-full-h;
+    in-out property <float> crop-x; in-out property <float> crop-y;
+    in-out property <float> crop-w; in-out property <float> crop-h;
+    in-out property <float> crop-rotation;
+
+    // Hierarchy panel (Ctrl+J).
+    in-out property <bool> hierarchy-open;
+    in-out property <[CanvasHierarchyRow]> hierarchy-rows;
+    callback hierarchy-pick(string, bool /*shift*/);
+    callback hierarchy-open-item(string);
+    callback hierarchy-close();      // the panel's close button
+
+    // Slideshow (Alt+S).
+    in-out property <bool> slideshow-open;
+    in-out property <image> slideshow-image;
+    in-out property <string> slideshow-caption;
+    in-out property <bool> slideshow-playing;
+    callback slideshow-step(int);
+    callback slideshow-toggle();
+    callback slideshow-close();
+
+    // Manage images dialog (Ctrl+Shift+J).
+    in-out property <bool> assets-open;
+    in-out property <[CanvasAssetRow]> asset-rows;
+    in-out property <bool> assets-busy;
+    callback assets-delete-unused();
+    callback assets-close();
+
+    // Always on top of... window picker (Windows only).
+    in-out property <bool> windows-open;
+    in-out property <[CanvasWindowItem]> window-items;
+    callback window-picked(string);
+    callback windows-close();
+
+    // Pop-out window (CV.12). The main page shows a placeholder while the canvas is open in its own window.
+    in-out property <bool> popped-out;
+    callback bring-back();
+    callback pop-out();                  // the toolbar's Pop out button (main window only)
+}

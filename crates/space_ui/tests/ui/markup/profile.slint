@@ -1,0 +1,23 @@
+// Test markup for tests/ui/profile.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { ProfilePage } from "@space_area_company/profile.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+
+export component ProfileForm inherits Window {
+    width: 390px;
+    height: 900px;
+
+    in property <bool> own;
+    in property <bool> editing;
+    in property <bool> photo-supported;
+
+    page := ProfilePage {
+        state: PageLoadState.loaded;
+        own: root.own;
+        editing: root.editing;
+        photo-supported: root.photo-supported;
+    }
+
+    out property <bool> edit-shown: page.edit-button-shown;
+    out property <bool> photo-shown: page.photo-button-shown;
+    out property <[string]> edit-labels: page.edit-labels;
+}

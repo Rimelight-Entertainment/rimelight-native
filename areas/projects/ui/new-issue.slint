@@ -1,0 +1,337 @@
+// New issue dialog (S1.5c). YouTrack-style: a large summary, a description and attachments on the left; the field panel
+// on the right (Project, Type, State, Priority, Assignee, Sprint, Due date, Area). The markup holds no logic: Rust
+// (src/pages/projects/new_issue.rs) fills the properties, answers the callbacks and sends the create.
+//
+// The dialog is a Dialog (components/dialog.slint), so it traps focus, closes on Escape and covers the window. Create
+// and Cancel are its footer, drawn here (the Dialog's own footer cannot disable a button).
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { MultiSelect, MultiOption } from "@rimelight_ui/components/multiselect.slint";
+
+// A labelled control of the field panel.
+component PanelField inherits VerticalLayout {
+    in property <string> label;
+    spacing: Tokens.space-1;
+
+    Text {
+        text: root.label;
+        color: Tokens.text-muted;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: Type.caption.weight;
+    }
+
+    @children
+}
+
+export component NewIssueDialog inherits Rectangle {
+    // The window the dialog covers (its popup is clipped to it).
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    // The form. `in-out` values are read by Rust when Create is pressed.
+    in property <[SelectOption]> project-options;
+    in-out property <string> project;
+    in-out property <string> summary;
+    in-out property <string> description;
+    in property <[SelectOption]> type-options;
+    in-out property <string> issue-type;
+    in property <[SelectOption]> state-options;
+    in-out property <string> state;
+    in property <[SelectOption]> priority-options;
+    in-out property <string> priority;
+    in property <[SelectOption]> assignee-options;
+    in-out property <string> assignee;
+    in property <[SelectOption]> sprint-options;
+    in-out property <string> sprint;
+    in-out property <string> due-date;
+    // The due date picker's grid (its cells, weekday labels and month title), set by Rust.
+    in property <[CalendarDay]> due-days;
+    in property <[string]> weekday-labels;
+    in property <string> due-title;
+    // The areas: the admin-created catalogue with what is chosen (`checked`), the joined summary for the trigger, the
+    // filter and new-value fields, and whether this person may add one. `tags` is the chosen names, comma separated,
+    // which Rust reads on Create.
+    in property <[MultiOption]> area-options;
+    in property <string> area-summary;
+    in-out property <string> area-query;
+    in-out property <string> tags;
+
+    // Edit mode (the edit modal on the issue page): the same form, prefilled, with Save instead of Create. The project is
+    // the issue's and is not changed, and files are not attached here.
+    in property <bool> edit-mode: false;
+    // The estimate in points (a whole number, or empty for none).
+    in-out property <string> estimate;
+
+    // The files chosen so far (their names).
+    in property <[string]> files;
+    // Set by Rust: a summary that is not blank, a project, and no create in progress.
+    in property <bool> can-create: false;
+    in property <bool> creating: false;
+    // The message under the footer (a refused create, a failed upload, a bad field).
+    in property <string> error;
+
+    callback project-picked(string);
+    callback summary-edited();
+    callback attach();
+    callback remove-file(int);
+    callback create();
+    callback due-picked(int);
+    callback due-month-step(int);
+    callback area-toggled(string);
+
+    // True while the dialog is shown.
+    out property <bool> is-open: dlg.is-open;
+
+    public function open() {
+        dlg.open();
+    }
+
+    public function close() {
+        dlg.close();
+    }
+
+    changed project => {
+        root.project-picked(root.project);
+    }
+    changed summary => {
+        root.summary-edited();
+    }
+
+    x: 0px;
+    y: 0px;
+    width: 0px;
+    height: 0px;
+
+    dlg := Dialog {
+        title: root.edit-mode ? "Edit issue" : "New issue";
+        size: DialogSize.lg;
+        dismissible: !root.creating;
+        close-label: "Close new issue";
+        host-width: root.host-width;
+        host-height: root.host-height;
+
+        VerticalLayout {
+            spacing: Tokens.space-4;
+
+            HorizontalLayout {
+                spacing: Tokens.space-4;
+
+                // The main column: the summary, the description, the attachments and the similar issues.
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Tokens.space-3;
+
+                    Input {
+                        text <=> root.summary;
+                        placeholder: "Enter a title";
+                        accessible-name: "Title";
+                        enabled: !root.creating;
+                    }
+                    Textarea {
+                        text <=> root.description;
+                        placeholder: "Type or paste a description of the issue here";
+                        accessible-name: "Description";
+                        rows: 6;
+                        max-rows: 10;
+                        enabled: !root.creating;
+                    }
+
+                    if !root.edit-mode : HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: "Attachments";
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                            vertical-alignment: center;
+                        }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            text: "Attach files";
+                            variant: ButtonVariant.secondary;
+                            size: ButtonSize.sm;
+                            enabled: !root.creating;
+                            clicked => {
+                                root.attach();
+                            }
+                        }
+                    }
+                    for name[index] in root.files : HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            horizontal-stretch: 1;
+                            text: name;
+                            color: Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                        IconButton {
+                            icon: Icons.x;
+                            label: "Remove " + name;
+                            tooltip: "Remove " + name;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            enabled: !root.creating;
+                            clicked => {
+                                root.remove-file(index);
+                            }
+                        }
+                    }
+
+                }
+
+                // The field panel, as on the issue page.
+                VerticalLayout {
+                    width: 200px;
+                    spacing: Tokens.space-3;
+
+                    if !root.edit-mode : PanelField {
+                        label: "Project";
+                        Select {
+                            value <=> root.project;
+                            options: root.project-options;
+                            accessible-name: "Project";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Type";
+                        Select {
+                            value <=> root.issue-type;
+                            options: root.type-options;
+                            accessible-name: "Type";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "State";
+                        Select {
+                            value <=> root.state;
+                            options: root.state-options;
+                            accessible-name: "State";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Priority";
+                        Select {
+                            value <=> root.priority;
+                            options: root.priority-options;
+                            accessible-name: "Priority";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Assignee";
+                        Select {
+                            value <=> root.assignee;
+                            options: root.assignee-options;
+                            accessible-name: "Assignee";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Estimation";
+                        Input {
+                            text <=> root.estimate;
+                            placeholder: "Points";
+                            accessible-name: "Estimate";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Sprint";
+                        Select {
+                            value <=> root.sprint;
+                            options: root.sprint-options;
+                            accessible-name: "Sprint";
+                            enabled: !root.creating;
+                        }
+                    }
+                    PanelField {
+                        label: "Due date";
+                        DatePicker {
+                            text: root.due-date;
+                            placeholder: "Pick a date";
+                            accessible-name: "Due date";
+                            enabled: !root.creating;
+                            days: root.due-days;
+                            weekday-labels: root.weekday-labels;
+                            title: root.due-title;
+                            picked(index) => {
+                                root.due-picked(index);
+                            }
+                            month-step(step) => {
+                                root.due-month-step(step);
+                            }
+                        }
+                    }
+                    PanelField {
+                        label: "Area";
+                        MultiSelect {
+                            options: root.area-options;
+                            summary: root.area-summary;
+                            placeholder: "None";
+                            accessible-name: "Area";
+                            enabled: !root.creating;
+                            query <=> root.area-query;
+                            toggled(value) => {
+                                root.area-toggled(value);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.error != "" : Text {
+                text: root.error;
+                color: Tokens.status-danger-text-on-surface;
+                wrap: word-wrap;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    enabled: !root.creating;
+                    clicked => {
+                        dlg.close();
+                    }
+                }
+                Button {
+                    text: root.edit-mode ? "Save" : "Create";
+                    variant: ButtonVariant.primary;
+                    enabled: root.can-create;
+                    loading: root.creating;
+                    clicked => {
+                        root.create();
+                    }
+                }
+            }
+        }
+    }
+}

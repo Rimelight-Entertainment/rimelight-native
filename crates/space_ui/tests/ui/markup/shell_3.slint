@@ -1,0 +1,55 @@
+// Test markup for tests/ui/shell.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { CommandPalette, PaletteRow } from "@rimelight_shell/components/command-palette.slint";
+import { StatusBar } from "@rimelight_shell/components/status-bar.slint";
+export { PaletteRow }
+
+export component PaletteForm inherits Window {
+    width: 640px;
+    height: 480px;
+
+    in property <[PaletteRow]> rows;
+    in property <int> highlight: -1;
+    in-out property <string> query;
+    out property <length> list-height: palette.list-visible-height;
+    callback query-changed(string);
+    callback move(int);
+    callback picked(int);
+    callback closed();
+
+    palette := CommandPalette {
+        width: root.width;
+        height: root.height;
+        rows: root.rows;
+        highlight: root.highlight;
+        query <=> root.query;
+        query-changed(value) => { root.query-changed(value); }
+        move(delta) => { root.move(delta); }
+        picked(index) => { root.picked(index); }
+        closed => { root.closed(); }
+    }
+
+    // Stands in for the search text typed by a user (the field's `changed` callback).
+    public function type-query(text: string) {
+        root.query = text;
+        root.query-changed(text);
+    }
+
+    public function focus-palette() {
+        palette.focus-me();
+    }
+}
+
+export component StatusForm inherits Window {
+    width: 640px;
+    height: 120px;
+
+    in property <string> timer;
+    out property <string> shown: bar.timer-text;
+    out property <bool> has-mute: bar.test-has-mute;
+
+    bar := StatusBar {
+        width: root.width;
+        timer-running: root.timer != "";
+        timer-text: root.timer;
+    }
+}

@@ -1,0 +1,59 @@
+// Test markup for tests/ui/shell.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { TabStrip, TabItem } from "@rimelight_ui/components/tabs.slint";
+import { SplitPane } from "@rimelight_shell/components/split-pane.slint";
+export { TabItem }
+
+export component WorkspaceForm inherits Window {
+    width: 480px;
+    height: 300px;
+
+    in property <[TabItem]> tabs;
+    in-out property <int> active: 0;
+    in-out property <float> ratio: 0.5;
+    callback activated(int);
+    callback closed(int);
+    callback dropped(int, float, float);
+    callback resized(float);
+
+    out property <length> tab-width: strip.tab-width;
+    out property <length> strip-height: strip.height;
+    out property <length> split-y: split.absolute-position.y;
+    out property <length> first-length: split.first-length;
+    out property <length> second-length: split.second-length;
+
+        // Test hooks: fire the strip's own `activated` and `closed` callbacks, as a tab click and its close control do.
+    public function click-tab(index: int) { strip.activated(index); }
+    public function click-close(index: int) { strip.closed(index); }
+
+    VerticalLayout {
+        strip := TabStrip {
+            tabs: root.tabs;
+            active <=> root.active;
+            activated(index) => { root.active = index; root.activated(index); }
+            closed(index) => { root.closed(index); }
+            drag-dropped(index, x, y) => { root.dropped(index, x, y); }
+        }
+
+        split := SplitPane {
+            vertical-stretch: 1;
+            ratio <=> root.ratio;
+            min-first: 120px;
+            min-second: 100px;
+            resized(value) => { root.resized(value); }
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.first-length;
+                height: parent.height;
+            }
+
+            Rectangle {
+                x: parent.first-length + parent.grab;
+                y: 0px;
+                width: parent.second-length;
+                height: parent.height;
+            }
+        }
+    }
+}

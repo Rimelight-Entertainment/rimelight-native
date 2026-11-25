@@ -1,0 +1,244 @@
+// The canvas pop-out window (CV.12). Frameless (no-frame, 6px resize border unless locked), with an app-drawn top bar: the
+// canvas title, then auto-hide, pin (always on top), opacity, click-through, minimize, maximize and close. The bar is always
+// shown, or with auto-hide only while the pointer is within 12px of the top edge or on the bar, and it stays 600 ms after the
+// pointer leaves. Dragging the bar moves the window (bar-drag). In overlay mode the window background is transparent and the
+// bar is hidden.
+//
+// Rust sets the properties (pinned, click-through, locked, window-opacity, overlay-mode, bar-auto-hide) and handles the
+// callbacks: pin, click-through, minimize, maximize, close, opacity, drag.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+import { CanvasState } from "canvas-types.slint";
+import { CanvasPage } from "canvas.slint";
+
+export component CanvasPopout inherits Window {
+    in-out property <bool> bar-auto-hide: false;
+    in-out property <bool> pinned;
+    in-out property <bool> click-through;
+    in-out property <bool> locked;
+    in-out property <float> window-opacity: 1;
+    in-out property <bool> overlay-mode;
+
+    title: CanvasState.title;
+    width: 960px;
+    height: 640px;
+    no-frame: true;
+    resize-border-width: locked ? 0px : 6px;
+    always-on-top: pinned;
+    background: overlay-mode ? transparent : Tokens.surface-sunken;
+
+    callback bar-drag();
+    callback bar-toggle-pin();
+    callback bar-toggle-click-through();
+    callback bar-minimize();
+    callback bar-maximize();
+    callback bar-close();
+    callback bar-opacity(float);
+
+    // True while the bar is shown by a pointer (auto-hide only): it stays up for 600 ms after the pointer leaves.
+    property <bool> bar-visible: false;
+    // The opacity slider's popover under the bar.
+    property <bool> opacity-open: false;
+    // The bar is drawn when not in overlay mode and either auto-hide is off or it was just hovered.
+    property <bool> bar-shown: !root.overlay-mode && (!root.bar-auto-hide || root.bar-visible);
+    property <bool> over-buttons: auto-btn.hovered || pin-btn.hovered || opacity-btn.hovered || thru-btn.hovered
+        || min-btn.hovered || max-btn.hovered || close-btn.hovered;
+    property <bool> hover-now: top-zone.has-hover || bar-ta.has-hover || root.over-buttons || root.opacity-open;
+
+    changed hover-now => {
+        if root.hover-now {
+            root.bar-visible = true;
+            hide-timer.running = false;
+        } else {
+            hide-timer.running = true;
+        }
+    }
+
+    hide-timer := Timer {
+        interval: 600ms;
+        running: false;
+        triggered => {
+            root.bar-visible = false;
+            self.running = false;
+        }
+    }
+
+    // The canvas fills the window. The bar and its zone are drawn above it.
+    CanvasPage {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        route: "";
+        embedded: true;
+    }
+
+    // Top edge zone: while auto-hide is on, the pointer in the top 12px shows the bar. Off, it takes no input.
+    top-zone := TouchArea {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: 12px;
+        enabled: root.bar-auto-hide && !root.overlay-mode;
+    }
+
+    bar := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: 32px;
+        visible: root.bar-shown;
+        background: Tokens.surface-raised.with-alpha(0.92);
+
+        Rectangle {
+            x: 0px;
+            y: parent.height - 1px;
+            width: parent.width;
+            height: 1px;
+            background: Tokens.border-subtle;
+        }
+
+        // Drag area under the title and the buttons: a press starts moving the window. The buttons are above it.
+        bar-ta := TouchArea {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            pointer-event(e) => {
+                if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                    root.bar-drag();
+                }
+            }
+        }
+
+        Text {
+            x: Tokens.space-3;
+            y: 0px;
+            width: parent.width - 260px;
+            height: parent.height;
+            text: CanvasState.title;
+            color: Tokens.text-primary;
+            vertical-alignment: center;
+            overflow: elide;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+
+        HorizontalLayout {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            padding-right: Tokens.space-1;
+            spacing: Tokens.space-1;
+            alignment: end;
+
+            auto-btn := IconButton {
+                label: "Auto-hide top bar";
+                tooltip: "Auto-hide top bar";
+                icon: Icons.panel-left;
+                variant: ButtonVariant.ghost;
+                checkable: true;
+                selected: root.bar-auto-hide;
+                clicked => {
+                    root.bar-auto-hide = !root.bar-auto-hide;
+                }
+            }
+            pin-btn := IconButton {
+                label: "Always on top";
+                tooltip: "Always on top";
+                icon: Icons.pin;
+                variant: ButtonVariant.ghost;
+                checkable: true;
+                selected: root.pinned;
+                clicked => {
+                    root.bar-toggle-pin();
+                }
+            }
+            opacity-btn := IconButton {
+                label: "Window opacity";
+                tooltip: "Window opacity";
+                icon: Icons.eye;
+                variant: ButtonVariant.ghost;
+                checkable: true;
+                selected: root.opacity-open;
+                clicked => {
+                    root.opacity-open = !root.opacity-open;
+                }
+            }
+            thru-btn := IconButton {
+                label: "Transparent to mouse";
+                tooltip: "Transparent to mouse (Ctrl+T)";
+                icon: Icons.mouse-pointer-2;
+                variant: ButtonVariant.ghost;
+                checkable: true;
+                selected: root.click-through;
+                clicked => {
+                    root.bar-toggle-click-through();
+                }
+            }
+            min-btn := IconButton {
+                label: "Minimize window";
+                tooltip: "Minimize";
+                icon: Icons.minus;
+                variant: ButtonVariant.ghost;
+                clicked => {
+                    root.bar-minimize();
+                }
+            }
+            max-btn := IconButton {
+                label: "Maximize window";
+                tooltip: "Maximize";
+                icon: Icons.maximize;
+                variant: ButtonVariant.ghost;
+                clicked => {
+                    root.bar-maximize();
+                }
+            }
+            close-btn := IconButton {
+                label: "Close window";
+                tooltip: "Close";
+                icon: Icons.x;
+                variant: ButtonVariant.ghost;
+                clicked => {
+                    root.bar-close();
+                }
+            }
+        }
+    }
+
+    // Opacity popover: a slider from 20 % to 100 %, under the bar at the right.
+    Rectangle {
+        x: root.width - 200px - Tokens.space-2;
+        y: 36px;
+        width: 200px;
+        height: 40px;
+        visible: root.bar-shown && root.opacity-open;
+        background: Tokens.surface-overlay;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        border-radius: Tokens.radius-surface;
+        drop-shadow-color: Tokens.shadow-overlay;
+        drop-shadow-offset-y: Tokens.shadow-overlay-offset-y;
+        drop-shadow-blur: Tokens.shadow-overlay-blur;
+
+        Slider {
+            x: Tokens.space-2;
+            y: (parent.height - self.height) / 2;
+            width: parent.width - 2 * Tokens.space-2;
+            minimum: 0.2;
+            maximum: 1;
+            step: 0.05;
+            value: root.window-opacity;
+            accessible-name: "Window opacity";
+            changed(v) => {
+                root.bar-opacity(v);
+            }
+        }
+    }
+}

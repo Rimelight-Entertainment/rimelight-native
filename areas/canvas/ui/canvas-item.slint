@@ -1,0 +1,157 @@
+// One item of the canvas, drawn in world units scaled by zoom (CV.7 to CV.9). The canvas page places one CanvasItem per entry of
+// CanvasState.items. Kinds: Image (picture, cropped and flipped; placeholder while loading), Text (note), Frame (titled region),
+// Shape and Stroke (Slint Path built in Rust). Images can carry a caption under the box.
+//
+// hide-text hides the static labels (note text, frame title, caption); the page sets it when the text is not drawn for the
+// item (for example while a note is edited elsewhere).
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { CanvasItemView, CanvasPalette } from "canvas-types.slint";
+
+export component CanvasItem inherits Rectangle {
+    in property <CanvasItemView> item;
+    in property <float> zoom;
+    in property <float> pan-x;
+    in property <float> pan-y;
+    in property <bool> hide-text;
+
+    x: (item.x * root.zoom + root.pan-x) * 1px;
+    y: (item.y * root.zoom + root.pan-y) * 1px;
+    width: item.w * root.zoom * 1px;
+    height: item.h * root.zoom * 1px;
+    opacity: item.opacity;
+    transform-origin: { x: self.width / 2, y: self.height / 2 };
+    transform-rotation: item.rotation * 1deg;
+    background: transparent;
+
+    // Image: the picture, flipped in place and cropped to the crop window (pixels of the picture), or a placeholder while it
+    // loads or after a failure. crop-w 0 means no crop: the clip is then the whole picture (a clip of width 0 would draw
+    // nothing).
+    // A Video is drawn the same way (its thumbnail, or the playing frame); it has no crop, so the clip is the whole picture.
+    if (item.kind == "Image" || item.kind == "Video") && item.has-image : Image {
+        width: parent.width;
+        height: parent.height;
+        source: item.image;
+        image-fit: fill;
+        image-rendering: item.pixelated ? ImageRendering.pixelated : ImageRendering.smooth;
+        source-clip-x: item.crop-w > 0 ? round(item.crop-x) : 0;
+        source-clip-y: item.crop-w > 0 ? round(item.crop-y) : 0;
+        source-clip-width: item.crop-w > 0 ? round(item.crop-w) : self.source.width;
+        source-clip-height: item.crop-w > 0 ? round(item.crop-h) : self.source.height;
+        transform-scale-x: item.flip-x ? -1 : 1;
+        transform-scale-y: item.flip-y ? -1 : 1;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+    }
+    if (item.kind == "Image" || item.kind == "Video") && !item.has-image : Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Tokens.surface-raised;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+
+        Image {
+            width: Icons.large-size;
+            height: Icons.large-size;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            source: Icons.image;
+            colorize: Tokens.text-muted;
+        }
+    }
+
+    // Image caption, under the box in the muted colour, scaled with zoom (at least 9px).
+    if item.kind == "Image" && item.comment != "" && !root.hide-text : Text {
+        x: 0px;
+        y: parent.height + 4px;
+        width: parent.width;
+        text: item.comment;
+        color: Tokens.text-muted;
+        font-family: Type.caption.family;
+        font-size: max(9px, 12px * root.zoom);
+        wrap: word-wrap;
+    }
+
+    // Video: its length in a small dark chip at the bottom right. The overlay layer covers the bar of a playing video.
+    if item.kind == "Video" && !root.hide-text : Rectangle {
+        x: parent.width - self.width - 6px;
+        y: parent.height - self.height - 6px;
+        width: 64px;
+        height: 18px;
+        border-radius: 3px;
+        background: #000000.with-alpha(0.6);
+
+        Text {
+            x: 0px;
+            y: (parent.height - self.height) / 2;
+            width: parent.width;
+            text: item.duration-text;
+            color: #ffffff;
+            font-family: Type.caption.family;
+            font-size: 11px;
+            horizontal-alignment: center;
+        }
+    }
+
+    // Text note: the static text. Hidden while it is being edited (the editor on the canvas shows it) or when hide-text is set.
+    if item.kind == "Text" && !item.editing && !root.hide-text : Rectangle {
+        property <length> pad: item.fill == "" ? 0px : 6px * root.zoom;
+        width: parent.width;
+        height: parent.height;
+        background: item.fill == "" ? transparent : CanvasPalette.fill(item.fill);
+        border-radius: item.fill == "" ? 0px : 4px;
+
+        Text {
+            x: parent.pad;
+            y: parent.pad;
+            width: parent.width - 2 * parent.pad;
+            height: parent.height - 2 * parent.pad;
+            text: item.text;
+            color: CanvasPalette.color(item.color);
+            font-family: Type.body.family;
+            font-size: max(1px, item.font-size * root.zoom * 1px);
+            wrap: word-wrap;
+            overflow: clip;
+            horizontal-alignment: item.align == "center" ? center : (item.align == "right" ? right : left);
+            vertical-alignment: top;
+        }
+    }
+
+    // Frame: a tinted region with a border and its title above it (the title is not scaled with zoom). Frames are drawn
+    // below every other item. An untitled frame shows "Frame", so there is always a title to double-click and rename.
+    if item.kind == "Frame" : Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Tokens.accent-default.with-alpha(0.07);
+        border-width: 1px;
+        border-color: Tokens.accent-default.with-alpha(0.45);
+        border-radius: 6px;
+
+        Text {
+            x: 0px;
+            y: -20px;
+            text: item.text == "" ? "Frame" : item.text;
+            color: Tokens.text-muted;
+            font-family: Type.caption.family;
+            font-size: 12px;
+            visible: !root.hide-text;
+        }
+    }
+
+    // Shape and Stroke: a Slint Path in local 0..w / 0..h, so it scales with the item. The stroke width scales with zoom.
+    // Lines, arrows and strokes are never filled.
+    if item.kind == "Shape" || item.kind == "Stroke" : Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: item.w;
+        viewbox-height: item.h;
+        commands: item.path;
+        stroke: CanvasPalette.color(item.stroke-color);
+        stroke-width: max(1px, item.stroke-width * root.zoom * 1px);
+        fill: (item.kind == "Stroke" || item.shape == "line" || item.shape == "arrow" || item.fill-color == "")
+            ? transparent
+            : CanvasPalette.fill(item.fill-color);
+    }
+}

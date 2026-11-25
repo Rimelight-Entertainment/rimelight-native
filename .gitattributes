@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ttf binary
+*.otf binary
+*.wasm binary
+*.apk binary
+*.jar binary
+# Generated FFmpeg bindings (CV-V.2): hidden from diffs and language stats.
+vendor/ffmpeg-sys-next/bindings/** linguist-generated=true -diff
+*.mp4 binary

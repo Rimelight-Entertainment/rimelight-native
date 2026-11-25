@@ -1,0 +1,20 @@
+[package]
+name = "space_area_management"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space management area: Project settings and Project members. Plain logic here; the window glue is wire_management!."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+space_page_kit = { path = "../../crates/space_page_kit" }
+
+# The native picture picker of the project icon (desktop only; web and Android have no file dialog here).
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.15"

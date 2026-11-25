@@ -1,0 +1,261 @@
+// Home > Dashboard (S2) at `/home`. The cards that have a backend today: "Assigned to me" (the caller's open issues across
+// projects) and "Recent canvases" (the personal canvases, newest update first). The calendar, unread, timer and approvals
+// cards come with their own slices.
+//
+// Each card has its own load state (`HomeState`): loading, empty, error with Try again, or its rows. One failing never blanks
+// the other. The data is set by areas/home/src/dashboard.rs. A row opens its route (`HomeState.open`), and the canvases
+// card's View all opens the canvases list.
+//
+// Layout. The cards sit in a GridLayout that fills the page width: two columns from the phone breakpoint, one column below it.
+// The page reports `opened` from its `init`, so both cards load whenever the route becomes active.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+
+// One issue of the Assigned card. `route` is the issue page the row opens.
+export struct HomeIssueRow {
+    route: string,
+    key: string,
+    summary: string,
+    state: string,
+    priority: string,
+    project: string,
+}
+
+// One canvas of the Recent canvases card. `route` is the canvas page the row opens; `updated` is the last update time.
+export struct HomeCanvasRow {
+    route: string,
+    title: string,
+    updated: string,
+}
+
+// The dashboard's state, set by areas/home/src/dashboard.rs. `assigned-count` is the number in the Assigned card's header
+// (`12`, or `50+` when the server has more than one request returns). Its events come back as the callbacks.
+export global HomeState {
+    in-out property <PageLoadState> assigned-state: PageLoadState.loading;
+    in-out property <string> assigned-error;
+    in-out property <string> assigned-count;
+    in-out property <[HomeIssueRow]> assigned-rows;
+    in-out property <PageLoadState> canvases-state: PageLoadState.loading;
+    in-out property <string> canvases-error;
+    in-out property <[HomeCanvasRow]> canvases-rows;
+    callback opened();
+    callback retry-assigned();
+    callback retry-canvases();
+    // A row: the route to show in the same page tab.
+    callback open(string);
+    // View all on the canvases card: the app opens the canvases list.
+    callback view-all-canvases();
+}
+
+// One row of a card: a title line and a muted detail line. Enter and Space open it, like a click.
+component HomeRow inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> accessible-name;
+    callback clicked();
+
+    height: Tokens.size-control-xl;
+    border-radius: Tokens.radius-control;
+    border-width: fs.has-focus ? Tokens.focus-width : 0px;
+    border-color: Tokens.focus-ring;
+    background: ta.has-hover ? Tokens.surface-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.accessible-name;
+    accessible-action-default => {
+        root.clicked();
+    }
+
+    VerticalLayout {
+        padding-left: Tokens.space-3;
+        padding-right: Tokens.space-3;
+        alignment: center;
+
+        Text {
+            text: root.title;
+            color: Tokens.text-primary;
+            overflow: elide;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+        Text {
+            text: root.detail;
+            color: Tokens.text-muted;
+            overflow: elide;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+    }
+
+    fs := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component HomePage inherits Rectangle {
+    // One column below the phone breakpoint, two columns above.
+    property <bool> narrow: root.width < Tokens.size-phone-breakpoint;
+
+    background: transparent;
+    init => {
+        HomeState.opened();
+    }
+
+    ScrollArea {
+        width: parent.width;
+        height: parent.height;
+        accessible-name: "Dashboard";
+
+        VerticalLayout {
+            padding: Tokens.space-4;
+
+            GridLayout {
+                spacing: Tokens.space-3;
+
+                // Assigned to me: the caller's open issues across projects.
+                Card {
+                    row: 0;
+                    col: 0;
+                    horizontal-stretch: 1;
+
+                    VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        HorizontalLayout {
+                            height: Tokens.size-control-md;
+                            spacing: Tokens.space-2;
+
+                            Text {
+                                text: "Assigned to me";
+                                color: Tokens.text-primary;
+                                vertical-alignment: center;
+                                font-family: Type.subheading.family;
+                                font-size: Type.subheading.size;
+                                font-weight: Type.subheading.weight;
+                            }
+                            if HomeState.assigned-state == PageLoadState.loaded : Text {
+                                text: HomeState.assigned-count + " open";
+                                color: Tokens.text-muted;
+                                vertical-alignment: center;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        if HomeState.assigned-state != PageLoadState.loaded : PageState {
+                            state: HomeState.assigned-state;
+                            icon: Icons.list-checks;
+                            loading-text: "Loading your issues...";
+                            empty-title: "Nothing assigned to you";
+                            empty-description: "Open issues assigned to you show up here.";
+                            error-description: "Your issues could not be loaded.";
+                            error-details: HomeState.assigned-error;
+                            retry => {
+                                HomeState.retry-assigned();
+                            }
+                        }
+
+                        if HomeState.assigned-state == PageLoadState.loaded : VerticalLayout {
+                            spacing: Tokens.space-1;
+
+                            for issue in HomeState.assigned-rows : HomeRow {
+                                title: issue.summary;
+                                detail: issue.key + "  ·  " + issue.state + "  ·  " + issue.priority + "  ·  " + issue.project;
+                                accessible-name: issue.key + " " + issue.summary;
+                                clicked => {
+                                    HomeState.open(issue.route);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Recent canvases: the personal canvases, newest update first. View all opens the list.
+                Card {
+                    row: root.narrow ? 1 : 0;
+                    col: root.narrow ? 0 : 1;
+                    horizontal-stretch: 1;
+
+                    VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        HorizontalLayout {
+                            height: Tokens.size-control-md;
+                            spacing: Tokens.space-2;
+
+                            Text {
+                                text: "Recent canvases";
+                                color: Tokens.text-primary;
+                                vertical-alignment: center;
+                                font-family: Type.subheading.family;
+                                font-size: Type.subheading.size;
+                                font-weight: Type.subheading.weight;
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                            Button {
+                                text: "View all";
+                                accessible-name: "View all canvases";
+                                variant: ButtonVariant.ghost;
+                                clicked => {
+                                    HomeState.view-all-canvases();
+                                }
+                            }
+                        }
+
+                        if HomeState.canvases-state != PageLoadState.loaded : PageState {
+                            state: HomeState.canvases-state;
+                            icon: Icons.presentation;
+                            loading-text: "Loading canvases...";
+                            empty-title: "No canvases yet";
+                            empty-description: "Create a canvas to collect images and notes.";
+                            error-description: "Your canvases could not be loaded.";
+                            error-details: HomeState.canvases-error;
+                            retry => {
+                                HomeState.retry-canvases();
+                            }
+                        }
+
+                        if HomeState.canvases-state == PageLoadState.loaded : VerticalLayout {
+                            spacing: Tokens.space-1;
+
+                            for canvas in HomeState.canvases-rows : HomeRow {
+                                title: canvas.title;
+                                detail: "Updated " + canvas.updated;
+                                accessible-name: canvas.title;
+                                clicked => {
+                                    HomeState.open(canvas.route);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

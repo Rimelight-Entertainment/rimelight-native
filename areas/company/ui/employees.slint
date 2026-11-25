@@ -1,0 +1,74 @@
+// Company > Employees (SP.3b). The people directory from the API, as a table: name, title and team. The rows are the page's
+// `EmployeesTable` global, set by crates/areas/company/src/employees.rs, and a pick opens that person's profile. The load state, the
+// error and Load more are drawn here too; the window sets them through `employees-*`.
+//
+// The page reports `opened` from its `init`, so its first page loads whenever its route becomes active. The search box
+// reports each change; the Rust side waits 300 ms after the last change before it asks the server.
+import { Icons } from "@rimelight_ui/icons.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { ListPage } from "@rimelight_shell/templates/list-page.slint";
+import { TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+
+// One person in the list. `avatar` is empty until the photo has loaded, and the avatar then shows the initials.
+export struct EmployeeRow {
+    id: string,
+    name: string,
+    title: string,
+    team: string,
+    initials: string,
+    avatar: image,
+}
+
+// The table's view model: its columns, its rows, and the person id of each row (in the same order as the rows).
+export global EmployeesTable {
+    in-out property <[TableColumn]> columns;
+    in-out property <[TableRow]> rows;
+    in-out property <[string]> ids;
+}
+
+export component EmployeesPage inherits Rectangle {
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <bool> has-more;
+    in property <bool> loading-more;
+
+    callback search(string);
+    callback open-person(string);
+    callback load-more();
+    callback retry();
+    callback opened();
+
+    background: transparent;
+
+    ListPage {
+        width: parent.width;
+        height: parent.height;
+        state: root.state;
+        error: root.error;
+        empty-icon: Icons.users;
+        empty-title: "No people found";
+        empty-description: "Try another name, team or title.";
+        error-description: "The people list could not be loaded.";
+        search-placeholder: "Search people";
+        table-label: "Employees";
+        columns: EmployeesTable.columns;
+        rows: EmployeesTable.rows;
+        has-more: root.has-more;
+        loading-more: root.loading-more;
+        opened => {
+            root.opened();
+        }
+        search(text) => {
+            root.search(text);
+        }
+        picked(index, shift, ctrl) => {
+            root.open-person(EmployeesTable.ids[index]);
+        }
+        load-more => {
+            root.load-more();
+        }
+        retry => {
+            root.retry();
+        }
+    }
+}

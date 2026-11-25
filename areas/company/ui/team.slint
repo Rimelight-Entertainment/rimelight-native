@@ -1,0 +1,223 @@
+// Company > Teams > one team (SP.3d). The team's header (name, department, lead) and its members. The data comes from
+// crates/areas/company/src/team.rs, which sets the window's `team-*` properties. The page reports `opened` with its route from its
+// `init` and when the route changes. The lead and each member open their profile.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { EmployeeRow } from "employees.slint";
+
+// The team as the page shows it. Empty strings mean "not set". `members` counts the people in the team.
+export struct TeamView {
+    id: string,
+    name: string,
+    department: string,
+    lead-id: string,
+    lead-name: string,
+    lead-initials: string,
+    lead-avatar: image,
+    members: int,
+}
+
+export component TeamPage inherits Rectangle {
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    // The route this page shows. The window sets it to the tab's route.
+    in property <string> route;
+    in property <TeamView> view;
+    in property <[EmployeeRow]> members;
+
+    callback opened(string);
+    callback retry();
+    callback open-person(string);
+    // The team's content (docs, wiki, blog: CMS.6). The window opens the team route's /docs page.
+    callback open-content();
+
+    background: transparent;
+    init => {
+        root.opened(root.route);
+    }
+    changed route => {
+        root.opened(root.route);
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.users;
+            empty-title: "No team";
+            empty-description: "This team has no details yet.";
+            error-description: "This team could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        if root.state == PageLoadState.loaded : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Team";
+
+            VerticalLayout {
+                spacing: Tokens.space-4;
+                alignment: start;
+
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+
+                    Text {
+                        text: root.view.name;
+                        color: Tokens.text-primary;
+                        overflow: elide;
+                        font-family: Type.heading.family;
+                        font-size: Type.heading.size;
+                        font-weight: Type.heading.weight;
+                    }
+                    Text {
+                        text: root.view.department != "" ? root.view.department : "No department";
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    Button {
+                        text: "Content";
+                        variant: ButtonVariant.secondary;
+                        clicked => { root.open-content(); }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Tokens.space-3;
+
+                        Text {
+                            text: "Lead";
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        if root.view.lead-id != "" : Rectangle {
+                            width: lead-row.preferred-width;
+                            height: 32px;
+                            border-radius: Tokens.radius-r6;
+                            background: lead-touch.has-hover ? Tokens.surface-raised : transparent;
+
+                            lead-touch := TouchArea {
+                                accessible-role: button;
+                                accessible-label: "Open " + root.view.lead-name;
+                                clicked => {
+                                    root.open-person(root.view.lead-id);
+                                }
+                            }
+                            lead-row := HorizontalLayout {
+                                spacing: Tokens.space-2;
+                                alignment: start;
+
+                                Avatar {
+                                    name: root.view.lead-name;
+                                    initials: root.view.lead-initials;
+                                    source: root.view.lead-avatar;
+                                    size: AvatarSize.sm;
+                                }
+                                Text {
+                                    text: root.view.lead-name;
+                                    color: Tokens.text-primary;
+                                    vertical-alignment: center;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                }
+                            }
+                        }
+                        if root.view.lead-id == "" : Text {
+                            text: "No lead yet";
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                    }
+                    Text {
+                        text: "\{root.view.members} members";
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: Tokens.space-1;
+                    alignment: start;
+
+                    if root.members.length == 0 : Text {
+                        text: "No one is in this team yet.";
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+
+                    for member in root.members : Rectangle {
+                        height: 56px;
+                        border-radius: Tokens.radius-r6;
+                        background: member-touch.has-hover ? Tokens.surface-raised : transparent;
+
+                        member-touch := TouchArea {
+                            accessible-role: button;
+                            accessible-label: member.name;
+                            clicked => {
+                                root.open-person(member.id);
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: Tokens.space-3;
+                            padding-right: Tokens.space-3;
+                            spacing: Tokens.space-3;
+                            alignment: start;
+
+                            Avatar {
+                                name: member.name;
+                                initials: member.initials;
+                                source: member.avatar;
+                                size: AvatarSize.md;
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: Tokens.space-1;
+
+                                Text {
+                                    text: member.name;
+                                    color: Tokens.text-primary;
+                                    overflow: elide;
+                                    font-family: Type.body-strong.family;
+                                    font-size: Type.body-strong.size;
+                                    font-weight: Type.body-strong.weight;
+                                }
+                                Text {
+                                    text: member.title != "" ? member.title : "No title";
+                                    color: Tokens.text-muted;
+                                    overflow: elide;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

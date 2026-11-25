@@ -1,0 +1,51 @@
+[package]
+name = "space_ui_slint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Generated Slint code (decision 0013). Same lint set as space_ui: unsafe is denied and allowed on the generated
+# module only, since Slint's generated vtable code needs it (decision 0007, S1).
+[lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+slint = { workspace = true }
+# The Company area (ST5.2): its `wire_company!` is expanded here, where AppShell is generated.
+space_area_company = { path = "../../areas/company" }
+space_area_management = { path = "../../areas/management" }
+# The Admin area (SP.3e): its `wire_admin!` is expanded here, and its markup has library path `space_area_admin`.
+space_area_admin = { path = "../../areas/admin" }
+# The Projects area: its `wire_projects!` is expanded here, and its markup has library path `space_area_projects`.
+space_area_projects = { path = "../../areas/projects" }
+# The Canvas area: its `wire_canvas!` is expanded here, and its markup has library path `space_area_canvas`.
+space_area_canvas = { path = "../../areas/canvas" }
+# The Home area: its `wire_home!` is expanded here, and its markup has library path `space_area_home`.
+space_area_home = { path = "../../areas/home" }
+# The Content area (CMS.6) and the shared block editor (CMS.5): wire_content! and wire_block_editor! are expanded here.
+space_area_content = { path = "../../areas/content" }
+rimelight_editor = { workspace = true }
+
+[build-dependencies]
+slint-build = { workspace = true }
+# The Content area (CMS.6): library path `space_area_content`, and the shared block editor's markup (`rimelight_editor`).
+space_area_content = { path = "../../areas/content" }
+rimelight_editor = { workspace = true }
+# build.rs maps the `rimelight_design` and `rimelight_ui` library paths to the shared markup.
+rimelight_design = { workspace = true }
+rimelight_ui = { workspace = true }
+rimelight_shell = { workspace = true }
+# The Company area markup (ST5.2): library path `space_area_company`.
+space_area_company = { path = "../../areas/company" }
+space_area_management = { path = "../../areas/management" }
+# The Admin area (SP.3e): its `wire_admin!` is expanded here, and its markup has library path `space_area_admin`.
+space_area_admin = { path = "../../areas/admin" }
+# The Projects area: its `wire_projects!` is expanded here, and its markup has library path `space_area_projects`.
+space_area_projects = { path = "../../areas/projects" }
+# The Home area: its `wire_home!` is expanded here, and its markup has library path `space_area_home`.
+space_area_home = { path = "../../areas/home" }

@@ -1,0 +1,649 @@
+// Content > page (CMS.6), laid out like the web CMS editor: a toolbar row, the document in the middle, and a sidebar
+// with the Page, Block and Comments tabs.
+//
+// Toolbar. Left: back to the collection, the page title, its status and the connection state. Right: add block, the
+// text format buttons, undo and redo, the co-editors, comments and the panel toggle, Share, and either Edit (reading)
+// or Discard and Publish (editing).
+//
+// The document is the shared block editor (`rimelight_editor` BlockEditor), which the app places in the slot
+// (`@children`). The editor's state, the block inspector and the comment panel read the `EditorBridge` global.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Switch } from "@rimelight_ui/components/switch.slint";
+import { Tabs } from "@rimelight_ui/components/content-tabs.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { EditorBridge, LocaleSwitcher, CommentPanel, Inspector } from "@rimelight_editor/block-editor.slint";
+import { PageHeaderItem, PropertyItem } from "types.slint";
+
+export global ContentPageState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <PageHeaderItem> header;
+    in-out property <bool> edit-mode: false;
+    in-out property <string> connection;
+    in-out property <string> notice;
+    // The published line moved while the draft was open: "Catch up" is offered.
+    in-out property <bool> behind: false;
+    // Page panel.
+    in-out property <string> slug;
+    in-out property <bool> public: false;
+    in-out property <[PropertyItem]> properties;
+    in-out property <string> summary;
+    // Sidebar: open, and the tab (0 Page, 1 Block, 2 Comments).
+    in-out property <bool> panel-open: true;
+    in-out property <int> panel-tab: 0;
+    // The Move choices (scopes this page can move to), shown under Location while open.
+    in-out property <bool> move-open: false;
+    in-out property <[string]> move-labels;
+
+    callback retry();
+    callback start-edit();
+    callback discard();
+    callback publish(string);
+    callback invite(string);
+    callback catch-up();
+    callback share();
+    callback leave();
+    callback slug-changed(string);
+    callback visibility-changed(bool);
+    callback move-requested();
+    callback move-chosen(int);
+    callback delete-requested();
+    callback property-changed(string, string);
+}
+
+// A thin divider between toolbar groups.
+component ToolbarRule inherits Rectangle {
+    width: 1px;
+    height: 20px;
+    background: Tokens.border-subtle;
+}
+
+// A text format button (B, I, U, S, code): a small square with its glyph.
+component FormatButton inherits Rectangle {
+    in property <string> glyph;
+    in property <string> tip;
+    in property <int> weight: 600;
+    in property <bool> italic: false;
+    callback clicked();
+    // Takes the toolbar's height and draws a 28px button in its middle.
+    width: 28px;
+    accessible-role: button;
+    accessible-label: root.tip;
+    Rectangle {
+        y: (parent.height - 28px) / 2;
+        height: 28px;
+        border-radius: Tokens.radius-control;
+        background: touch.has-hover ? Tokens.surface-hover : transparent;
+    }
+    Text {
+        text: root.glyph;
+        font-family: Type.body.family;
+        font-size: 14px;
+        font-weight: root.weight;
+        font-italic: root.italic;
+        color: Tokens.text-primary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// One labelled setting in the page panel.
+component PanelField inherits VerticalLayout {
+    in property <string> label;
+    spacing: 6px;
+    Text {
+        text: root.label;
+        font-family: Type.label.family;
+        font-size: Type.label.size;
+        font-weight: 600;
+        color: Tokens.text-muted;
+    }
+    @children
+}
+
+component StatusTag inherits Rectangle {
+    in property <string> status;
+    property <color> ink: root.status == "published" ? Tokens.palette-success-text
+        : root.status == "in review" || root.status == "scheduled" ? Tokens.palette-warning-text
+        : Tokens.text-muted;
+    property <color> fill: root.status == "published" ? Tokens.palette-success-soft
+        : root.status == "in review" || root.status == "scheduled" ? Tokens.palette-warning-soft
+        : Tokens.surface-sunken;
+    height: 22px;
+    width: label.preferred-width + 16px;
+    border-radius: Tokens.radius-pill;
+    background: root.fill;
+    label := Text {
+        text: root.status;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: 600;
+        color: root.ink;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component ContentPageView inherits Rectangle {
+    background: Tokens.surface-base;
+    in property <string> route;
+    callback opened(string);
+    changed route => { root.opened(root.route); }
+
+    property <bool> editing: ContentPageState.edit-mode;
+    // Narrow windows drop the toolbar's format, link and mention buttons so Publish stays in view.
+    property <bool> compact: root.width < 1000px;
+    // The document is read-only unless this page is in edit mode.
+    init => {
+        EditorBridge.read-only = !root.editing;
+        root.opened(root.route);
+    }
+    changed editing => { EditorBridge.read-only = !root.editing; }
+
+    VerticalLayout {
+        if ContentPageState.state == PageLoadState.error : VerticalLayout {
+            padding: Tokens.space-6;
+            spacing: Tokens.space-3;
+            alignment: start;
+            Text { text: "Could not load the page"; color: Tokens.text-primary; font-size: Type.subheading.size; }
+            Text { text: ContentPageState.error; color: Tokens.text-muted; wrap: word-wrap; }
+            HorizontalLayout {
+                alignment: start;
+                Button { text: "Try again"; variant: ButtonVariant.secondary; clicked => { ContentPageState.retry(); } }
+            }
+        }
+
+        if ContentPageState.state == PageLoadState.loading : Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        // Always present (it holds @children, which cannot sit in a conditional); hidden until loaded.
+        VerticalLayout {
+            visible: ContentPageState.state == PageLoadState.loaded;
+            vertical-stretch: 1;
+            // ---- Toolbar ----
+            Rectangle {
+                height: 48px;
+                background: Tokens.surface-raised;
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 12px;
+                    spacing: 6px;
+
+                    IconButton {
+                        y: (parent.height - self.height) / 2;
+                        icon: Icons.arrow-left;
+                        label: "Back to \{ContentPageState.header.collection}";
+                        tooltip: "Back to \{ContentPageState.header.collection}";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.leave(); }
+                    }
+                    Text {
+                        text: ContentPageState.header.collection;
+                        vertical-alignment: center;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        color: Tokens.text-muted;
+                    }
+                    Text { text: "/"; vertical-alignment: center; color: Tokens.text-faint; }
+                    Text {
+                        min-width: 24px;
+                        text: EditorBridge.title != "" ? EditorBridge.title : ContentPageState.header.title;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-family: Type.body-strong.family;
+                        font-size: Type.body-strong.size;
+                        font-weight: Type.body-strong.weight;
+                        color: Tokens.text-primary;
+                    }
+                    Rectangle {
+                        width: tag.width;
+                        tag := StatusTag { y: (parent.height - self.height) / 2; status: root.editing ? "draft" : ContentPageState.header.status; }
+                    }
+                    if ContentPageState.connection != "" : Text {
+                        text: ContentPageState.connection;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        color: Tokens.text-muted;
+                    }
+
+                    Rectangle { horizontal-stretch: 1; }
+
+                    if root.editing : HorizontalLayout {
+                        spacing: 2px;
+                        Button {
+                            y: (parent.height - self.height) / 2;
+                            text: "Add block";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { EditorBridge.toolbar("insert"); }
+                        }
+                        ToolbarRule { }
+                        // The format buttons give way first on narrow windows (their shortcuts and the selection toolbar remain).
+                        if !root.compact : FormatButton { glyph: "B"; tip: "Bold (Ctrl+B)"; weight: 800; clicked => { EditorBridge.toolbar("bold"); } }
+                        if !root.compact : FormatButton { glyph: "I"; tip: "Italic (Ctrl+I)"; italic: true; clicked => { EditorBridge.toolbar("italic"); } }
+                        if !root.compact : FormatButton { glyph: "U"; tip: "Underline (Ctrl+U)"; clicked => { EditorBridge.toolbar("underline"); } }
+                        if !root.compact : FormatButton { glyph: "S"; tip: "Strikethrough (Ctrl+Shift+X)"; clicked => { EditorBridge.toolbar("strike"); } }
+                        if !root.compact : FormatButton { glyph: "</>"; tip: "Code (Ctrl+E)"; weight: 500; clicked => { EditorBridge.toolbar("code"); } }
+                        if !root.compact : IconButton {
+                            y: (parent.height - self.height) / 2;
+                            icon: Icons.link;
+                            label: "Link";
+                            tooltip: "Link (Ctrl+K)";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { EditorBridge.toolbar("link"); }
+                        }
+                        if !root.compact : IconButton {
+                            y: (parent.height - self.height) / 2;
+                            icon: Icons.at-sign;
+                            label: "Mention";
+                            tooltip: "Mention a page (@)";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { EditorBridge.toolbar("mention"); }
+                        }
+                        if !root.compact : ToolbarRule { }
+                        IconButton {
+                            y: (parent.height - self.height) / 2;
+                            icon: Icons.undo-2;
+                            label: "Undo";
+                            tooltip: "Undo (Ctrl+Z)";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { EditorBridge.toolbar("undo"); }
+                        }
+                        IconButton {
+                            y: (parent.height - self.height) / 2;
+                            icon: Icons.redo-2;
+                            label: "Redo";
+                            tooltip: "Redo (Ctrl+Shift+Z)";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { EditorBridge.toolbar("redo"); }
+                        }
+                        ToolbarRule { }
+                    }
+
+                    // Co-editors in this draft.
+                    for person in EditorBridge.presence : Rectangle {
+                        y: (parent.height - self.height) / 2;
+                        width: 26px;
+                        height: 26px;
+                        border-radius: 13px;
+                        background: person.colour;
+                        Text {
+                            text: person.initial;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: 700;
+                            color: Tokens.text-on-accent;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    IconButton {
+                        y: (parent.height - self.height) / 2;
+                        icon: Icons.message-square;
+                        label: "Comments";
+                        tooltip: "Comments";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => {
+                            ContentPageState.panel-open = true;
+                            ContentPageState.panel-tab = 2;
+                        }
+                    }
+                    IconButton {
+                        y: (parent.height - self.height) / 2;
+                        icon: Icons.columns-2;
+                        label: "Settings panel";
+                        tooltip: ContentPageState.panel-open ? "Hide the settings panel" : "Show the settings panel";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.panel-open = !ContentPageState.panel-open; }
+                    }
+                    Button {
+                        y: (parent.height - self.height) / 2;
+                        text: "Share";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.share(); }
+                    }
+                    if !root.editing && ContentPageState.header.can-edit : Button {
+                        y: (parent.height - self.height) / 2;
+                        text: ContentPageState.header.has-draft ? "Continue editing" : "Edit";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.start-edit(); }
+                    }
+                    if root.editing : Button {
+                        y: (parent.height - self.height) / 2;
+                        text: "Discard";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.discard(); }
+                    }
+                    if root.editing : Button {
+                        y: (parent.height - self.height) / 2;
+                        text: "Publish";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.publish(ContentPageState.summary); }
+                    }
+                }
+
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Tokens.border-subtle;
+                }
+            }
+
+            // ---- Notices ----
+            if ContentPageState.behind : Rectangle {
+                height: 40px;
+                background: Tokens.palette-warning-soft;
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    spacing: 12px;
+                    Text {
+                        text: "This page changed since you started editing.";
+                        vertical-alignment: center;
+                        color: Tokens.text-primary;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button {
+                        y: (parent.height - self.height) / 2;
+                        text: "Catch up";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.sm;
+                        clicked => { ContentPageState.catch-up(); }
+                    }
+                }
+            }
+            if ContentPageState.notice != "" : Rectangle {
+                height: 32px;
+                background: Tokens.surface-sunken;
+                Text {
+                    x: 16px;
+                    text: ContentPageState.notice;
+                    vertical-alignment: center;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    color: Tokens.text-muted;
+                }
+            }
+
+            // ---- Document and sidebar ----
+            HorizontalLayout {
+                vertical-stretch: 1;
+
+                // The block editor (app-owned). A layout, so the editor takes exactly the space beside the panel.
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    @children
+                }
+
+                if ContentPageState.panel-open : Rectangle {
+                    width: root.width < 900px ? 260px : 320px;
+                    background: Tokens.surface-raised;
+
+                    Rectangle {
+                        x: 0px;
+                        width: 1px;
+                        height: parent.height;
+                        background: Tokens.border-subtle;
+                    }
+
+                    VerticalLayout {
+                        padding-left: 1px;
+
+                        Rectangle {
+                            height: 44px;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                Tabs {
+                                    y: (parent.height - self.height) / 2;
+                                    tabs: [{ label: "Page" }, { label: "Block" }, { label: "Comments" }];
+                                    active: ContentPageState.panel-tab;
+                                    accessible-name: "Settings panel";
+                                    activated(index) => { ContentPageState.panel-tab = index; }
+                                }
+                            }
+                            Rectangle {
+                                y: parent.height - 1px;
+                                height: 1px;
+                                background: Tokens.border-subtle;
+                            }
+                        }
+
+                        // Page settings.
+                        if ContentPageState.panel-tab == 0 : ScrollArea {
+                            vertical-stretch: 1;
+                            accessible-name: "Page settings";
+                            VerticalLayout {
+                                padding: 16px;
+                                padding-right: 24px;
+                                spacing: 16px;
+
+                                PanelField {
+                                    label: "Collection";
+                                    Text { text: ContentPageState.header.collection; font-family: Type.body.family; font-size: Type.body.size; color: Tokens.text-primary; }
+                                }
+                                PanelField {
+                                    label: "Address";
+                                    Input {
+                                        text: ContentPageState.slug;
+                                        accessible-name: "Address";
+                                        read-only: !ContentPageState.header.can-manage;
+                                        submitted(text) => { ContentPageState.slug-changed(text); }
+                                    }
+                                }
+                                if EditorBridge.locales.length > 0 : PanelField {
+                                    label: "Language";
+                                    LocaleSwitcher {
+                                        locales: EditorBridge.locales;
+                                        chosen(code) => { EditorBridge.locale-chosen(code); }
+                                    }
+                                }
+                                PanelField {
+                                    label: "Visibility";
+                                    Switch {
+                                        text: ContentPageState.public ? "Public on the website" : "Internal to Space";
+                                        checked: ContentPageState.public;
+                                        enabled: ContentPageState.header.can-manage;
+                                        changed(on) => { ContentPageState.visibility-changed(on); }
+                                    }
+                                }
+                                PanelField {
+                                    label: "Location";
+                                    if ContentPageState.move-open : VerticalLayout {
+                                        spacing: 4px;
+                                        Text {
+                                            text: ContentPageState.move-labels.length == 0 ? "Loading places…" : "Move this page to:";
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            color: Tokens.text-muted;
+                                        }
+                                        for label[i] in ContentPageState.move-labels : Rectangle {
+                                            height: 30px;
+                                            border-radius: Tokens.radius-control;
+                                            background: move-touch.has-hover ? Tokens.surface-hover : transparent;
+                                            Text {
+                                                x: 8px;
+                                                text: label;
+                                                vertical-alignment: center;
+                                                color: Tokens.text-primary;
+                                            }
+                                            move-touch := TouchArea {
+                                                clicked => { ContentPageState.move-chosen(i); }
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            alignment: start;
+                                            Button {
+                                                text: "Cancel";
+                                                variant: ButtonVariant.ghost;
+                                                size: ButtonSize.sm;
+                                                clicked => { ContentPageState.move-open = false; }
+                                            }
+                                        }
+                                    }
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        Text {
+                                            horizontal-stretch: 1;
+                                            text: ContentPageState.header.scope-label;
+                                            vertical-alignment: center;
+                                            font-family: Type.body.family;
+                                            font-size: Type.body.size;
+                                            color: Tokens.text-primary;
+                                            overflow: elide;
+                                        }
+                                        if ContentPageState.header.can-manage && !ContentPageState.move-open : Button {
+                                            text: "Move…";
+                                            variant: ButtonVariant.secondary;
+                                            size: ButtonSize.sm;
+                                            clicked => { ContentPageState.move-requested(); }
+                                        }
+                                    }
+                                }
+
+                                if ContentPageState.properties.length > 0 : VerticalLayout {
+                                    spacing: 12px;
+                                    Rectangle { height: 1px; background: Tokens.border-subtle; }
+                                    Text {
+                                        text: "Properties";
+                                        font-family: Type.body-strong.family;
+                                        font-size: Type.body-strong.size;
+                                        font-weight: Type.body-strong.weight;
+                                        color: Tokens.text-primary;
+                                    }
+                                    for prop in ContentPageState.properties : PanelField {
+                                        label: prop.label;
+                                        if prop.kind == "boolean" : Switch {
+                                            text: prop.value == "true" ? "Yes" : "No";
+                                            checked: prop.value == "true";
+                                            enabled: root.editing;
+                                            changed(on) => { ContentPageState.property-changed(prop.key, on ? "true" : "false"); }
+                                        }
+                                        if prop.kind == "select" : HorizontalLayout {
+                                            spacing: 4px;
+                                            alignment: start;
+                                            for choice in prop.options : Button {
+                                                text: choice.label;
+                                                variant: choice.value == prop.value ? ButtonVariant.primary : ButtonVariant.secondary;
+                                                size: ButtonSize.sm;
+                                                enabled: root.editing;
+                                                clicked => { ContentPageState.property-changed(prop.key, choice.value); }
+                                            }
+                                        }
+                                        if prop.kind == "textarea" || prop.kind == "richtext" || prop.kind == "json" : Textarea {
+                                            text: prop.value;
+                                            rows: 3;
+                                            read-only: !root.editing;
+                                            accessible-name: prop.label;
+                                            changed(text) => { ContentPageState.property-changed(prop.key, text); }
+                                        }
+                                        if prop.kind != "boolean" && prop.kind != "select" && prop.kind != "textarea"
+                                            && prop.kind != "richtext" && prop.kind != "json" : Input {
+                                            text: prop.value;
+                                            accessible-name: prop.label;
+                                            read-only: !root.editing;
+                                            changed(text) => { ContentPageState.property-changed(prop.key, text); }
+                                        }
+                                    }
+                                }
+
+                                if root.editing : VerticalLayout {
+                                    spacing: 12px;
+                                    Rectangle { height: 1px; background: Tokens.border-subtle; }
+                                    PanelField {
+                                        label: "Change summary";
+                                        Textarea {
+                                            text: ContentPageState.summary;
+                                            rows: 2;
+                                            placeholder: "What changed (shown in the history)";
+                                            accessible-name: "Change summary";
+                                            changed(text) => { ContentPageState.summary = text; }
+                                        }
+                                    }
+                                }
+
+                                if ContentPageState.header.can-manage : VerticalLayout {
+                                    spacing: 12px;
+                                    Rectangle { height: 1px; background: Tokens.border-subtle; }
+                                    HorizontalLayout {
+                                        alignment: start;
+                                        Button {
+                                            text: "Delete page";
+                                            variant: ButtonVariant.danger;
+                                            size: ButtonSize.sm;
+                                            clicked => { ContentPageState.delete-requested(); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Block settings: the selected block's fields.
+                        if ContentPageState.panel-tab == 1 : Rectangle {
+                            vertical-stretch: 1;
+                            if EditorBridge.inspector-fields.length == 0 : Text {
+                                x: 16px;
+                                y: 16px;
+                                width: parent.width - 32px;
+                                text: "Select a block (its ⋮⋮ handle) to see its settings.";
+                                wrap: word-wrap;
+                                color: Tokens.text-muted;
+                            }
+                            if EditorBridge.inspector-fields.length > 0 : Inspector {
+                                width: parent.width;
+                                height: parent.height;
+                                fields: EditorBridge.inspector-fields;
+                                locked: EditorBridge.inspector-locked || !root.editing;
+                                field-changed(key, value) => { EditorBridge.inspector-changed(key, value); }
+                            }
+                        }
+
+                        if ContentPageState.panel-tab == 2 : CommentPanel {
+                            vertical-stretch: 1;
+                            comments: EditorBridge.comments;
+                            scope: EditorBridge.comment-scope;
+                            block: EditorBridge.comment-block;
+                            submit(block-id, parent-id, body) => { EditorBridge.comment-submit(block-id, parent-id, body); }
+                            resolve(id) => { EditorBridge.comment-resolve(id); }
+                            reopen(id) => { EditorBridge.comment-reopen(id); }
+                            jump(block-id) => { EditorBridge.comment-jump(block-id); }
+                            scope-changed(scope) => { EditorBridge.comment-scope-changed(scope); }
+                            closed => { ContentPageState.panel-tab = 0; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

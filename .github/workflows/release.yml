@@ -1,0 +1,69 @@
+name: Release
+
+# Pushing a version tag such as v0.2.0 builds the Windows installer and update feed and uploads them to R2 (REL.4, decision 0047).
+# The tag must equal `[workspace.package] version` in Cargo.toml. The job does not run the quick gate again: it trusts CI on
+# the tagged commit (owner choice, 2026-11-20).
+#
+# Secrets (repository settings > Secrets and variables > Actions), never written to the repo:
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY   an R2 API token with Object Read & Write on the bucket
+#   RIMELIGHT_SIGN_PARAMS (optional)                          signtool.exe arguments; unset means the files are not signed
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+# One release at a time: two tags pushed together must not interleave their uploads.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # Must equal VPK_VERSION in xtask/src/release.rs and the `velopack` crate that rimelight_update (rimelight-rs) depends on.
+  VPK_VERSION: 1.3.39-g8d2844f
+  R2_BUCKET: rimelight-dot-com
+  R2_PREFIX: space/releases/win
+
+jobs:
+  windows:
+    name: Windows installer and update feed
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Install vpk (Velopack CLI)
+        run: dotnet tool install --global vpk --version $env:VPK_VERSION
+      - name: Fetch the pinned FFmpeg build
+        run: cargo xtask ffmpeg
+      - name: Build and package
+        env:
+          RIMELIGHT_SIGN_PARAMS: ${{ secrets.RIMELIGHT_SIGN_PARAMS }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          cargo xtask release pack --expect-version $version
+      - name: Upload to R2
+        # Packages first, the feed files last: a client reading the feed never sees a release whose files are missing.
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          out=target/release-out
+          dest="s3://${R2_BUCKET}/${R2_PREFIX}"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          ls -l "$out"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*.nupkg"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*-Setup.exe" --include "*-Portable.zip"
+          aws s3 cp "$out/min-version.stable.txt" "$dest/min-version.stable.txt" --endpoint-url "$endpoint"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "assets.*.json" --include "RELEASES-*"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "releases.*.json"

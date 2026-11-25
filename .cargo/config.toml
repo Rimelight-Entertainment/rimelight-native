@@ -5,7 +5,7 @@ global-min-publish-age = "1 day"
 # Shared trimmed FFmpeg build (fetched automatically on Windows by apps/rimelight-media/build.rs
 # or manually via apps/rimelight-media/tools/get-ffmpeg.ps1). An FFMPEG_DIR already set in the
 # environment always wins.
-FFMPEG_DIR = { value = "apps/rimelight-media/ffmpeg/current", relative = true, force = false }
+FFMPEG_DIR = { value = "apps/rimelight-media/ffmpeg/current", relative = true, force = true }
 
 [alias]
 xtask = "run --package xtask --"

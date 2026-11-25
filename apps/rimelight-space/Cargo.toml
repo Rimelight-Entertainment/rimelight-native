@@ -5,7 +5,7 @@ members = ["crates/*", "areas/*", "apps/*", "backend/*", "xtask"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "LicenseRef-Rimelight-Proprietary"
+license = "MIT"
 publish = false
 
 [workspace.dependencies]
@@ -13,91 +13,26 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 slint = "=1.18.1"
 slint-build = "=1.18.1"
 i-slint-backend-testing = "=1.18.1"
-# The shared design tokens (decision D1 of the web monorepo): packages/design/crate in
-# Rimelight-Entertainment/rimelight. Its Slint markup is `ui/tokens.slint` (library path `rimelight_design`), its Rust
-# constants are `rimelight_design::tokens`. Pinned by rev; the rev is bumped deliberately.
+# Design tokens: now a local path dep via the root workspace.
 rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight.git", rev = "d4420e634ee65c11f1e46666a4a1ccf3f713f653" }
-# The shared component library (ST2.3, rimelight-rs): `ui/` markup under library path `rimelight_ui` (`rimelight_ui::UI_DIR`),
-# the bundled fonts (`rimelight_ui::fonts`) and the icons. Pinned by the rimelight-rs release tag; bumped deliberately.
-# Space's own crate is `space_ui` (crates/space_ui); it does not clash with this name.
-rimelight_ui = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared Slint glue (ST2.4, rimelight-rs crates/rimelight_ui_kit): plain rules and the macros Space expands in
-# crates/space_ui/src/slint_ui/glue.rs. Pinned by the same release tag as rimelight_ui.
-rimelight_ui_kit = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared shell markup (ST2.5a, rimelight-rs crates/rimelight_shell): library path `rimelight_shell`.
-rimelight_shell = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared media crate (ST4.3, rimelight-rs crates/rimelight_media): probe, poster, Player with sound. `slint` makes
-# frames `slint::SharedPixelBuffer`s, so a frame goes to Slint without a copy (`Rgba::into_slint_image`).
-rimelight_media = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4", features = ["slint"] }
-# The shared picture crate (ST4.4, rimelight-rs crates/rimelight_picture): decoding, animation frames, thumbnails and
-# WebP encoding. The default features (pure Rust, no RAW or HEIF) build for wasm32 and Android.
-rimelight_picture = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared component gallery (rimelight-rs apps/gallery, crate `rimelight_gallery`): the window, the harness and the
-# story registry. Space's own stories are its app stories (`apps/gallery` here, the `space_gallery` binary). Pinned by the same release tag.
-rimelight_gallery = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared OS calls (ST4.5, rimelight-rs crates/rimelight_platform): Windows window list, alpha, z-order and owner, and the
-# Android browser, intent and download calls. Pinned by the same release tag.
-# Bumped to v0.5.0 for the native web views (`webview`, CMS.0 and CMS.5): not in the v0.4 tags.
-rimelight_platform = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared self-update (ST4.5, rimelight-rs crates/rimelight_update): the Velopack updater, the minimum-version check and
-# the start-up window macro. Pinned by the same release tag. Space's own window is `space_update_slint`.
-rimelight_update = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared content crate (CMS.5, rimelight-rs crates/rimelight_content): the block JSON <-> Loro mapping, the registry and
-# the DocRoom wire frames (`sync`) that space_client's live editor uses. Pinned by its own release tag; the main session cuts v0.5.0.
-rimelight_content = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
-# The shared block editor (CMS.5, rimelight-rs crates/rimelight_editor): the controller, the markup under library path
-# `rimelight_editor`, and the `wire_block_editor!` macro the app expands. Pinned by the release tag, like the others.
-rimelight_editor = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
+# Shared component library — now local path deps (packages/ in the monorepo root).
+rimelight_ui         = { path = "../../packages/rimelight_ui" }
+rimelight_ui_kit     = { path = "../../packages/rimelight_ui_kit" }
+rimelight_shell      = { path = "../../packages/rimelight_shell" }
+rimelight_media      = { path = "../../packages/rimelight_media", features = ["slint"] }
+rimelight_picture    = { path = "../../packages/rimelight_picture" }
+rimelight_gallery    = { path = "../../packages/gallery" }
+rimelight_platform   = { path = "../../packages/rimelight_platform" }
+rimelight_update     = { path = "../../packages/rimelight_update" }
+rimelight_content    = { path = "../../packages/rimelight_content" }
+rimelight_editor     = { path = "../../packages/rimelight_editor" }
 
-# ffmpeg-sys-next with its bindings checked in, so building needs neither clang nor FFmpeg headers (CV-V.2,
-# decision 0046). It is shared with Rimelight Media in rimelight-rs `vendor/`. `cargo xtask ffmpeg` fetches the trimmed
-# FFmpeg build it links against.
-[patch.crates-io]
-ffmpeg-sys-next = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.5.4" }
+# ffmpeg-sys-next bindings are now checked in under packages/rimelight_media/vendor/.
+# The root workspace Cargo.toml patches crates-io for the whole monorepo.
 
 [workspace.lints.rust]
 future_incompatible = { level = "deny", priority = -1 }
 unsafe_code = "forbid"
 
-[profile.dev]
-debug = "line-tables-only"
-# Build scripts and proc macros (slint-build, the slint! macro, serde derive) run optimised. The Slint compiler at
-# opt-level 0 is the slow part of every .slint change (decision 0037).
-# Dependencies carry no debug info: smaller objects, faster links. Workspace crates keep line tables.
-[profile.dev.package."*"]
-debug = false
+# Profiles and picture-opt overrides live in the root workspace Cargo.toml.
 
-[profile.dev.build-override]
-opt-level = 3
-
-# Picture decoding, resizing, WebP encoding and hashing run optimised in dev builds too. At opt-level 0 one canvas
-# picture took about 16 s to decode and thumbnail (owner review, 2026-11-19); these crates rarely change, so the cost
-# is paid once.
-[profile.dev.package.image]
-opt-level = 3
-[profile.dev.package.png]
-opt-level = 3
-[profile.dev.package.zune-jpeg]
-opt-level = 3
-[profile.dev.package.zune-core]
-opt-level = 3
-[profile.dev.package.image-webp]
-opt-level = 3
-[profile.dev.package.gif]
-opt-level = 3
-[profile.dev.package.weezl]
-opt-level = 3
-[profile.dev.package.fdeflate]
-opt-level = 3
-[profile.dev.package.miniz_oxide]
-opt-level = 3
-[profile.dev.package.crc32fast]
-opt-level = 3
-[profile.dev.package.simd-adler32]
-opt-level = 3
-[profile.dev.package.sha2]
-opt-level = 3
-[profile.dev.package.moxcms]
-opt-level = 3
-[profile.dev.package.pxfm]
-opt-level = 3

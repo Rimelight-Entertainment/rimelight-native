@@ -8,24 +8,22 @@ description = "Rimelight Media: pictures, video, music, screenshots and screen r
 default-run = "rimelight-media"
 
 # Same rule as rimelight-space: no unsafe code, except the audited modules that talk to Windows (src/capture/camera.rs; the Win32 calls are in rimelight_platform)
-# and the code Slint generates (src/ui.rs). The picture subtitles and HEIF unsafe code is in rimelight-rs.
+# and the code Slint generates (src/ui.rs). The picture subtitles and HEIF unsafe code is in rimelight-rs (now packages/).
 [lints.rust]
 future_incompatible = { level = "deny", priority = -1 }
 unsafe_code = "deny"
 
 [dependencies]
-# The theme glue (rimelight_ui_kit). The markup libraries (tokens, components) are build-dependencies below.
-# Pinned like rimelight-space: rimelight-rs crates to a tag.
-rimelight_ui_kit = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3" }
-# Video and sound from rimelight-rs: the engine (FFmpeg and cpal) with subtitles, speed and trimming. `slint` keeps frames
-# as Slint pixel buffers, so the player hands them to the window without a copy.
-rimelight_media = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3", features = ["slint"] }
-# Pictures from rimelight-rs: decode (with RAW and HEIF), thumbnails, animation, edits, markup and saving.
-rimelight_picture = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3", features = ["raw", "heif"] }
-# OS calls shared with Rimelight Space (screen capture, windows, the start lock, shell and print calls), behind one portable API.
-rimelight_platform = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3" }
-# Self-update from GitHub Releases with Velopack (the installer hooks run in main.rs).
-rimelight_update = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3" }
+# Shared packages — now local path deps via the root workspace.
+rimelight_ui_kit = { workspace = true }
+# Video and sound: the FFmpeg + cpal engine with subtitles, speed and trimming.
+rimelight_media = { workspace = true, features = ["slint"] }
+# Pictures: decode (with RAW and HEIF), thumbnails, animation, edits, markup and saving.
+rimelight_picture = { workspace = true, features = ["raw", "heif"] }
+# OS calls shared with Rimelight Space.
+rimelight_platform = { workspace = true }
+# Self-update from GitHub Releases with Velopack.
+rimelight_update = { workspace = true }
 # The window and every screen. Femtovg draws on the GPU; the software renderer is the fallback.
 slint = { version = "=1.18.1", default-features = false, features = [
     "std",
@@ -90,34 +88,11 @@ windows = { version = "0.62", features = [
 ] }
 
 [build-dependencies]
-slint-build = "=1.18.1"
-# build.rs passes their UI_DIR folders to the Slint compiler as the library paths rimelight_design and rimelight_ui. Pinned
-# like rimelight-space: the tokens to a rimelight commit, the component library to a rimelight-rs tag.
-rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight.git", rev = "d4420e634ee65c11f1e46666a4a1ccf3f713f653" }
-rimelight_ui = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3" }
+slint-build = { workspace = true }
+# build.rs passes their UI_DIR folders to the Slint compiler as the library paths rimelight_design and rimelight_ui.
+rimelight_design = { workspace = true }
+rimelight_ui = { workspace = true }
 # The app icon inside the exe (shortcuts, taskbar, Explorer), compiled with the Windows SDK's rc.exe.
 embed-resource = "3"
 
-# ffmpeg-sys-next with its bindings checked in, from rimelight-rs (vendor/ffmpeg-sys-next, the same copy the other Rimelight apps
-# use), so building needs neither clang nor the FFmpeg headers. FFmpeg itself comes from tools/get-ffmpeg.ps1 (FFMPEG_DIR in
-# .cargo/config.toml).
-[patch.crates-io]
-ffmpeg-sys-next = { git = "https://github.com/Rimelight-Entertainment/rimelight-rs.git", tag = "v0.3.3" }
-
-[profile.dev]
-debug = "line-tables-only"
-
-[profile.dev.package."*"]
-debug = false
-opt-level = 2
-
-[profile.dev.build-override]
-opt-level = 3
-
-# Fast first, then small: full optimisation, one codegen unit, whole-program optimisation, no symbols, no unwinding.
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-strip = true
-panic = "abort"
+# profiles and [patch] are now in the root workspace Cargo.toml.

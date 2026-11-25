@@ -1,0 +1,117 @@
+[workspace]
+resolver = "3"
+members = [
+    # ── Apps ──────────────────────────────────────────────────────────────────
+    "apps/rimelight-media",
+    "apps/rimelight-space/apps/*",
+    "apps/rimelight-space/areas/*",
+    "apps/rimelight-space/backend/*",
+    "apps/rimelight-space/crates/*",
+    "apps/rimelight-space/xtask",
+    "apps/rimelight-personal/apps/*",
+    "apps/rimelight-personal/crates/*",
+    "apps/rimelight-personal/crates/features/*",
+
+    # ── Packages (shared libraries, from rimelight-rs) ────────────────────────
+    "packages/rimelight_content",
+    "packages/rimelight_editor",
+    "packages/rimelight_media",
+    "packages/rimelight_picture",
+    "packages/rimelight_platform",
+    "packages/rimelight_shell",
+    "packages/rimelight_sound",
+    "packages/rimelight_ui",
+    "packages/rimelight_ui_kit",
+    "packages/rimelight_ui_test_slint",
+    "packages/rimelight_update",
+    "packages/gallery",
+    "packages/ui_check",
+    "xtask-rs",
+]
+
+# Spikes are independent workspaces and vendored third-party crates are not
+# members so their generated code is not linted.
+exclude = [
+    "apps/rimelight-space/spikes",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100.0"
+license = "MIT"
+publish = false
+repository = "https://github.com/Rimelight-Entertainment/rimelight-native"
+
+[workspace.dependencies]
+# Slint family, pinned exactly.
+slint = "=1.18.1"
+slint-build = "=1.18.1"
+i-slint-backend-testing = "=1.18.1"
+slint-interpreter = "=1.18.1"
+# Common image encoding.
+image = { version = "0.25", default-features = false, features = ["png"] }
+spin_on = "0.1"
+# Design tokens from the web monorepo (packages/design/crate, decision D1).
+# Pinned by rev; bumped deliberately.
+rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight.git", rev = "d4420e634ee65c11f1e46666a4a1ccf3f713f653" }
+
+# ── Shared packages (local path, formerly pulled from rimelight-rs by tag) ──
+rimelight_content    = { path = "packages/rimelight_content" }
+rimelight_editor     = { path = "packages/rimelight_editor" }
+rimelight_media      = { path = "packages/rimelight_media" }
+rimelight_picture    = { path = "packages/rimelight_picture" }
+rimelight_platform   = { path = "packages/rimelight_platform" }
+rimelight_shell      = { path = "packages/rimelight_shell" }
+rimelight_sound      = { path = "packages/rimelight_sound" }
+rimelight_ui         = { path = "packages/rimelight_ui" }
+rimelight_ui_kit     = { path = "packages/rimelight_ui_kit" }
+rimelight_ui_test_slint = { path = "packages/rimelight_ui_test_slint" }
+rimelight_update     = { path = "packages/rimelight_update" }
+rimelight_gallery    = { path = "packages/gallery" }
+
+[workspace.lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "forbid"
+
+# ffmpeg-sys-next bindings are checked in under vendor/ffmpeg-sys-next
+# so building needs neither clang nor FFmpeg headers (decision 0046).
+[patch.crates-io]
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next" }
+
+[profile.dev]
+debug = "line-tables-only"
+# Build scripts and proc macros run optimised (decision 0037).
+[profile.dev.package."*"]
+debug = false
+[profile.dev.build-override]
+opt-level = 3
+# Picture decoding/encoding crates run optimised in dev builds too.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.gif]
+opt-level = 3
+[profile.dev.package.weezl]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.simd-adler32]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.moxcms]
+opt-level = 3
+[profile.dev.package.pxfm]
+opt-level = 3

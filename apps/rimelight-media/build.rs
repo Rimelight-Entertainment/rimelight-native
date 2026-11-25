@@ -59,14 +59,65 @@ pub const SHIPPED: &[&str] = &[
     "swscale-",
 ];
 
+/// Returns the FFmpeg directory, auto-fetching it on Windows if needed.
+///
+/// Resolution order:
+/// 1. `FFMPEG_DIR` env var (set by CI, the user, or `.cargo/config.toml`).
+/// 2. The relative `ffmpeg/current` path next to the manifest.
+///    If that path exists and has a `lib/` subfolder it is ready; otherwise the
+///    PowerShell fetch script (`tools/get-ffmpeg.ps1`) is invoked automatically
+///    so a fresh clone "just works" on `cargo run` with no manual setup step.
+fn ffmpeg_dir() -> Option<PathBuf> {
+    // Explicit env var always wins (CI, user override, .cargo/config.toml default).
+    if let Some(dir) = std::env::var_os("FFMPEG_DIR").map(PathBuf::from) {
+        if dir.join("lib").exists() {
+            return Some(dir);
+        }
+    }
+    // On non-Windows FFmpeg isn't needed; stub.rs compiles instead.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        return None;
+    }
+    // Resolve ffmpeg/current relative to the manifest.
+    let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
+    let current = manifest.join("ffmpeg").join("current");
+    if current.join("lib").exists() {
+        return Some(current);
+    }
+    // Not present — run the fetch script automatically.
+    let script = manifest.join("tools").join("get-ffmpeg.ps1");
+    println!("cargo:warning=FFmpeg not found; running tools/get-ffmpeg.ps1 automatically…");
+    let status = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script.to_str().unwrap_or_default(),
+        ])
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            println!("cargo:warning=FFmpeg downloaded to ffmpeg/current — ready.");
+            Some(current)
+        }
+        Ok(s) => {
+            println!("cargo:warning=get-ffmpeg.ps1 exited with {s}; build may fail.");
+            None
+        }
+        Err(e) => {
+            println!("cargo:warning=Could not run get-ffmpeg.ps1: {e}");
+            None
+        }
+    }
+}
+
 /// Puts the FFmpeg DLLs the app uses next to rimelight-media.exe (the profile folder), so the built app starts when run
 /// directly and tools/pack.ps1 finds them. (The shared ffmpeg-sys-next build script in rimelight-rs copies the linked DLLs
 /// next to the exe too; the same files, so this copy is harmless.)
 fn copy_ffmpeg_dlls() {
     println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
-    let Some(dir) = std::env::var_os("FFMPEG_DIR").map(PathBuf::from) else {
-        return;
-    };
+    let Some(dir) = ffmpeg_dir() else { return };
     let bin = dir.join("bin");
     // A new FFmpeg (tools/get-ffmpeg.ps1) must replace the DLLs next to the exe.
     println!("cargo:rerun-if-changed={}", bin.display());
@@ -101,9 +152,7 @@ fn delay_load_ffmpeg() {
         return;
     }
     println!("cargo:rustc-link-lib=delayimp");
-    let Some(dir) = std::env::var_os("FFMPEG_DIR").map(PathBuf::from) else {
-        return;
-    };
+    let Some(dir) = ffmpeg_dir() else { return };
     let Ok(entries) = std::fs::read_dir(dir.join("bin")) else {
         return;
     };

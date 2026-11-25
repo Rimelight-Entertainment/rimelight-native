@@ -5,7 +5,11 @@ edition = "2024"
 license = "MIT"
 publish = false
 description = "Rimelight Media: pictures, video, music, screenshots and screen recording in one small app"
-default-run = "rimelight-media"
+default-run = "media_desktop"
+
+[[bin]]
+name = "media_desktop"
+path = "src/main.rs"
 
 # Same rule as rimelight-space: no unsafe code, except the audited modules that talk to Windows (src/capture/camera.rs; the Win32 calls are in rimelight_platform)
 # and the code Slint generates (src/ui.rs). The picture subtitles and HEIF unsafe code is in rimelight-rs (now packages/).

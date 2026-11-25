@@ -9,7 +9,9 @@ members = [
     "apps/rimelight-space/crates/*",
     "apps/rimelight-space/xtask",
     "apps/rimelight-personal/apps/*",
-    "apps/rimelight-personal/crates/*",
+    "apps/rimelight-personal/crates/core",
+    "apps/rimelight-personal/crates/idantity_nav",
+    "apps/rimelight-personal/crates/idantity_ui_slint",
     "apps/rimelight-personal/crates/features/*",
 
     # ── Packages (shared libraries, from rimelight-rs) ────────────────────────

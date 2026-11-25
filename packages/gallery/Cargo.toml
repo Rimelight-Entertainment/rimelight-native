@@ -17,11 +17,11 @@ workspace = true
 # The interpreter compiles ui/dev.slint with the `rimelight_design` library path (`rimelight_design::UI_DIR`).
 rimelight_design = { workspace = true }
 # The shared component library: the interpreter maps the `rimelight_ui` library path to `rimelight_ui::UI_DIR`.
-rimelight_ui = { path = "../rimelight_ui" }
+rimelight_ui = { path = "../ui/rimelight_ui" }
 # The shared shell markup and its plain rules (the palette filter and step, the badge text).
-rimelight_shell = { path = "../rimelight_shell" }
+rimelight_shell = { path = "../ui/rimelight_shell" }
 # The plain rules of the Select, Menu and ColorPicker callbacks.
-rimelight_ui_kit = { path = "../rimelight_ui_kit" }
+rimelight_ui_kit = { path = "../ui/rimelight_ui_kit" }
 slint = { workspace = true }
 slint-interpreter = { workspace = true }
 # The headless platform for captures and the interpreter tests (software renderer, no native window).

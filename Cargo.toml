@@ -14,17 +14,12 @@ members = [
     "apps/rimelight-personal/crates/idantity_ui_slint",
     "apps/rimelight-personal/crates/features/*",
 
-    # ── Packages (shared libraries, from rimelight-rs) ────────────────────────
+    # ── Packages (shared libraries) ───────────────────────────────────────────
+    "packages/ui/*",
+    "packages/media/*",
     "packages/rimelight_content",
     "packages/rimelight_editor",
-    "packages/rimelight_media",
-    "packages/rimelight_picture",
     "packages/rimelight_platform",
-    "packages/rimelight_shell",
-    "packages/rimelight_sound",
-    "packages/rimelight_ui",
-    "packages/rimelight_ui_kit",
-    "packages/rimelight_ui_test_slint",
     "packages/rimelight_update",
     "packages/gallery",
     "packages/ui_check",
@@ -60,14 +55,14 @@ rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight
 # ── Shared packages (local path, formerly pulled from rimelight-rs by tag) ──
 rimelight_content       = { path = "packages/rimelight_content" }
 rimelight_editor        = { path = "packages/rimelight_editor" }
-rimelight_media         = { path = "packages/rimelight_media", features = ["slint"] }
-rimelight_picture       = { path = "packages/rimelight_picture" }
+rimelight_media         = { path = "packages/media/rimelight_media", features = ["slint"] }
+rimelight_picture       = { path = "packages/media/rimelight_picture" }
 rimelight_platform      = { path = "packages/rimelight_platform" }
-rimelight_shell         = { path = "packages/rimelight_shell" }
-rimelight_sound         = { path = "packages/rimelight_sound" }
-rimelight_ui            = { path = "packages/rimelight_ui" }
-rimelight_ui_kit        = { path = "packages/rimelight_ui_kit" }
-rimelight_ui_test_slint = { path = "packages/rimelight_ui_test_slint" }
+rimelight_shell         = { path = "packages/ui/rimelight_shell" }
+rimelight_sound         = { path = "packages/media/rimelight_sound" }
+rimelight_ui            = { path = "packages/ui/rimelight_ui" }
+rimelight_ui_kit        = { path = "packages/ui/rimelight_ui_kit" }
+rimelight_ui_test_slint = { path = "packages/ui/rimelight_ui_test_slint" }
 rimelight_update        = { path = "packages/rimelight_update" }
 rimelight_gallery       = { path = "packages/gallery" }
 

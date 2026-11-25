@@ -1,0 +1,252 @@
+// Voice recorder, like Windows' Sound Recorder: the microphone, the format and the input gain in the top bar, the record
+// button with pause and markers, a level meter, and the list of takes with play, rename, delete and show in folder.
+import { ScrollView, ComboBox, LineEdit } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Icons } from "icons.slint";
+import { StatusBar, ToolButton } from "widgets.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { ToolDivider, ToolbarRow } from "@rimelight_ui/components/toolbar.slint";
+import { Voice, Shell } from "state.slint";
+
+export component VoicePage inherits Rectangle {
+    background: Tokens.surface-base;
+
+    VerticalLayout {
+        // Options: the microphone, the format and the input gain (-12 dB to +24 dB, shown as a 0..1 slider).
+        // A compact left-aligned group: each label sits next to its control, and the spacer takes the rest.
+        ToolbarRow {
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.mic; label: "Microphone"; tooltip: "Microphone"; clicked => { } }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                horizontal-stretch: 0;
+                ComboBox {
+                    model: Voice.mics;
+                    current-index: Voice.mic-index;
+                    width: 220px;
+                    selected(value) => { Voice.pick-mic(self.current-index); }
+                }
+            }
+            ToolDivider { }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                horizontal-stretch: 0;
+                Text { text: "Format"; color: Tokens.text-muted; font-size: Type.body.size; vertical-alignment: center; }
+                ComboBox {
+                    model: Voice.formats;
+                    current-index: Voice.format-index;
+                    width: 90px;
+                    enabled: !Voice.recording;
+                    selected(value) => { Voice.pick-format(self.current-index); }
+                }
+            }
+            ToolDivider { }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                horizontal-stretch: 0;
+                Text { text: "Gain"; color: Tokens.text-muted; font-size: Type.body.size; vertical-alignment: center; }
+                Slider {
+                    on-stage: false;
+                    controlled: true;
+                    minimum: 0;
+                    maximum: 1;
+                    step: 0;
+                    width: 140px;
+                    value: (Voice.gain-db + 12) / 36;
+                    changed(v) => { Voice.set-gain(v * 36 - 12); }
+                    released(v) => { Voice.save-gain(); }
+                }
+                Text {
+                    text: (Voice.gain-db > 0 ? "+" : "") + round(Voice.gain-db) + " dB";
+                    color: Tokens.text-primary;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                    width: 48px;
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            if Shell.recording: ToolDivider { }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+        }
+
+        // The recorder and the takes, centred in the middle.
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: Tokens.space-8;
+                spacing: Tokens.space-5;
+                alignment: start;
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        width: min(720px, root.width - 2 * Tokens.space-8);
+                        spacing: Tokens.space-5;
+                        alignment: start;
+
+                        Text { text: "Voice recorder"; color: Tokens.text-primary; font-size: Type.title.size; font-weight: 600; }
+                        Card {
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: Tokens.space-4;
+                                // The big record button, centred.
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 96px;
+                                        height: 96px;
+                                        border-radius: 48px;
+                                        background: Voice.recording ? Tokens.extension-media-record : (rec-ta.has-hover ? Tokens.surface-hover : Tokens.surface-sunken);
+                                        border-width: 3px;
+                                        border-color: Tokens.extension-media-record;
+                                        Image {
+                                            source: Voice.recording ? Icons.stop : SharedIcons.mic;
+                                            width: 40px;
+                                            height: 40px;
+                                            x: (parent.width - self.width) / 2;
+                                            y: (parent.height - self.height) / 2;
+                                            colorize: Voice.recording ? #FFFFFF : Tokens.extension-media-record;
+                                        }
+                                        rec-ta := TouchArea {
+                                            mouse-cursor: pointer;
+                                            clicked => { Voice.toggle(); }
+                                        }
+                                    }
+                                }
+                                if Voice.recording: HorizontalLayout {
+                                    alignment: center;
+                                    spacing: Tokens.space-4;
+                                    Button {
+                                        text: Voice.paused ? "Resume" : "Pause";
+                                        variant: ButtonVariant.ghost;
+                                        clicked => { Voice.pause-toggle(); }
+                                    }
+                                    Button {
+                                        text: "Add marker";
+                                        variant: ButtonVariant.ghost;
+                                        enabled: !Voice.paused;
+                                        clicked => { Voice.add-marker(); }
+                                    }
+                                }
+                                if Voice.recording: Text {
+                                    text: "Mark this moment (saved with the recording, shown in the list)";
+                                    color: Tokens.text-muted;
+                                    font-size: Type.caption.size;
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: Voice.time-text;
+                                    color: Tokens.text-primary;
+                                    font-size: Type.title.size;
+                                    horizontal-alignment: center;
+                                }
+                                HorizontalLayout {
+                                    alignment: center;
+                                    // The live level, after the gain.
+                                    Rectangle {
+                                        width: 280px;
+                                        height: 6px;
+                                        border-radius: 3px;
+                                        background: Tokens.surface-sunken;
+                                        Rectangle {
+                                            x: 0;
+                                            width: parent.width * clamp(Voice.level, 0, 1);
+                                            border-radius: 3px;
+                                            background: Voice.level > 0.9 ? Tokens.status-danger : Tokens.status-success;
+                                        }
+                                    }
+                                }
+                                Text {
+                                    text: Voice.paused ? "Paused. Press Resume to go on." : (Voice.recording ? "Recording from the microphone. Press Stop when you're done." : "Press the button to start recording.");
+                                    color: Tokens.text-muted;
+                                    font-size: Type.caption.size;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+
+                        if Voice.markers.length > 0: Text { text: "Markers"; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; }
+                        if Voice.markers.length > 0: Card {
+                            height: 96px;
+                            ScrollView {
+                                VerticalLayout {
+                                    padding: Tokens.space-2;
+                                    for m in Voice.markers: Text { text: m; color: Tokens.text-primary; font-size: Type.caption.size; }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            Text { text: "Recordings"; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; vertical-alignment: center; }
+                            Rectangle { }
+                            Button { text: "Open folder"; variant: ButtonVariant.ghost; leading-icon: SharedIcons.folder-open; clicked => { Voice.open-folder(); } }
+                        }
+                        if Voice.takes.length == 0: Text { text: "No recordings yet."; color: Tokens.text-muted; font-size: Type.body.size; }
+                        if Voice.takes.length > 0: Card {
+                            ScrollView {
+                                min-height: 160px;
+                                VerticalLayout {
+                                    padding: Tokens.space-1;
+                                    for t[i] in Voice.takes: Rectangle {
+                                        height: 44px;
+                                        border-radius: Tokens.radius-control;
+                                        background: Voice.selected == i ? Tokens.surface-pressed : (take-ta.has-hover ? Tokens.surface-hover : transparent);
+                                        HorizontalLayout {
+                                            padding-left: Tokens.space-3;
+                                            spacing: Tokens.space-3;
+                                            Rectangle {
+                                                width: Tokens.icon-medium;
+                                                Image { source: SharedIcons.play; width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
+                                            }
+                                            VerticalLayout {
+                                                alignment: center;
+                                                Text { text: t.name; color: Tokens.text-primary; font-size: Type.body.size; overflow: elide; }
+                                                Text { text: t.detail; color: Tokens.text-muted; font-size: Type.caption.size; }
+                                            }
+                                        }
+                                        take-ta := TouchArea {
+                                            mouse-cursor: pointer;
+                                            // Click picks the take; double-click plays it.
+                                            clicked => { Voice.selected = i; Voice.rename-text = t.name; }
+                                            double-clicked => { Voice.open-take(i); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if Voice.selected >= 0 && Voice.selected < Voice.takes.length: HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            LineEdit {
+                                text <=> Voice.rename-text;
+                                placeholder-text: "New name";
+                                min-width: 180px;
+                            }
+                            Button { text: "Rename"; variant: ButtonVariant.ghost; clicked => { Voice.rename(Voice.selected, Voice.rename-text); } }
+                            Button { text: "Play"; variant: ButtonVariant.ghost; clicked => { Voice.open-take(Voice.selected); } }
+                            Button { text: "Show in folder"; variant: ButtonVariant.ghost; clicked => { Voice.reveal(Voice.selected); } }
+                            Button { text: "Delete"; variant: ButtonVariant.ghost; clicked => { Voice.delete(Voice.selected); } }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Left: the save folder. Right: the recording time while recording.
+        StatusBar {
+            left-text: Voice.folder;
+            if Voice.recording: Text {
+                text: "● " + Voice.time-text;
+                color: Tokens.extension-media-record;
+                font-size: Type.caption.size;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

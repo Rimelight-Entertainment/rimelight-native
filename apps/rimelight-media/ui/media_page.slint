@@ -1,0 +1,758 @@
+// The video and music player: the top trim row, the waveform track and seek bar, one control row, and the shared
+// StatusBar at the bottom (file facts on the left, full screen on the right).
+import { ScrollView } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Icons } from "icons.slint";
+import { Choice, StageIconButton, StatusBar, ToolButton } from "widgets.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+import { Button, ButtonSize, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
+import { ToolDivider } from "@rimelight_ui/components/toolbar.slint";
+import { ActionRow } from "@rimelight_ui/components/action-row.slint";
+import { FileKindTile } from "@rimelight_ui/components/tile.slint";
+import { Player, Shell } from "state.slint";
+
+// One row of a track or subtitle list: a check for the chosen one, the name, and an optional detail line.
+component TrackRow inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <bool> selected;
+    callback clicked();
+
+    min-width: 260px;
+    height: root.detail == "" ? 32px : 44px;
+    border-radius: Tokens.radius-control;
+    background: row-ta.has-hover ? Tokens.surface-hover : transparent;
+    HorizontalLayout {
+        padding-left: Tokens.space-2;
+        padding-right: Tokens.space-3;
+        spacing: Tokens.space-2;
+        Rectangle {
+            width: Tokens.icon-small;
+            if root.selected: Image { source: @image-url("../assets/icons/check.svg"); width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
+        }
+        VerticalLayout {
+            alignment: center;
+            Text { text: root.label; color: Tokens.text-primary; font-size: Type.body.size; overflow: elide; }
+            if root.detail != "": Text { text: root.detail; color: Tokens.text-muted; font-size: Type.caption.size; overflow: elide; }
+        }
+    }
+    row-ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// The audio track list. The title lines up with the rows' check column; the whole panel has Tokens.space-3 padding.
+component TrackPopup inherits PopupWindow {
+    in property <string> heading;
+    in property <[Choice]> choices;
+    callback picked(int);
+    close-policy: close-on-click-outside;
+
+    Rectangle {
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+        VerticalLayout {
+            padding: Tokens.space-3;
+            spacing: Tokens.space-1;
+            HorizontalLayout {
+                padding-left: Tokens.space-2;
+                height: 26px;
+                Text { text: root.heading; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
+            }
+            for c[i] in root.choices: TrackRow {
+                label: c.label;
+                detail: c.detail;
+                selected: c.selected;
+                clicked => { root.picked(i); }
+            }
+        }
+    }
+}
+
+// Subtitle panel: tracks, then delay and size. Stays open while adjusting.
+component SubtitlePopup inherits PopupWindow {
+    in property <[Choice]> choices;
+    close-policy: close-on-click-outside;
+
+    Rectangle {
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+        VerticalLayout {
+            padding: Tokens.space-3;
+            spacing: Tokens.space-1;
+            HorizontalLayout {
+                padding-left: Tokens.space-2;
+                height: 26px;
+                Text { text: "Subtitles"; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
+            }
+            for c[i] in root.choices: TrackRow {
+                label: c.label;
+                detail: c.detail;
+                selected: c.selected;
+                clicked => { Player.pick-subtitle(i); }
+            }
+            Rectangle { height: 1px; background: Tokens.border-subtle; }
+            HorizontalLayout {
+                padding: Tokens.space-2;
+                spacing: Tokens.space-1;
+                Text { text: "Delay"; color: Tokens.text-primary; font-size: Type.body.size; vertical-alignment: center; width: 52px; }
+                Button { text: "−"; clicked => { Player.sub-delay(-100); } }
+                Text { text: Player.sub-delay-text; color: Tokens.text-primary; font-size: Type.body.size; vertical-alignment: center; horizontal-alignment: center; min-width: 76px; }
+                Button { text: "+"; clicked => { Player.sub-delay(100); } }
+                Button { text: "Reset"; variant: ButtonVariant.ghost; clicked => { Player.sub-delay(0); } }
+            }
+            HorizontalLayout {
+                padding: Tokens.space-2;
+                padding-top: 0;
+                spacing: Tokens.space-1;
+                Text { text: "Size"; color: Tokens.text-primary; font-size: Type.body.size; vertical-alignment: center; width: 52px; }
+                Button { text: "−"; clicked => { Player.sub-size(-1); } }
+                Text { text: round(Player.sub-scale * 100) + "%"; color: Tokens.text-primary; font-size: Type.body.size; vertical-alignment: center; horizontal-alignment: center; min-width: 76px; }
+                Button { text: "+"; clicked => { Player.sub-size(1); } }
+                Button { text: "Reset"; variant: ButtonVariant.ghost; clicked => { Player.sub-size(0); } }
+            }
+            HorizontalLayout {
+                padding-left: Tokens.space-2;
+                height: 22px;
+                Text { text: "Keys: G / H delay, Shift+G / Shift+H size, V on/off"; color: Tokens.text-faint; font-size: Type.caption.size; vertical-alignment: center; }
+            }
+        }
+    }
+}
+
+// The speed flyout: the value, a slider from 0.25x to 3x (Rust rounds it to steps of 0.05), and the nine presets. The
+// slider only displays the speed; it changes the speed on change, so it never fights its own binding.
+component SpeedPopup inherits PopupWindow {
+    close-policy: close-on-click-outside;
+
+    Rectangle {
+        width: 380px;
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+        VerticalLayout {
+            padding: Tokens.space-3;
+            spacing: Tokens.space-3;
+            HorizontalLayout {
+                Text { text: "Playback speed"; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; horizontal-stretch: 1; }
+                Text { text: Player.speed-text; color: Tokens.text-primary; font-size: Type.subheading.size; font-weight: 600; vertical-alignment: center; }
+            }
+            Slider {
+                on-stage: false;
+                controlled: true;
+                minimum: 0;
+                maximum: 1;
+                step: 0;
+                height: Tokens.size-control-md;
+                value: (Player.speed-value - 0.25) / 2.75;
+                changed(v) => { Player.set-speed(0.25 + v * 2.75); }
+                released(v) => { Player.set-speed(0.25 + v * 2.75); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                for s in [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3]: Rectangle {
+                    horizontal-stretch: 1;
+                    height: Tokens.size-control-md;
+                    border-radius: Tokens.radius-control;
+                    border-width: 1px;
+                    border-color: abs(Player.speed-value - s) < 0.001 ? Tokens.accent-default : Tokens.border-subtle;
+                    background: abs(Player.speed-value - s) < 0.001 ? Tokens.surface-pressed
+                        : chip-ta.has-hover ? Tokens.surface-hover : transparent;
+                    Text { text: s + ""; color: Tokens.text-primary; font-size: Type.caption.size; horizontal-alignment: center; vertical-alignment: center; }
+                    chip-ta := TouchArea { mouse-cursor: pointer; clicked => { Player.set-speed(s); } }
+                }
+            }
+        }
+    }
+}
+
+// A trim marker on the timeline. Drag it to move the start or end of the kept range.
+component TrimHandle inherits Rectangle {
+    callback drag(length); // the pointer's x on the window
+    width: 10px;
+    height: 24px;
+    border-radius: 3px;
+    background: #FFC14D;
+    border-width: 1px;
+    border-color: #00000080;
+    ta := TouchArea {
+        mouse-cursor: ew-resize;
+        moved => {
+            if self.pressed { root.drag(self.absolute-position.x + self.mouse-x); }
+        }
+    }
+}
+
+// The waveform's bars at fixed places across its box: bar i sits at i / count of the width, so two WaveBars of the same
+// size and data line up exactly.
+component WaveBars inherits Rectangle {
+    in property <[float]> bars;
+    in property <color> tint;
+    for v[i] in root.bars: Rectangle {
+        // The first bar touches the left edge and the last one the right edge, so the bars span the whole width.
+        property <length> bar-w: max(1px, root.width / max(1, root.bars.length) * 0.6);
+        x: (root.width - bar-w) * (i * 1.0 / max(1, root.bars.length - 1));
+        width: bar-w;
+        height: max(2px, v * root.height * 0.9);
+        y: (root.height - self.height) / 2;
+        border-radius: 1px;
+        background: root.tint;
+    }
+}
+
+export component MediaPage inherits Rectangle {
+    // The empty tab uses the shared page colour; media plays on the dark stage.
+    background: Player.media-title == "" ? Tokens.surface-base : Tokens.extension-media-stage;
+
+    // The trim row at the top (hidden in full screen) and the status bar at the bottom; the picture sits between.
+    property <length> top-h: (Player.trim-mode && !Shell.full-screen) ? Tokens.component-action-row-height : 0px;
+    property <length> area-h: Shell.full-screen ? root.height : root.height - bar.height - root.top-h;
+    property <float> aspect: Player.video-w * 1.0 / max(1, Player.video-h);
+    property <length> vw: min(root.width, root.area-h * root.aspect);
+    property <length> vh: root.vw / root.aspect;
+    property <length> vx: (root.width - root.vw) / 2;
+    property <length> vy: root.top-h + (root.area-h - root.vh) / 2;
+    // The waveform track's height (0 when hidden). The gap below it is Tokens.space-2, the same as the gap above it (the
+    // padding of the timeline), so the waveform sits centred between them.
+    property <length> wave-h: (Player.has-wave && (Player.trim-mode || Player.wave-seek)) ? 48px : 0px;
+    // Top of the seek bar's 24px row. Its 4px track is centred in the row (10px down), so the track starts Tokens.space-2
+    // below the waveform.
+    property <length> seek-y: root.wave-h > 0px ? root.wave-h + Tokens.space-2 - 10px : 0px;
+
+    property <bool> bars-visible: !Shell.full-screen || (stage-ta.has-hover && stage-ta.mouse-y > self.height - 160px) || !Player.playing;
+    // The Details panel on the left takes 280px of the picture's width (none in full screen, like the bars).
+    property <length> info-w: (Player.show-info && !Shell.full-screen) ? 280px : 0px;
+    // The Playlist panel sits right of the Details panel, also 280px (none in full screen).
+    property <length> playlist-w: (Player.playlist-on && !Shell.full-screen) ? 280px : 0px;
+    // Everything the picture has to clear on the left: both panels.
+    property <length> left-w: root.info-w + root.playlist-w;
+
+    // The stage. Only double-click does something here (full screen): clicks never play or pause; the play button and
+    // Space do that.
+    stage-ta := TouchArea {
+        double-clicked => { Shell.toggle-full-screen(); }
+    }
+
+    if Player.has-video: Image {
+        x: root.left-w;
+        width: parent.width - root.left-w;
+        height: parent.height - root.top-h - (Shell.full-screen ? 0px : bar.height);
+        y: root.top-h;
+        source: Player.frame;
+        image-fit: contain;
+    }
+
+    if !Player.has-video: VerticalLayout {
+        x: root.left-w;
+        width: parent.width - root.left-w;
+        y: root.top-h;
+        height: parent.height - root.top-h;
+        alignment: center;
+        spacing: Tokens.space-4;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 200px;
+                height: 200px;
+                border-radius: 24px;
+                // The Explorer music tile (the same as the audio file type everywhere else).
+                FileKindTile {
+                    kind: "music";
+                    tile-size: 200px;
+                    top-colour: #FDA4AF;
+                    bottom-colour: #E11D48;
+                    glyph: Icons.music;
+                }
+            }
+        }
+        Text {
+            text: Player.media-title;
+            color: Tokens.extension-media-text-on-stage;
+            font-size: Type.heading.size;
+            font-weight: 600;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            text: Player.media-detail;
+            color: #9AA4B2;
+            font-size: Type.body.size;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // Details: on the left of the picture, the same look as the picture's panel. Hidden in full screen.
+    if Player.show-info && !Shell.full-screen: Rectangle {
+        x: root.playlist-w;
+        y: root.top-h;
+        width: 280px;
+        height: parent.height - root.top-h;
+        clip: true;
+        background: Tokens.surface-raised;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        VerticalLayout {
+            padding: Tokens.space-4;
+            spacing: Tokens.space-2;
+            alignment: start;
+            Text { text: "Details"; color: Tokens.text-primary; font-size: Type.subheading.size; font-weight: 600; }
+            Text { text: Player.info-name; color: Tokens.text-primary; font-size: Type.body.size; wrap: word-wrap; }
+            Text { text: Player.info-detail; color: Tokens.text-muted; font-size: Type.caption.size; wrap: word-wrap; }
+        }
+    }
+
+    // Playlist: the other files of the same kind in the folder, in order, right of Details. The row of the file playing
+    // is highlighted. Hidden in full screen.
+    if Player.playlist-on && !Shell.full-screen: Rectangle {
+        x: 0;
+        y: root.top-h;
+        width: 280px;
+        height: parent.height - root.top-h;
+        clip: true;
+        background: Tokens.surface-raised;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        // Placed by coordinates, not in a layout, so the list gets exactly the space below the heading.
+        Text {
+            x: Tokens.space-4;
+            y: Tokens.space-4;
+            width: parent.width - 2 * Tokens.space-4;
+            text: "Playlist";
+            color: Tokens.text-primary;
+            font-size: Type.subheading.size;
+            font-weight: 600;
+        }
+        ScrollView {
+            x: 0;
+            y: Tokens.space-4 + 32px;
+            width: parent.width;
+            height: parent.height - self.y;
+            VerticalLayout {
+                padding-left: Tokens.space-3;
+                padding-right: Tokens.space-3;
+                padding-bottom: Tokens.space-3;
+                alignment: start;
+                for item[i] in Player.playlist: Rectangle {
+                    height: Tokens.component-recent-list-row-height;
+                    border-radius: Tokens.radius-control;
+                    background: item.current ? Tokens.surface-pressed : (item-ta.has-hover ? Tokens.surface-hover : transparent);
+                    HorizontalLayout {
+                        padding-left: Tokens.space-2;
+                        padding-right: Tokens.space-2;
+                        Text {
+                            text: item.name;
+                            color: Tokens.text-primary;
+                            font-size: Type.body.size;
+                            font-weight: item.current ? 600 : 400;
+                            wrap: no-wrap;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                    }
+                    item-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { Player.play-item(item.index); }
+                    }
+                }
+            }
+        }
+    }
+
+    if Player.has-video && Player.has-sub-picture: Image {
+        x: root.vx + Player.sub-x * root.vw;
+        y: root.vy + Player.sub-y * root.vh;
+        width: Player.sub-w * root.vw;
+        height: Player.sub-h * root.vh;
+        source: Player.sub-picture;
+        image-fit: fill;
+    }
+
+    // Subtitles.
+    if Player.subtitle != "": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - (root.bars-visible ? bar.height : 0px) - self.height - Tokens.space-6;
+        width: min(parent.width - 64px, sub.preferred-width + 24px);
+        height: sub.preferred-height + 12px;
+        border-radius: Tokens.radius-control;
+        background: #000000A0;
+        sub := Text {
+            width: parent.width - 24px;
+            text: Player.subtitle;
+            color: #FFFFFF;
+            font-size: max(14px, root.height / 26 * Player.sub-scale);
+            font-weight: 600;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+    }
+
+    if Player.error != "": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: root.top-h + Tokens.space-6;
+        width: min(parent.width - 64px, err.preferred-width + 24px);
+        height: err.preferred-height + 16px;
+        border-radius: Tokens.radius-control;
+        background: Tokens.status-danger-surface;
+        err := Text {
+            width: parent.width - 24px;
+            text: Player.error;
+            color: Tokens.status-danger;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+    }
+
+    if Player.buffering: Text {
+        text: "Opening…";
+        color: Tokens.extension-media-text-on-stage;
+        font-size: Type.subheading.size;
+    }
+
+    // The trim row (an edit in progress): the kept range on the left, Cancel and the save on the right. The tab's
+    // ToolbarRow (MediaSlot) holds the Trim and snapshot buttons. Shown only while trimming; hidden in full screen.
+    if Player.trim-mode && !Shell.full-screen: ActionRow {
+        y: 0;
+        show-confirm: true;
+        cancel-text: "Cancel";
+        confirm-text: Player.exporting ? "Saving…" : "Save trimmed copy";
+        confirm-enabled: !Player.exporting;
+        cancel => { Player.trim-mode = false; }
+        confirm => { Player.trim-save(); }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Rectangle {
+                width: Tokens.icon-small;
+                Image {
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.scissors;
+                    width: Tokens.icon-small;
+                    height: Tokens.icon-small;
+                    colorize: Tokens.text-primary;
+                }
+            }
+            Text { text: Player.trim-text; color: Tokens.text-primary; font-size: Type.body.size; vertical-alignment: center; }
+            Button { text: "Start here"; variant: ButtonVariant.secondary; clicked => { Player.trim-set(true); } }
+            Button { text: "End here"; variant: ButtonVariant.secondary; clicked => { Player.trim-set(false); } }
+        }
+    }
+
+    bar := Rectangle {
+        y: parent.height - self.height;
+        // Beside the panels on the left, so the side panels run the full height down to the bottom of the page.
+        x: root.left-w;
+        width: parent.width - root.left-w;
+        height: layout.preferred-height;
+        background: Tokens.extension-media-stage-bar;
+        opacity: root.bars-visible ? 1 : 0;
+        animate opacity { duration: 200ms; }
+
+        layout := VerticalLayout {
+            VerticalLayout {
+                padding-left: Tokens.space-4;
+                padding-right: Tokens.space-4;
+                padding-top: Tokens.space-2;
+                padding-bottom: Tokens.space-2;
+                spacing: Tokens.space-1;
+
+                // Timeline: the waveform track (when shown), 8px below it the seek bar, with the trim range and handles.
+                // The waveform is two static layers (every bar muted, every bar accent); playback only changes the width of
+                // the accent layer's clip, so no bar is rebuilt while it plays.
+                HorizontalLayout {
+                    spacing: Tokens.space-3;
+                    timeline := Rectangle {
+                        horizontal-stretch: 1;
+                        height: root.seek-y + 24px;
+                        wave-box := Rectangle {
+                            x: 0; y: 0; width: parent.width;
+                            height: root.wave-h;
+                            clip: true;
+                            if Player.trim-mode: Rectangle {
+                                y: 0; x: Player.trim-start * wave-box.width;
+                                width: (Player.trim-end - Player.trim-start) * wave-box.width;
+                                height: parent.height;
+                                background: #FFC14D26;
+                            }
+                            // Grey: every bar, once. Blue: the same bars (same WaveBars geometry) in a box clipped to the
+                            // played part. Only the clip's width changes during playback; the bars never move.
+                            WaveBars { x: 0; y: 0; width: wave-box.width; height: wave-box.height; bars: Player.wave-bars; tint: #FFFFFF59; }
+                            played := Rectangle {
+                                x: 0; y: 0;
+                                // While scrubbing (here or on the seek bar) the blue follows the shared scrub position.
+                                width: wave-box.width * (Player.scrubbing ? Player.scrub-pos : Player.position);
+                                height: wave-box.height;
+                                clip: true;
+                                WaveBars { x: 0; y: 0; width: wave-box.width; height: wave-box.height; bars: Player.wave-bars; tint: Tokens.accent-default; }
+                            }
+                        }
+                        // The waveform seeks like the seek bar: a click or a drag moves to that spot.
+                        wave-ta := TouchArea {
+                            x: 0; y: 0;
+                            width: wave-box.width;
+                            height: wave-box.height;
+                            mouse-cursor: pointer;
+                            moved => {
+                                if self.pressed {
+                                    Player.scrub-pos = clamp(self.mouse-x / wave-box.width, 0, 1);
+                                    Player.seek-preview(Player.scrub-pos);
+                                }
+                            }
+                            pointer-event(e) => {
+                                if e.button == PointerEventButton.left && e.kind == PointerEventKind.down {
+                                    Player.scrubbing = true;
+                                    Player.scrub-pos = clamp(self.mouse-x / wave-box.width, 0, 1);
+                                    Player.seek-preview(Player.scrub-pos);
+                                }
+                                if e.button == PointerEventButton.left && e.kind == PointerEventKind.up {
+                                    Player.seek(clamp(self.mouse-x / wave-box.width, 0, 1));
+                                    Player.scrubbing = false;
+                                }
+                            }
+                        }
+                        Slider {
+                            on-stage: true;
+                            controlled: true;
+                            minimum: 0;
+                            maximum: 1;
+                            step: 0;
+                            range-colour: #FFC14D80;
+                            y: root.seek-y;
+                            width: parent.width;
+                            height: 24px;
+                            // While scrubbing (here or on the waveform) the handle shows the shared scrub position.
+                            value: Player.scrubbing ? Player.scrub-pos : Player.position;
+                            show-range: Player.trim-mode;
+                            range-start: Player.trim-start;
+                            range-end: Player.trim-end;
+                            changed(v) => {
+                                Player.scrubbing = true;
+                                Player.scrub-pos = v;
+                                Player.seek-preview(v);
+                            }
+                            released(v) => {
+                                Player.seek(v);
+                                Player.scrubbing = false;
+                            }
+                        }
+                        // Markers saved with the recording: a tick on the seek bar. Click seeks to it; hovering shows its label.
+                        for m[i] in Player.marker-ticks: Rectangle {
+                            x: m * timeline.width - 1.5px;
+                            y: root.seek-y + 4px;
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1px;
+                            background: #FFC14D;
+                            mark-ta := TouchArea {
+                                x: -5px;
+                                y: -4px;
+                                width: 13px;
+                                height: 24px;
+                                mouse-cursor: pointer;
+                                clicked => { Player.seek-marker(i); }
+                            }
+                            if mark-ta.has-hover: Rectangle {
+                                x: (parent.width - self.width) / 2;
+                                y: -self.height - 6px;
+                                width: mark-txt.preferred-width + 16px;
+                                height: mark-txt.preferred-height + 8px;
+                                border-radius: Tokens.radius-control;
+                                background: Tokens.surface-overlay;
+                                mark-txt := Text {
+                                    x: 8px;
+                                    y: 4px;
+                                    text: Player.marker-labels[i];
+                                    color: Tokens.text-primary;
+                                    font-size: Type.caption.size;
+                                }
+                            }
+                        }
+                        if Player.trim-mode: TrimHandle {
+                            x: Player.trim-start * timeline.width - 5px;
+                            y: root.seek-y + (24px - self.height) / 2;
+                            drag(ax) => { Player.trim-drag(true, (ax - timeline.absolute-position.x) / timeline.width); }
+                        }
+                        if Player.trim-mode: TrimHandle {
+                            x: Player.trim-end * timeline.width - 5px;
+                            y: root.seek-y + (24px - self.height) / 2;
+                            drag(ax) => { Player.trim-drag(false, (ax - timeline.absolute-position.x) / timeline.width); }
+                        }
+                    }
+                }
+
+                // One control row, all controls the same height (Tokens.size-control-md), so they centre on one line. Left:
+                // transport and the time. Right: volume, speed, tracks, repeat, waveform. ToolDividers separate the groups.
+                HorizontalLayout {
+                    height: Tokens.size-control-md;
+                    spacing: Tokens.space-2;
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        // Previous and Next: the other files in the playlist (disabled at either end).
+                        StageIconButton { icon: SharedIcons.chevron-left; label: "Previous file"; enabled: Player.has-prev; clicked => { Player.play-prev(); } }
+                        StageIconButton { icon: SharedIcons.chevron-right; label: "Next file"; enabled: Player.has-next; clicked => { Player.play-next(); } }
+                        StageIconButton {
+                            icon: Player.playing ? SharedIcons.pause : SharedIcons.play;
+                            label: Player.playing ? "Pause (Space)" : "Play (Space)";
+                            clicked => { Player.toggle-play(); }
+                        }
+                        StageIconButton { icon: SharedIcons.undo-2; label: "Back 10 s (Left)"; clicked => { Player.skip(-10); } }
+                        StageIconButton { icon: SharedIcons.redo-2; label: "Forward 10 s (Right)"; clicked => { Player.skip(10); } }
+                        Text {
+                            text: Player.time-text;
+                            color: Tokens.extension-media-text-on-stage;
+                            font-size: Type.body.size;
+                            min-width: 72px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        StageIconButton {
+                            icon: Player.muted || Player.volume == 0 ? SharedIcons.volume-x : SharedIcons.volume-2;
+                            label: "Mute (M)";
+                            clicked => { Player.toggle-mute(); }
+                        }
+                        Slider {
+                            on-stage: true;
+                            controlled: true;
+                            minimum: 0;
+                            maximum: 1;
+                            step: 0;
+                            width: 96px;
+                            height: Tokens.size-control-md;
+                            value: Player.volume;
+                            changed(v) => { Player.set-volume(v); }
+                            released(v) => { Player.set-volume(v); }
+                        }
+                        ToolDivider { }
+                        // Speed: the button opens the flyout (slider and presets).
+                        speed-btn := Rectangle {
+                            width: 64px;
+                            height: Tokens.size-control-md;
+                            border-radius: Tokens.radius-control;
+                            background: speed-ta.pressed ? Tokens.extension-media-stage-control-hover : speed-ta.has-hover ? Tokens.extension-media-stage-control-hover : transparent;
+                            accessible-role: button;
+                            accessible-label: "Playback speed";
+                            Text {
+                                text: Player.speed-text;
+                                color: Player.speed-text == "1.00×" ? Tokens.extension-media-text-on-stage : #FFC14D;
+                                font-size: Type.body.size;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            speed-ta := TouchArea { mouse-cursor: pointer; clicked => { speed-popup.show(); } }
+                        }
+                        ToolDivider { }
+                        audio-btn := StageIconButton {
+                            icon: SharedIcons.languages;
+                            label: "Audio track";
+                            enabled: Player.audio-tracks.length > 0;
+                            clicked => { audio-popup.show(); }
+                        }
+                        sub-btn := StageIconButton {
+                            icon: Icons.subtitles;
+                            label: "Subtitles";
+                            enabled: Player.has-video;
+                            active: Player.subtitle != "";
+                            clicked => { sub-popup.show(); }
+                        }
+                        ToolDivider { }
+                        Rectangle {
+                            width: Tokens.size-control-md;
+                            height: Tokens.size-control-md;
+                            StageIconButton {
+                                icon: SharedIcons.repeat;
+                                label: Player.loop-mode == 0 ? "Repeat: off" : Player.loop-mode == 1 ? "Repeat: once" : "Repeat: forever";
+                                active: Player.loop-mode > 0;
+                                clicked => { Player.toggle-loop(); }
+                            }
+                            if Player.loop-mode == 1: Text { x: 21px; y: 2px; text: "1"; color: Tokens.accent-default; font-size: 10px; font-weight: 700; }
+                        }
+                        StageIconButton {
+                            icon: Icons.skip-forward;
+                            label: "Continue to the next file";
+                            active: Player.auto-next;
+                            enabled: Player.playlist.length > 1;
+                            clicked => { Player.toggle-auto-next(); }
+                        }
+                        StageIconButton {
+                            icon: Icons.audio-lines;
+                            label: "Show the waveform";
+                            active: Player.wave-seek;
+                            enabled: Player.has-wave;
+                            clicked => { Player.wave-seek = !Player.wave-seek; }
+                        }
+                    }
+                }
+            }
+
+            // The shared bottom bar: the Details button and the file facts on the left, full screen on the right.
+            StatusBar {
+                HorizontalLayout {
+                    height: 28px;
+                    spacing: 6px;
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom;
+                        size: ButtonSize.sm;
+                        icon: SharedIcons.layers;
+                        label: "Playlist"; tooltip: "Playlist";
+                        selected: Player.playlist-on; ghost-toggle: true;
+                        enabled: Player.playlist.length > 1;
+                        clicked => { Player.toggle-playlist(); }
+                    }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom;
+                        size: ButtonSize.sm;
+                        icon: SharedIcons.info;
+                        label: "Details (I)"; tooltip: "Details (I)";
+                        selected: Player.show-info; ghost-toggle: true;
+                        clicked => { Player.toggle-info(); }
+                    }
+                }
+                Text {
+                    text: Player.meta-text;
+                    color: Tokens.text-muted;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom;
+                    size: ButtonSize.sm;
+                    icon: SharedIcons.maximize;
+                    label: "Full screen (F)"; tooltip: "Full screen (F)";
+                    selected: Shell.full-screen; ghost-toggle: true;
+                    clicked => { Shell.toggle-full-screen(); }
+                }
+            }
+        }
+
+        audio-popup := TrackPopup {
+            x: audio-btn.absolute-position.x - bar.absolute-position.x - 120px;
+            y: -self.preferred-height + 8px;
+            heading: "Audio track";
+            choices: Player.audio-tracks;
+            picked(i) => { Player.pick-audio(i); }
+        }
+        sub-popup := SubtitlePopup {
+            x: sub-btn.absolute-position.x - bar.absolute-position.x - 120px;
+            y: -self.preferred-height + 8px;
+            choices: Player.subtitle-tracks;
+        }
+        speed-popup := SpeedPopup {
+            x: speed-btn.absolute-position.x - bar.absolute-position.x - 170px;
+            y: -self.preferred-height + 8px;
+        }
+    }
+}

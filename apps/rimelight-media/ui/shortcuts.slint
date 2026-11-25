@@ -1,0 +1,209 @@
+// Keyboard cheat sheet (AGENTS.md "Keyboard cheat sheet"): Ctrl+? opens an overlay that lists the shortcuts for the
+// current tab, after the ones that work everywhere. Escape or a click outside the card closes it.
+import { ScrollView } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+
+export struct ShortcutLine {
+    keys: string,
+    action: string,
+}
+
+// One row: the keys in a chip (a fixed-width column, so every action starts at the same x), then what they do.
+component ShortcutRow inherits HorizontalLayout {
+    in property <string> keys;
+    in property <string> action;
+    spacing: Tokens.space-4;
+    alignment: start;
+
+    Rectangle {
+        width: 200px;
+        height: 26px;
+        HorizontalLayout {
+            alignment: start;
+            Rectangle {
+                width: min(200px, key-text.preferred-width + 2 * Tokens.space-3);
+                height: 26px;
+                border-radius: Tokens.radius-control;
+                background: Tokens.surface-sunken;
+                border-width: 1px;
+                border-color: Tokens.border-subtle;
+                key-text := Text {
+                    text: root.keys;
+                    color: Tokens.text-primary;
+                    font-family: Type.body.family;
+                    font-size: Type.caption.size;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    accessible-role: text;
+                    accessible-label: root.keys;
+                }
+            }
+        }
+    }
+
+    Text {
+        horizontal-stretch: 1;
+        text: root.action;
+        color: Tokens.text-primary;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        vertical-alignment: center;
+        overflow: elide;
+        accessible-role: text;
+        accessible-label: root.action;
+    }
+}
+
+// A group heading: small, muted, with a fixed height so the gap above the first row is always the same.
+component ShortcutHeading inherits Text {
+    color: Tokens.text-muted;
+    font-family: Type.body.family;
+    font-size: Type.caption.size;
+    font-weight: 600;
+    height: 20px;
+    vertical-alignment: bottom;
+}
+
+export component ShortcutsOverlay inherits Rectangle {
+    // The tab the user is on: "home", "image", "audio", "video", "text", "voice", "camera" or "settings".
+    in property <string> page;
+    callback close();
+
+    // Covers the window. A click on the scrim closes it; clicks on the card do not reach the scrim.
+    background: Tokens.scrim;
+    scrim := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.close(); }
+    }
+
+    property <[ShortcutLine]> global-lines: [
+        { keys: "Ctrl+?", action: "Show or hide this list (Ctrl+/ also works)" },
+        { keys: "Ctrl+O", action: "Open a file" },
+        { keys: "Tab, Shift+Tab", action: "Next or previous tab" },
+        { keys: "F11", action: "Full screen" },
+        { keys: "Esc", action: "Leave full screen, or leave the mode you are in" },
+    ];
+    property <[ShortcutLine]> home-lines: [
+        { keys: "Ctrl+N", action: "New 1920 x 1080 white canvas" },
+        { keys: "Ctrl+V", action: "Paste the clipboard picture as a new canvas" },
+    ];
+    property <[ShortcutLine]> image-lines: [
+        { keys: "Left, Right", action: "Previous or next picture in the folder" },
+        { keys: "PgUp, PgDn, Space", action: "Previous or next picture in the folder" },
+        { keys: "Home, End", action: "First or last picture in the folder" },
+        { keys: "+, -", action: "Zoom in or out" },
+        { keys: "0", action: "Fit to the window" },
+        { keys: "1", action: "Actual size (100%)" },
+        { keys: "R", action: "Rotate" },
+        { keys: "Delete", action: "Delete the picture (markup: delete the selected mark)" },
+        { keys: ", and .", action: "Previous or next frame of an animated picture" },
+        { keys: "Ctrl+C, Ctrl+V", action: "Copy the picture, or paste a picture or text" },
+        { keys: "Ctrl+S, Ctrl+Shift+S", action: "Save, or save as" },
+        { keys: "Ctrl+Z, Ctrl+Y", action: "Undo, redo" },
+        { keys: "Ctrl+P", action: "Print" },
+        { keys: "Return", action: "Apply the crop, markup or resize you are making" },
+    ];
+    property <[ShortcutLine]> media-lines: [
+        { keys: "Space or K", action: "Play or pause" },
+        { keys: "Left, Right", action: "Back or forward 5 seconds (Shift: 30 seconds)" },
+        { keys: "Up, Down", action: "Volume up or down" },
+        { keys: "M", action: "Mute" },
+        { keys: "[, ]", action: "Slower or faster (=: normal speed)" },
+        { keys: "Home", action: "Go to the start" },
+        { keys: "N, P", action: "Next or previous file in the folder" },
+        { keys: "L", action: "Loop" },
+        { keys: "F", action: "Full screen" },
+        { keys: "I", action: "Show or hide the details" },
+        { keys: "V", action: "Show or hide subtitles" },
+        { keys: "G, H", action: "Subtitles earlier or later (Shift: smaller or larger text)" },
+    ];
+    property <[ShortcutLine]> text-lines: [
+        { keys: "Ctrl+N", action: "New text file" },
+        { keys: "Ctrl+S, Ctrl+Shift+S", action: "Save, or save as" },
+        { keys: "Ctrl+F", action: "Find" },
+        { keys: "Ctrl+Z, Ctrl+Shift+Z", action: "Undo, redo" },
+    ];
+
+    // The lines for the current tab (Voice, Camera and Settings have only the shortcuts that work everywhere).
+    property <[ShortcutLine]> page-lines: root.page == "image" ? root.image-lines
+        : (root.page == "audio" || root.page == "video") ? root.media-lines
+        : root.page == "text" ? root.text-lines
+        : root.page == "home" ? root.home-lines
+        : [];
+    property <string> page-title: root.page == "image" ? "Image" : root.page == "audio" ? "Audio" : root.page == "video" ? "Video"
+        : root.page == "text" ? "Text" : root.page == "home" ? "Home" : root.page == "voice" ? "Voice recorder"
+        : root.page == "camera" ? "Camera" : "Settings";
+
+    card := Rectangle {
+        width: min(560px, root.width - 2 * Tokens.space-6);
+        height: min(600px, root.height - 2 * Tokens.space-6);
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: Tokens.surface-raised;
+        border-radius: Tokens.radius-surface;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #00000050;
+
+        // Swallows clicks so they do not reach the scrim.
+        TouchArea { }
+
+        VerticalLayout {
+            padding: Tokens.space-6;
+            spacing: Tokens.space-4;
+
+            Text {
+                text: "Keyboard shortcuts";
+                color: Tokens.text-primary;
+                font-family: Type.body.family;
+                font-size: Type.heading.size;
+                font-weight: 600;
+                height: 28px;
+                vertical-alignment: center;
+                accessible-role: text;
+                accessible-label: "Keyboard shortcuts";
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+                    padding-right: Tokens.space-2;
+
+                    ShortcutHeading { text: "Everywhere"; }
+                    for line in root.global-lines : ShortcutRow { keys: line.keys; action: line.action; }
+
+                    if root.page-lines.length > 0 : Rectangle { height: Tokens.space-4; }
+                    if root.page-lines.length > 0 : ShortcutHeading { text: root.page-title; }
+                    for line in root.page-lines : ShortcutRow { keys: line.keys; action: line.action; }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                Rectangle {
+                    width: 96px;
+                    height: Tokens.size-control-md;
+                    border-radius: Tokens.radius-control;
+                    background: close-touch.has-hover ? Tokens.surface-hover : Tokens.surface-sunken;
+                    Text {
+                        text: "Close";
+                        color: Tokens.text-primary;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    close-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.close(); }
+                    }
+                }
+            }
+        }
+    }
+}

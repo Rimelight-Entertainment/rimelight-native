@@ -1,0 +1,9 @@
+{
+  "name": "Rimelight Media",
+  "version": "0.1.7",
+  "formats": ["png", "mp3", "mp4", "md"],
+  "settings": {
+    "theme": "light",
+    "autoplay": false
+  }
+}

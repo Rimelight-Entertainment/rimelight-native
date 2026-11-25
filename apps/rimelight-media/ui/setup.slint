@@ -1,0 +1,93 @@
+// Shown once, right after the installer finishes: the install options (the installer itself has no option pages).
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Switch } from "@rimelight_ui/components/switch.slint";
+
+component Group inherits VerticalLayout {
+    in property <string> title;
+    spacing: Tokens.space-1;
+    Text { text: root.title; color: Tokens.text-muted; font-size: Type.caption.size; font-weight: 600; }
+    @children
+}
+
+export component SetupWindow inherits Window {
+    in-out property <bool> desktop: true;
+    in-out property <bool> startup: true;
+    in-out property <bool> take-printscreen: true;
+    // Windows' own Print Screen snipping is on (so the option above matters).
+    in property <bool> windows-printscreen-on: true;
+    in-out property <bool> pictures: true;
+    in-out property <bool> video: true;
+    in-out property <bool> music: true;
+    in-out property <bool> text: true;
+    in-out property <bool> open-now: false;
+    callback finish();
+
+    title: "Rimelight Media setup";
+    icon: Icons.logo;
+    width: 520px;
+    height: layout.preferred-height;
+    background: Tokens.surface-base;
+    default-font-family: Type.body.family;
+
+    layout := VerticalLayout {
+        padding: Tokens.space-6;
+        spacing: Tokens.space-4;
+
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+            Rectangle {
+                width: 40px;
+                Image { source: Icons.logo; width: 40px; height: 40px; }
+            }
+            VerticalLayout {
+                alignment: center;
+                Text { text: "Rimelight Media is installed"; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; }
+                Text { text: "Choose how it fits into Windows. You can change these later in Settings."; color: Tokens.text-muted; font-size: Type.caption.size; wrap: word-wrap; }
+            }
+        }
+
+        Group {
+            title: "SHORTCUTS";
+            Text { text: "Start menu: Rimelight > Rimelight Media (always)."; color: Tokens.text-muted; font-size: Type.caption.size; }
+            Switch { text: "Desktop shortcut"; checked <=> root.desktop; }
+        }
+
+        Group {
+            title: "SCREENSHOTS AND RECORDING";
+            Switch {
+                text: "Start with Windows";
+                detail: "Launches Rimelight Media in the tray at sign-in, so Print Screen snipping and recording are ready even when no window is open. Close to tray is the matching setting in Settings.";
+                checked <=> root.startup;
+            }
+            if root.windows-printscreen-on: Switch {
+                text: "Use Print Screen for Rimelight Media";
+                detail: "Turns off Windows' own Print Screen snipping, which would take the key first. Uninstalling turns it back on.";
+                checked <=> root.take-printscreen;
+            }
+        }
+
+        Group {
+            title: "DEFAULT APP FOR";
+            Switch { text: "Pictures"; detail: "PNG, JPEG, WebP, GIF, SVG, BMP, ICO"; checked <=> root.pictures; }
+            Switch { text: "Video"; detail: "MP4, MKV, WebM, MOV, AVI, MPEG and more"; checked <=> root.video; }
+            Switch { text: "Music"; detail: "MP3, FLAC, WAV, OGG, M4A and more"; checked <=> root.music; }
+            Switch { text: "Text"; detail: "TXT, Markdown, JSON, TOML, YAML, CSV, logs and more"; checked <=> root.text; }
+            Text {
+                text: "Windows lets only you set defaults: after Finish, its Default apps page opens on Rimelight Media so you can confirm. Or pick \"Always\" the next time Windows asks how to open a file.";
+                color: Tokens.text-faint;
+                font-size: Type.caption.size;
+                wrap: word-wrap;
+            }
+        }
+
+        Rectangle { height: 1px; background: Tokens.border-subtle; }
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+            Switch { text: "Open Rimelight Media now"; checked <=> root.open-now; }
+            Button { text: "Finish"; variant: ButtonVariant.primary; clicked => { root.finish(); } }
+        }
+    }
+}

@@ -1,0 +1,368 @@
+// Rimelight Media: one window for pictures, video, music, voice recording and settings. Snips and recordings use the windows in
+// capture.slint.
+import { Tokens, ThemeChoice } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Icons } from "icons.slint";
+import { Choice, ConfirmDialog, StatusBar, EmptyState, ShortcutsCtl, ToolButton } from "widgets.slint";
+import { TooltipPlacement, TooltipOverlay } from "@rimelight_ui/components/tooltip.slint";
+import { ToolDivider, ToolbarRow } from "@rimelight_ui/components/toolbar.slint";
+import { FileKindTile } from "@rimelight_ui/components/tile.slint";
+import { Shell, Viewer, Player, Voice, Camera, Settings, TextDoc, RecentItem, Mark, MdBlock, MdCell, JsonRow, Cast } from "state.slint";
+import { CastPopup } from "cast_popup.slint";
+import { ShortcutsOverlay } from "shortcuts.slint";
+import { HomePage } from "home.slint";
+import { FilesPage, Files, FileRow, SideItem } from "files_page.slint";
+import { TableRow, TableColumn } from "@rimelight_ui/components/table.slint";
+import { ImagePage } from "image_page.slint";
+import { MediaPage } from "media_page.slint";
+import { VoicePage } from "voice_page.slint";
+import { CameraPage } from "camera_page.slint";
+import { SettingsPage } from "settings_page.slint";
+import { TextPage } from "text_page.slint";
+
+export { Shell, Viewer, Player, Voice, Camera, Settings, TextDoc, Tokens, ThemeChoice, RecentItem, Mark, MdBlock, MdCell, JsonRow, Choice, Cast }
+export { Files, FileRow, SideItem, TableRow, TableColumn }
+export { SnipWindow, RecBar, Tray, WindowBox } from "capture.slint";
+export { SetupWindow } from "setup.slint";
+
+component NavButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> active;
+    // Show the icon in its own colours (the app logo).
+    in property <bool> full-colour;
+    // A file kind ("picture", "video", "music" or "text"): shows that kind's Explorer tile instead of `icon`.
+    in property <string> kind;
+    callback clicked();
+    height: Tokens.size-control-md;
+    width: row.preferred-width + Tokens.space-4;
+    border-radius: Tokens.radius-control;
+    background: active ? Tokens.surface-pressed : ta.has-hover ? Tokens.surface-hover : transparent;
+    accessible-role: tab;
+    accessible-label: label;
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: Tokens.space-2;
+        // Each icon is centred vertically in the row (the row stretches its children to its full height).
+        if root.kind == "folder": Rectangle {
+            width: 18px;
+            Rectangle {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                background: #FACC15;
+                y: (parent.height - self.height) / 2;
+                Image {
+                    x: 3px;
+                    y: 3px;
+                    width: 12px;
+                    height: 12px;
+                    source: SharedIcons.folder;
+                    colorize: #FFFFFF;
+                }
+            }
+        }
+        if root.kind != "" && root.kind != "folder": Rectangle {
+            width: 18px;
+            FileKindTile {
+                kind: root.kind;
+                tile-size: 18px;
+                top-colour: root.kind == "picture" ? #7DD3FC : root.kind == "video" ? #C4B5FD : root.kind == "music" ? #FDA4AF : #86EFAC;
+                bottom-colour: root.kind == "picture" ? #0284C7 : root.kind == "video" ? #7C3AED : root.kind == "music" ? #E11D48 : #16A34A;
+                glyph: root.kind == "picture" ? SharedIcons.image : root.kind == "video" ? SharedIcons.video : root.kind == "music" ? Icons.music : SharedIcons.type;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+        if !root.full-colour && root.kind == "": Rectangle {
+            width: Tokens.icon-small;
+            Image { source: root.icon; width: Tokens.icon-small; height: Tokens.icon-small; y: (parent.height - self.height) / 2; colorize: root.active ? Tokens.accent-text : Tokens.text-muted; }
+        }
+        if root.full-colour: Rectangle {
+            width: 18px;
+            Image { source: root.icon; width: 18px; height: 18px; y: (parent.height - self.height) / 2; }
+        }
+        Text { text: root.label; color: root.active ? Tokens.text-primary : Tokens.text-muted; font-size: Type.body.size; vertical-alignment: center; }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The Audio and Video tabs, the same shell as the others: a toolbar, the player or the empty state, and a StatusBar.
+// The player shows when what's loaded is this tab's kind. Video's empty state offers a screen recording; Audio's
+// offers the voice recorder.
+component MediaSlot inherits Rectangle {
+    in property <bool> want-video;
+    property <bool> loaded: Player.media-title != "" && Player.has-video == root.want-video;
+    // The empty tab uses the shared page colour; media plays on the dark stage.
+    background: root.loaded ? Tokens.extension-media-stage : Tokens.surface-base;
+
+    VerticalLayout {
+        // Left: file actions (Open, Save, Save as, Share), then the trim edits (Undo, Redo, Discard). Right: Trim, and
+        // the frame snapshot on video only. Buttons that need a file are disabled when nothing is open.
+        if !Shell.full-screen: ToolbarRow {
+            ToolButton { tooltip-placement: TooltipPlacement.bottom;
+                icon: SharedIcons.folder-open;
+                label: root.want-video ? "Open a video (Ctrl+O)" : "Open a song (Ctrl+O)"; tooltip: root.want-video ? "Open a video (Ctrl+O)" : "Open a song (Ctrl+O)";
+                clicked => { Shell.open-file(); }
+            }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-search; label: "Show in folder"; tooltip: "Show in folder"; enabled: root.loaded; clicked => { Player.open-folder(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save; label: "Save (replaces the file with the trim)"; tooltip: "Save (replaces the file with the trim)"; enabled: root.loaded && Player.trim-dirty && !Player.exporting; clicked => { Player.save-in-place(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save-as; label: "Save as (trimmed copy)"; tooltip: "Save as (trimmed copy)"; enabled: root.loaded && !Player.exporting; clicked => { Player.trim-save(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.share-2; label: "Share"; tooltip: "Share"; enabled: root.loaded; clicked => { Player.share(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.undo-2; label: "Undo trim"; tooltip: "Undo trim"; enabled: root.loaded && Player.can-undo; clicked => { Player.trim-undo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.redo-2; label: "Redo trim"; tooltip: "Redo trim"; enabled: root.loaded && Player.can-redo; clicked => { Player.trim-redo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Discard trim (whole file)"; tooltip: "Discard trim (whole file)"; enabled: root.loaded && Player.trim-dirty; clicked => { Player.trim-discard(); } }
+            Rectangle { horizontal-stretch: 1; }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.scissors; label: "Trim"; tooltip: "Trim"; enabled: root.loaded; selected: Player.trim-mode; ghost-toggle: true; clicked => { Player.trim-mode = !Player.trim-mode; } }
+            if Player.has-video: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.camera; label: "Save this frame as a picture"; tooltip: "Save this frame as a picture"; enabled: root.loaded; clicked => { Player.snapshot(); } }
+            if Shell.recording || (Player.media-title != "" && Player.has-video == root.want-video): ToolDivider { }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+            // Closes the open file and stops it (shown only while one is loaded on this tab).
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Close and stop"; tooltip: "Close and stop"; enabled: root.loaded; clicked => { Shell.close-tab(); } }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            if root.loaded: MediaPage { }
+            if !root.loaded: EmptyState {
+                on-stage: true;
+                width: parent.width;
+                height: parent.height;
+                icon-kind: root.want-video ? "video" : "music";
+                title: root.want-video ? "Open a video" : "Open a song";
+                formats: root.want-video ? ".3gp, .avi, .flv, .m2ts, .m4v, .mkv, .mov, .mp4, .mpeg, .mpg, .mts, .ogv, .webm, .wmv" : ".aac, .aif, .aiff, .flac, .m4a, .mp3, .oga, .ogg, .opus, .wav, .wma";
+                open-text: "Open a file";
+                new-text: "New recording";
+                new-icon: root.want-video ? Icons.record : SharedIcons.mic;
+                recents: root.want-video ? Shell.recents-video : Shell.recents-audio;
+                open => { Shell.open-file(); }
+                new-file => { if root.want-video { Shell.record-screen("region"); } else { Shell.go("voice"); } }
+                open-recent(i) => { Shell.open-recent(i); }
+                clear-recents => { Shell.clear-recents(root.want-video ? "video" : "audio"); }
+            }
+        }
+
+        // A loaded player brings its own StatusBar (media_page.slint), so this one shows only when nothing is loaded.
+        if !Shell.full-screen && !root.loaded: StatusBar {
+            left-text: "";
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: Shell.title == "" ? "Rimelight Media" : Shell.title + " - Rimelight Media";
+    icon: Icons.logo;
+    preferred-width: 1200px;
+    preferred-height: 780px;
+    min-width: 640px;
+    min-height: 420px;
+    background: Tokens.surface-base;
+    default-font-family: Type.body.family;
+    default-font-size: Type.body.size;
+
+    // True while the title's file name is being typed over.
+    property <bool> renaming;
+    changed renaming => { if !self.renaming { keys.focus(); } }
+
+    forward-focus: keys;
+
+    // Under the cast button (its right edge lines up with the button's).
+    cast-popup := CastPopup {
+        x: root.width - 300px - 132px;
+        y: Tokens.component-toolbar-height + 4px;
+    }
+    keys := FocusScope {
+        key-pressed(e) => {
+            // Ctrl+? (Ctrl+/ too) shows or hides the shortcut list. While it is open, Escape closes it and the other keys
+            // do nothing, so a tab switch or a file action cannot happen behind it.
+            if e.modifiers.control && (e.text == "?" || e.text == "/") {
+                ShortcutsCtl.open = !ShortcutsCtl.open;
+                return accept;
+            }
+            if ShortcutsCtl.open {
+                if e.text == Key.Escape { ShortcutsCtl.open = false; }
+                return accept;
+            }
+            if Shell.key(e.text, e.modifiers.control, e.modifiers.shift, e.modifiers.alt) { return accept; }
+            reject
+        }
+
+        VerticalLayout {
+            // Top bar (hidden in full screen).
+            if !Shell.full-screen: Rectangle {
+                height: Tokens.component-toolbar-height;
+                background: Tokens.surface-raised;
+                // Left: the tabs. Right: capture, open, settings. The title is centred on the whole bar, over both.
+                left-group := HorizontalLayout {
+                    x: Tokens.space-2;
+                    width: self.preferred-width;
+                    padding-top: 6px;
+                    padding-bottom: 6px;
+                    spacing: Tokens.space-1;
+                    NavButton { icon: Icons.app-icon; full-colour: true; label: "Home"; active: Shell.page == "home"; clicked => { Shell.go("home"); } }
+                    NavButton { kind: "folder"; label: "Files"; active: Shell.page == "files"; clicked => { Shell.go("files"); } }
+                    NavButton { kind: "picture"; label: "Image"; active: Shell.page == "image"; clicked => { Shell.go("image"); } }
+                    NavButton { kind: "music"; label: "Audio"; active: Shell.page == "audio"; clicked => { Shell.go("audio"); } }
+                    NavButton { kind: "video"; label: "Video"; active: Shell.page == "video"; clicked => { Shell.go("video"); } }
+                    NavButton { kind: "text"; label: "Text"; active: Shell.page == "text"; clicked => { Shell.go("text"); } }
+                }
+                right-group := HorizontalLayout {
+                    x: parent.width - self.width - Tokens.space-2;
+                    width: self.preferred-width;
+                    padding-top: 6px;
+                    padding-bottom: 6px;
+                    spacing: Tokens.space-1;
+                    if Shell.update-ready != "": Rectangle {
+                        width: up-text.preferred-width + Tokens.space-4;
+                        border-radius: Tokens.radius-control;
+                        background: up-ta.has-hover ? Tokens.accent-fill-hover : Tokens.accent-fill;
+                        up-text := Text { text: "Restart to update (" + Shell.update-ready + ")"; color: Tokens.text-on-accent; font-size: Type.body.size; font-weight: 600; }
+                        up-ta := TouchArea { mouse-cursor: pointer; clicked => { Shell.apply-update(); } }
+                    }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.scan; label: "Snip (Print Screen)"; tooltip: "Snip (Print Screen)"; clicked => { Shell.snip("region"); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom;
+                        icon: Icons.record;
+                        label: Shell.recording ? "Stop recording" : "Record the screen"; tooltip: Shell.recording ? "Stop recording" : "Record the screen";
+                        clicked => { if Shell.recording { Shell.stop-recording(); } else { Shell.record-screen("region"); } }
+                    }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.mic; label: "Voice recorder"; tooltip: "Voice recorder"; selected: Shell.page == "voice"; ghost-toggle: true; clicked => { Shell.go("voice"); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.camera; label: "Camera"; tooltip: "Camera"; selected: Shell.page == "camera"; ghost-toggle: true; clicked => { Shell.go("camera"); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.brush; label: "Canvas (Ctrl+N): a new 1920 x 1080 white picture to draw on"; tooltip: "Canvas (Ctrl+N): a new 1920 x 1080 white picture to draw on"; clicked => { Shell.new-canvas(1, "", "", false); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.file-plus; label: "New text file"; tooltip: "New text file"; clicked => { TextDoc.new-doc(); } }
+                    cast-btn := ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.cast; label: "Cast to a TV or speaker"; tooltip: "Cast to a TV or speaker"; clicked => { Shell.cast(); cast-popup.show(); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.folder-open; label: "Open (Ctrl+O)"; tooltip: "Open (Ctrl+O)"; clicked => { Shell.open-file(); } }
+                    ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.settings; label: "Settings"; tooltip: "Settings"; selected: Shell.page == "settings"; ghost-toggle: true; clicked => { Shell.go("settings"); } }
+                }
+                // Centred on the window; only as wide as the space both groups leave free on each side.
+                // Click the file name to rename it: Enter renames the file, Escape or leaving the box cancels.
+                title-box := Rectangle {
+                    property <length> room: parent.width - 2 * max(left-group.width, right-group.width) - 2 * Tokens.space-4;
+                    width: max(0px, min(title-text.preferred-width, self.room));
+                    height: parent.height;
+                    x: (parent.width - self.width) / 2;
+                    title-text := Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: Shell.title;
+                        color: Tokens.text-muted;
+                        font-size: Type.caption.size;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        visible: !root.renaming;
+                    }
+                    title-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        enabled: Shell.title-name != "" && !root.renaming;
+                        clicked => { root.renaming = true; }
+                    }
+                    // Edits in place: the title's font and colour, a 1px border with radius 4, padding 2px 6px, as wide as
+                    // the text (at least 120 px) and centred on the title. No selection: the caret goes to the end.
+                    if root.renaming: Rectangle {
+                        width: max(120px, min(rename-input.preferred-width + 14px, parent.room));
+                        height: 22px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 4px;
+                        background: Tokens.surface-sunken;
+                        border-width: 1px;
+                        border-color: Tokens.border-subtle;
+                        rename-input := TextInput {
+                            x: 6px;
+                            y: 2px;
+                            width: parent.width - 12px;
+                            height: parent.height - 4px;
+                            text: Shell.title-name;
+                            color: Tokens.text-muted;
+                            font-size: Type.caption.size;
+                            horizontal-alignment: left;
+                            vertical-alignment: center;
+                            single-line: true;
+                            init => { self.focus(); self.set-selection-offsets(self.text.character-count, self.text.character-count); }
+                            accepted => {
+                                root.renaming = false;
+                                Shell.rename(self.text);
+                            }
+                            key-pressed(e) => {
+                                if e.text == "\u{1b}" {
+                                    root.renaming = false;
+                                    return accept;
+                                }
+                                reject
+                            }
+                            changed has-focus => {
+                                if !self.has-focus { root.renaming = false; }
+                            }
+                        }
+                    }
+                }
+                Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-subtle; }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                if Shell.page == "home": HomePage { }
+                if Shell.page == "files": FilesPage { }
+                if Shell.page == "image": ImagePage { }
+                if Shell.page == "audio": MediaSlot { want-video: false; }
+                if Shell.page == "video": MediaSlot { want-video: true; }
+                if Shell.page == "text": TextPage { }
+                if Shell.page == "voice": VoicePage { }
+                if Shell.page == "camera": CameraPage { }
+                if Shell.page == "settings": SettingsPage { }
+
+                if Shell.toast != "": Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: parent.height - self.height - 96px;
+                    width: toast-text.preferred-width + 32px;
+                    height: 40px;
+                    border-radius: 20px;
+                    background: Tokens.surface-overlay;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    drop-shadow-blur: 12px;
+                    drop-shadow-color: #00000050;
+                    toast-text := Text { text: Shell.toast; color: Tokens.text-primary; font-size: Type.body.size; }
+                }
+            }
+        }
+
+        // The unsaved-changes question (over everything, including the top bar).
+
+        if Shell.confirm-open: ConfirmDialog {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            name: Shell.confirm-name;
+            title: Shell.confirm-title;
+            detail: Shell.confirm-detail;
+            primary-text: Shell.confirm-primary;
+            secondary-text: Shell.confirm-secondary;
+            answer(choice) => { Shell.confirm-answer(choice); }
+        }
+
+        // The Ctrl+? shortcut list for the current tab (ui/shortcuts.slint).
+        if ShortcutsCtl.open: ShortcutsOverlay {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            page: Shell.page;
+            close => { ShortcutsCtl.open = false; }
+        }
+    }
+
+    // Tooltips draw here, above everything in the window (the shared TooltipLayer). Without it no tooltip shows.
+    TooltipOverlay {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+    }
+}

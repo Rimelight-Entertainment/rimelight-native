@@ -1,0 +1,4 @@
+name,kind,size_kb
+photo.jpg,image,2048
+song.mp3,audio,5120
+clip.mp4,video,40960

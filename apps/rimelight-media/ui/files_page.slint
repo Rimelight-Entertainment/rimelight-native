@@ -1,0 +1,693 @@
+// Files tab: a file explorer for folders and archives (zip, 7z, rar). Top: the same toolbar as the other tabs, then the
+// trail. Left: the folder tree. Middle: the list with file-type tiles. Right: details of the selection. The Rust side
+// (src/filesctl.rs) fills the `Files` global; every click and key comes back as a callback. Dialogs: 1 new folder,
+// 2 rename, 3 batch rename, 4 new archive, 5 archive password, 6 delete.
+import { LineEdit, ScrollView } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Breadcrumbs } from "@rimelight_ui/components/breadcrumbs.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { ToolbarRow, ToolDivider } from "@rimelight_ui/components/toolbar.slint";
+import { FileKindTile } from "@rimelight_ui/components/tile.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
+import { Icons } from "icons.slint";
+import { ToolButton, StatusBar, ConfirmDialog } from "widgets.slint";
+
+// One row of the list. `kind` is "Folder", "Drive", "Picture", "Video", "Audio", "Archive", "Encrypted", "Text" or "File".
+export struct FileRow {
+    name: string,
+    kind: string,
+    size: string,
+    modified: string,
+    selected: bool,
+}
+
+// One row of the folder tree, already indented (`depth` 0 for drives). `selected` is the multi-selection of folders.
+export struct SideItem {
+    label: string,
+    // "header", "hint", "Drive", "Cloud", "Recycle", "Desktop", "Documents", "Downloads", "Picture", "Audio", "Video",
+    // or "Folder" (a folder inside a drive or cloud folder, or a pinned folder).
+    kind: string,
+    depth: int,
+    expanded: bool,
+    has-children: bool,
+    current: bool,
+    selected: bool,
+    // True for a pinned folder: its x removes the pin.
+    unpinnable: bool,
+}
+
+export global Files {
+    in property <[FileRow]> rows;
+    // The sidebar: Drives, Quick access and Pinned, top to bottom.
+    in property <[SideItem]> side-rows;
+    // The Pin button: pins the one selected folder, or unpins it when it is pinned.
+    in property <bool> can-pin: false;
+    in property <bool> pin-active: false;
+    // The trail, from the top folder to the current one.
+    in property <[string]> crumbs;
+    in property <string> status;
+    // A worker job's label while it runs (Compressing, Extracting), or empty.
+    in property <string> busy;
+    in property <int> sort-column: 0;
+    in property <bool> sort-descending: false;
+    in property <bool> in-archive: false;
+    // True in an archive or in the Recycle Bin view: changes are off there.
+    in property <bool> read-only: false;
+    // True while the Recycle Bin is shown in the list.
+    in property <bool> recycle-view: false;
+    in property <bool> can-paste: false;
+    in property <bool> can-undo: false;
+    in property <bool> has-selection: false;
+    in property <bool> single-selected: false;
+    // Scrolls the list so that row `scroll-row` is visible, each time `scroll-serial` changes.
+    in property <int> scroll-row: -1;
+    in property <int> scroll-serial: 0;
+    // 0 none, 1 new folder, 2 rename, 3 batch rename, 4 new archive, 5 archive password, 6 delete confirm.
+    in property <int> dialog: 0;
+    // The field's starting text (a name or a pattern), or the item named in the delete question.
+    in property <string> dialog-text;
+    in property <string> dialog-error;
+    in property <[TableRow]> batch-rows;
+    in property <string> batch-summary;
+    in property <bool> batch-ok: false;
+    // The details panel.
+    in property <string> details-title;
+    in property <string> details-name;
+    in property <string> details-kind;
+    in property <string> details-path;
+    in property <string> details-size;
+    in property <string> details-items;
+    in property <string> details-modified;
+    in property <string> details-created;
+
+    callback navigate(int);
+    callback up();
+    callback refresh();
+    callback picked(int, bool, bool);
+    callback activated(int);
+    callback sort-requested(int);
+    // Sidebar row, shift, ctrl. A plain click opens the folder; shift and ctrl select folders.
+    callback side-clicked(int, bool, bool);
+    callback side-toggled(int);
+    callback side-unpin(int);
+    callback pin-toggle();
+    callback new-folder-start();
+    callback new-folder-submit(string);
+    callback rename-start();
+    callback rename-submit(string);
+    callback copy();
+    callback cut();
+    callback paste();
+    callback delete-start();
+    callback delete-submit();
+    callback undo();
+    callback batch-start();
+    callback batch-preview(string, string, string, string, string);
+    callback batch-apply(string, string, string, string, string);
+    callback archive-start();
+    callback archive-submit(string, string);
+    callback password-submit(string);
+    callback dialog-cancel();
+    callback extract-here();
+    callback extract-to();
+}
+
+// The file-type tile for a row kind, as Explorer shows it: a coloured square with a white glyph. Folders are yellow,
+// archives orange, drives grey, and any other file type gets the neutral tile.
+component FileIcon inherits Rectangle {
+    in property <string> kind;
+    width: 18px;
+
+    FileKindTile {
+        kind: "text";
+        tile-size: 18px;
+        y: (parent.height - self.height) / 2;
+        top-colour: root.kind == "Folder" ? #FDE047
+            : root.kind == "Cloud" ? #BAE6FD
+            : root.kind == "Recycle" ? #E2E8F0
+            : root.kind == "Desktop" ? #C7D2FE
+            : root.kind == "Documents" ? #BFDBFE
+            : root.kind == "Downloads" ? #A7F3D0
+            : root.kind == "Drive" ? #CBD5E1
+            : root.kind == "Archive" ? #FDBA74
+            : root.kind == "Encrypted" ? #CBD5E1
+            : root.kind == "Picture" ? #7DD3FC
+            : root.kind == "Video" ? #C4B5FD
+            : root.kind == "Audio" ? #FDA4AF
+            : root.kind == "Text" ? #86EFAC
+            : #E2E8F0;
+        bottom-colour: root.kind == "Folder" ? #CA8A04
+            : root.kind == "Cloud" ? #0284C7
+            : root.kind == "Recycle" ? #64748B
+            : root.kind == "Desktop" ? #4F46E5
+            : root.kind == "Documents" ? #2563EB
+            : root.kind == "Downloads" ? #059669
+            : root.kind == "Drive" ? #475569
+            : root.kind == "Archive" ? #EA580C
+            : root.kind == "Encrypted" ? #64748B
+            : root.kind == "Picture" ? #0284C7
+            : root.kind == "Video" ? #7C3AED
+            : root.kind == "Audio" ? #E11D48
+            : root.kind == "Text" ? #16A34A
+            : #64748B;
+        glyph: root.kind == "Folder" ? SharedIcons.folder
+            : root.kind == "Cloud" ? Icons.cloud
+            : root.kind == "Recycle" ? SharedIcons.trash
+            : root.kind == "Desktop" ? SharedIcons.app-window
+            : root.kind == "Documents" ? SharedIcons.file-text
+            : root.kind == "Downloads" ? Icons.download
+            : root.kind == "Drive" ? SharedIcons.monitor
+            : root.kind == "Archive" ? SharedIcons.package
+            : root.kind == "Encrypted" ? SharedIcons.lock
+            : root.kind == "Picture" ? SharedIcons.image
+            : root.kind == "Video" ? SharedIcons.video
+            : root.kind == "Audio" ? Icons.music
+            : root.kind == "Text" ? Icons.file-code
+            : SharedIcons.file-text;
+    }
+}
+
+// A column title of the list. A click sorts by the column; the arrow shows the direction.
+component ColumnTitle inherits Rectangle {
+    in property <string> label;
+    in property <int> column;
+
+    TouchArea {
+        clicked => { Files.sort-requested(root.column); }
+    }
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.label + (Files.sort-column == root.column ? (Files.sort-descending ? "  ↓" : "  ↑") : "");
+        color: Tokens.text-muted;
+        font-size: Type.body.size;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+// One line of the details panel.
+component DetailLine inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: Tokens.space-2;
+
+    Text {
+        width: 72px;
+        text: root.label;
+        color: Tokens.text-muted;
+        font-size: Type.body.size;
+        vertical-alignment: top;
+    }
+    Text {
+        horizontal-stretch: 1;
+        text: root.value;
+        color: Tokens.text-primary;
+        font-size: Type.body.size;
+        wrap: word-wrap;
+    }
+}
+
+// A dialog over the page: a scrim, and a card with a title, the controls (children) and an error line.
+component FilesDialog inherits Rectangle {
+    in property <string> title;
+    in property <string> error;
+    in property <length> card-width: 420px;
+
+    x: 0px;
+    y: 0px;
+    width: 100%;
+    height: 100%;
+    background: Tokens.scrim;
+    // Swallows the clicks that would reach the page behind.
+    TouchArea { }
+
+    Rectangle {
+        width: min(root.card-width, root.width - 2 * Tokens.space-6);
+        height: layout.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+
+        layout := VerticalLayout {
+            padding: Tokens.space-5;
+            spacing: Tokens.space-2;
+            alignment: start;
+            Text { text: root.title; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; }
+            @children
+            if root.error != "": Text {
+                text: root.error;
+                color: Tokens.ramp-error-500;
+                font-size: Type.body.size;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+export component FilesPage inherits Rectangle {
+    background: Tokens.surface-base;
+
+    // The batch rename table's columns (fixed).
+    property <[TableColumn]> batch-columns: [
+        { title: "Current name", width: 250px, sortable: false },
+        { title: "New name", width: 250px, sortable: false },
+        { title: "Status", width: 110px, sortable: false },
+    ];
+
+    // The list scrolls to the row the keyboard or a click picked.
+    property <int> serial: Files.scroll-serial;
+    changed serial => {
+        if Files.scroll-row >= 0 {
+            if Files.scroll-row * 28px < -rows-scroll.content-y {
+                rows-scroll.content-y = -(Files.scroll-row * 28px);
+            } else if (Files.scroll-row + 1) * 28px > -rows-scroll.content-y + rows-scroll.visible-height {
+                rows-scroll.content-y = -((Files.scroll-row + 1) * 28px - rows-scroll.visible-height);
+            }
+        }
+    }
+
+    VerticalLayout {
+        // The main toolbar, as on every tab (the same colour, height and hairline).
+        ToolbarRow {
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.arrow-up; label: "Up"; tooltip: "Up (Backspace)"; enabled: Files.crumbs.length > 1 || Files.recycle-view; clicked => { Files.up(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.rotate-cw; label: "Refresh"; tooltip: "Refresh"; clicked => { Files.refresh(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-plus; label: "New folder"; tooltip: "New folder: makes a folder in the folder you are in"; enabled: !Files.read-only; clicked => { Files.new-folder-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.pencil; label: "Rename"; tooltip: "Rename the one selected item (F2)"; enabled: Files.single-selected && !Files.read-only; clicked => { Files.rename-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.pin; label: Files.pin-active ? "Unpin" : "Pin"; tooltip: Files.pin-active ? "Unpin this folder from the sidebar" : "Pin this folder to the sidebar"; enabled: Files.can-pin; clicked => { Files.pin-toggle(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.copy; label: "Copy"; tooltip: "Copy the selection (Ctrl+C)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.copy(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.scissors; label: "Cut"; tooltip: "Cut the selection, to move it on paste (Ctrl+X)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.cut(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.clipboard-check; label: "Paste"; tooltip: "Paste into this folder (Ctrl+V)"; enabled: Files.can-paste; clicked => { Files.paste(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.trash; label: "Delete"; tooltip: "Delete the selection to the Recycle Bin (Delete)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.delete-start(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.file-pen-line; label: "Batch rename"; tooltip: "Batch rename the selection with a pattern, with a preview"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.batch-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.package; label: "New archive"; tooltip: "New zip archive of the selection (optional password)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.archive-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.arrow-down; label: "Extract"; tooltip: "Extract next to the archive"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-here(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.folder-open; label: "Extract to"; tooltip: "Extract to a folder you choose"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-to(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.undo-2; label: "Undo"; tooltip: "Undo the last rename, move or new folder (Ctrl+Z)"; enabled: Files.can-undo; clicked => { Files.undo(); } }
+        }
+
+        // The trail, under the toolbar.
+        Rectangle {
+            height: 32px;
+            background: Tokens.surface-raised;
+            Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-subtle; }
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    padding-left: Tokens.space-2;
+                    padding-right: Tokens.space-2;
+                    Breadcrumbs {
+                        items: Files.crumbs;
+                        activated(index) => { Files.navigate(index); }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // Left: the sidebar. Drives (every drive with its folders, cloud folders and the Recycle Bin), Quick access and
+            // Pinned. A click opens; Ctrl and Shift click select folders. The x on a pinned folder removes the pin.
+            Rectangle {
+                width: 240px;
+                background: Tokens.surface-raised;
+                ScrollView {
+                    width: parent.width;
+                    height: parent.height;
+                    VerticalLayout {
+                        for node[i] in Files.side-rows: Rectangle {
+                            height: node.kind == "header" ? 30px : 26px;
+                            background: node.kind == "header" || node.kind == "hint" ? transparent
+                                : node.selected ? Tokens.surface-pressed
+                                : node.current ? Tokens.surface-hover
+                                : transparent;
+                            // A section title, or the hint under an empty section.
+                            if node.kind == "header": Text {
+                                x: Tokens.space-2;
+                                y: 0px;
+                                width: parent.width - 2 * Tokens.space-2;
+                                height: parent.height - 2px;
+                                text: node.label;
+                                color: Tokens.text-muted;
+                                font-size: Type.body.size;
+                                font-weight: 600;
+                                vertical-alignment: bottom;
+                            }
+                            if node.kind == "hint": Text {
+                                x: Tokens.space-2;
+                                width: parent.width - 2 * Tokens.space-2;
+                                height: parent.height;
+                                text: node.label;
+                                color: Tokens.text-faint;
+                                font-size: Type.body.size;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                            if node.kind != "header" && node.kind != "hint": row-ta := TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                                        Files.side-clicked(i, e.modifiers.shift, e.modifiers.control);
+                                    }
+                                }
+                            }
+                            if node.kind != "header" && node.kind != "hint": HorizontalLayout {
+                                x: 0px;
+                                width: parent.width;
+                                height: parent.height;
+                                padding-left: 4px + node.depth * 16px;
+                                padding-right: 4px;
+                                spacing: 4px;
+                                alignment: start;
+                                Rectangle {
+                                    width: 16px;
+                                    if node.has-children: Image {
+                                        source: node.expanded ? SharedIcons.chevron-down : SharedIcons.chevron-right;
+                                        width: 12px;
+                                        height: 12px;
+                                        x: 2px;
+                                        y: (parent.height - self.height) / 2;
+                                        colorize: Tokens.text-muted;
+                                    }
+                                }
+                                FileIcon { kind: node.kind; }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: node.label;
+                                    color: Tokens.text-primary;
+                                    font-size: Type.body.size;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                            if node.unpinnable: Rectangle {
+                                x: parent.width - 24px;
+                                width: 24px;
+                                height: parent.height;
+                                Image {
+                                    width: 12px;
+                                    height: 12px;
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    source: SharedIcons.x;
+                                    colorize: Tokens.text-muted;
+                                }
+                                unpin-ta := TouchArea {
+                                    clicked => { Files.side-unpin(i); }
+                                }
+                            }
+                            if node.has-children: arrow-ta := TouchArea {
+                                x: 4px + node.depth * 16px;
+                                width: 16px;
+                                height: parent.height;
+                                clicked => { Files.side-toggled(i); }
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle { width: 1px; background: Tokens.border-subtle; }
+
+            // Middle: the list.
+            VerticalLayout {
+                horizontal-stretch: 1;
+                Rectangle {
+                    height: 28px;
+                    background: Tokens.surface-raised;
+                    HorizontalLayout {
+                        padding-left: Tokens.space-2;
+                        padding-right: Tokens.space-2;
+                        spacing: Tokens.space-2;
+                        Rectangle { width: 18px; }
+                        ColumnTitle { horizontal-stretch: 1; label: "Name"; column: 0; }
+                        ColumnTitle { width: 120px; label: "Type"; column: 1; }
+                        ColumnTitle { width: 96px; label: "Size"; column: 2; }
+                        ColumnTitle { width: 150px; label: "Modified"; column: 3; }
+                    }
+                }
+                rows-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        for row[i] in Files.rows: Rectangle {
+                            height: 28px;
+                            background: row.selected ? Tokens.surface-pressed : (ta.has-hover ? Tokens.surface-hover : transparent);
+                            HorizontalLayout {
+                                padding-left: Tokens.space-2;
+                                padding-right: Tokens.space-2;
+                                spacing: Tokens.space-2;
+                                FileIcon { kind: row.kind; }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: row.name;
+                                    color: Tokens.text-primary;
+                                    font-size: Type.body.size;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    width: 120px;
+                                    text: row.kind;
+                                    color: Tokens.text-muted;
+                                    font-size: Type.body.size;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    width: 96px;
+                                    text: row.size;
+                                    color: Tokens.text-muted;
+                                    font-size: Type.body.size;
+                                    horizontal-alignment: right;
+                                    vertical-alignment: center;
+                                }
+                                Text {
+                                    width: 150px;
+                                    text: row.modified;
+                                    color: Tokens.text-muted;
+                                    font-size: Type.body.size;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                            // Pressed picks the row (Ctrl and Shift extend the selection); a double-click opens it.
+                            ta := TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                                        Files.picked(i, e.modifiers.shift, e.modifiers.control);
+                                    }
+                                }
+                                double-clicked => { Files.activated(i); }
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle { width: 1px; background: Tokens.border-subtle; }
+
+            // Right: details of the selection (or of the current folder when nothing is selected).
+            Rectangle {
+                width: 270px;
+                background: Tokens.surface-raised;
+                VerticalLayout {
+                    padding: Tokens.space-3;
+                    spacing: Tokens.space-2;
+                    alignment: start;
+                    Text { text: Files.details-title; color: Tokens.text-muted; font-size: Type.body.size; }
+                    Text {
+                        text: Files.details-name;
+                        color: Tokens.text-primary;
+                        font-size: Type.heading.size;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                    Rectangle { height: Tokens.space-2; }
+                    DetailLine { label: "Type"; value: Files.details-kind; }
+                    DetailLine { label: "Location"; value: Files.details-path; }
+                    DetailLine { label: "Size"; value: Files.details-size; }
+                    DetailLine { label: "Items"; value: Files.details-items; }
+                    DetailLine { label: "Modified"; value: Files.details-modified; }
+                    DetailLine { label: "Created"; value: Files.details-created; }
+                }
+            }
+        }
+
+        StatusBar { left-text: Files.status; }
+    }
+
+    // New folder.
+    if Files.dialog == 1: FilesDialog {
+        title: "New folder";
+        error: Files.dialog-error;
+        folder-name := LineEdit {
+            text: Files.dialog-text;
+            placeholder-text: "Folder name";
+            accepted => { Files.new-folder-submit(self.text); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { Files.dialog-cancel(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: "Create"; variant: ButtonVariant.primary; clicked => { Files.new-folder-submit(folder-name.text); } }
+        }
+    }
+
+    // Rename.
+    if Files.dialog == 2: FilesDialog {
+        title: "Rename";
+        error: Files.dialog-error;
+        rename-name := LineEdit {
+            text: Files.dialog-text;
+            accepted => { Files.rename-submit(self.text); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { Files.dialog-cancel(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: "Rename"; variant: ButtonVariant.primary; clicked => { Files.rename-submit(rename-name.text); } }
+        }
+    }
+
+    // Batch rename: the pattern and find and replace, with a live preview of every new name.
+    if Files.dialog == 3: FilesDialog {
+        title: "Batch rename";
+        card-width: 680px;
+        init => {
+            Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text);
+        }
+        Text {
+            text: "{name} is the name without its extension, {ext} the extension, {n} the number. Without {ext} the old extension stays.";
+            color: Tokens.text-muted;
+            font-size: Type.body.size;
+            wrap: word-wrap;
+        }
+        pattern-field := LineEdit {
+            text: Files.dialog-text;
+            placeholder-text: "Pattern, for example Holiday-{n}.{ext}";
+            edited => { Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            find-field := LineEdit {
+                horizontal-stretch: 1;
+                placeholder-text: "Find in the name";
+                edited => { Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text); }
+            }
+            replace-field := LineEdit {
+                horizontal-stretch: 1;
+                placeholder-text: "Replace with";
+                edited => { Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text); }
+            }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            start-field := LineEdit {
+                width: 120px;
+                text: "1";
+                placeholder-text: "Start";
+                edited => { Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text); }
+            }
+            pad-field := LineEdit {
+                width: 120px;
+                text: "0";
+                placeholder-text: "Digits";
+                edited => { Files.batch-preview(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Table {
+            height: 220px;
+            columns: batch-columns;
+            rows: Files.batch-rows;
+            accessible-name: "Preview of the new names";
+        }
+        Text {
+            text: Files.batch-summary;
+            color: Tokens.text-muted;
+            font-size: Type.body.size;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { Files.dialog-cancel(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "Rename";
+                variant: ButtonVariant.primary;
+                enabled: Files.batch-ok;
+                clicked => {
+                    Files.batch-apply(pattern-field.text, find-field.text, replace-field.text, start-field.text, pad-field.text);
+                }
+            }
+        }
+    }
+
+    // New archive: a zip of the selection, with an optional password (AES-256).
+    if Files.dialog == 4: FilesDialog {
+        title: "New archive";
+        error: Files.dialog-error;
+        archive-name := LineEdit {
+            text: Files.dialog-text;
+            placeholder-text: "Archive name";
+        }
+        archive-password := LineEdit {
+            input-type: password;
+            placeholder-text: "Password (optional, AES-256)";
+            accepted => { Files.archive-submit(archive-name.text, self.text); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { Files.dialog-cancel(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: "Create"; variant: ButtonVariant.primary; clicked => { Files.archive-submit(archive-name.text, archive-password.text); } }
+        }
+    }
+
+    // The archive's password.
+    if Files.dialog == 5: FilesDialog {
+        title: "Password";
+        error: Files.dialog-error;
+        open-password := LineEdit {
+            input-type: password;
+            placeholder-text: "Password";
+            accepted => { Files.password-submit(self.text); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { Files.dialog-cancel(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: "Continue"; variant: ButtonVariant.primary; clicked => { Files.password-submit(open-password.text); } }
+        }
+    }
+
+    // Delete: to the Recycle Bin.
+    if Files.dialog == 6: ConfirmDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        title: "Delete to the Recycle Bin?";
+        name: Files.dialog-text;
+        detail: "You can restore the items from the Recycle Bin.";
+        primary-text: "Delete";
+        secondary-text: "";
+        answer(choice) => {
+            if choice == 0 {
+                Files.delete-submit();
+            } else {
+                Files.dialog-cancel();
+            }
+        }
+    }
+}

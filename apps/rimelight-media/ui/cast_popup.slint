@@ -1,0 +1,86 @@
+// The cast popup under the cast button: the devices on the network (src/cast.rs), the cast in progress, and Windows'
+// Cast panel as a fallback when nothing is found.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button } from "@rimelight_ui/components/button.slint";
+import { Cast } from "state.slint";
+
+export component CastPopup inherits PopupWindow {
+    width: 300px;
+
+    Rectangle {
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+
+        VerticalLayout {
+            padding: Tokens.space-3;
+            spacing: Tokens.space-2;
+
+            Text {
+                text: Cast.casting-to != "" ? "Casting to " + Cast.casting-to : "Cast to a TV or speaker";
+                color: Tokens.text-primary;
+                font-size: Type.body.size;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            if Cast.casting-to != "": HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+                Button { text: Cast.playing ? "Pause" : "Play"; clicked => { Cast.pause(); } }
+                Button { text: "Stop"; clicked => { Cast.stop(); } }
+            }
+
+            if Cast.casting-to == "": VerticalLayout {
+                spacing: Tokens.space-1;
+
+                if Cast.searching: Text {
+                    text: "Searching…";
+                    color: Tokens.text-muted;
+                    font-size: Type.body.size;
+                }
+                if !Cast.searching && Cast.searched && Cast.devices.length == 0: Text {
+                    text: "No TVs or speakers found on this network";
+                    color: Tokens.text-muted;
+                    font-size: Type.body.size;
+                    wrap: word-wrap;
+                }
+
+                for name[i] in Cast.devices: Rectangle {
+                    height: 36px;
+                    border-radius: Tokens.radius-control;
+                    background: row.has-hover ? Tokens.surface-hover : transparent;
+                    HorizontalLayout {
+                        padding-left: Tokens.space-2;
+                        padding-right: Tokens.space-2;
+                        Text {
+                            text: name;
+                            color: Tokens.text-primary;
+                            font-size: Type.body.size;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    row := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { Cast.pick(i); }
+                    }
+                }
+
+                if !Cast.searching && Cast.searched && Cast.devices.length == 0: Button {
+                    text: "Windows Cast (Win+K)";
+                    clicked => { Cast.system-cast(); }
+                }
+                Button {
+                    text: "Refresh";
+                    enabled: !Cast.searching;
+                    clicked => { Cast.refresh(); }
+                }
+            }
+        }
+    }
+}

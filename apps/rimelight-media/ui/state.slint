@@ -1,0 +1,578 @@
+// The state Rust drives, as globals so every page reads it without passing properties down.
+import { Choice } from "widgets.slint";
+import { RecentItem } from "@rimelight_ui/components/recent-list.slint";
+export { RecentItem }
+
+// One markup mark, in picture pixels. kind: 0 pen, 1 highlighter, 2 arrow, 3 box, 4 text, 5 picture, 6 ellipse, 7 line.
+// x, y, w, h: the box round it (its top-left corner and size).
+export struct Mark {
+    kind: int,
+    colour: color,
+    width: float,
+    commands: string,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    text: string,
+    picture: image,
+    filled: bool,
+}
+
+// One file in the playlist (the other files of the same kind in its folder): its name, whether it is playing, and its
+// place in the list (play-item takes it).
+export struct PlaylistItem {
+    name: string,
+    current: bool,
+    index: int,
+}
+
+// One picture in the filmstrip.
+export struct Thumb {
+    image: image,
+    name: string,
+    current: bool,
+    selected: bool,
+}
+
+export global Shell {
+    // "home", "image", "audio", "video", "voice", "camera", "settings"
+    in-out property <string> page: "home";
+    in property <string> title: "Rimelight Media";
+    // A downloaded update waiting for a restart (its version), or empty.
+    in property <string> update-ready;
+    in property <string> toast;
+    in property <bool> full-screen;
+    // Recent files: all of them (Home), and each tab's kind only (the tab's empty state). Each item's index is its
+    // place in `recents`, which open-recent takes.
+    in property <[RecentItem]> recents;
+    in property <[RecentItem]> recents-image;
+    in property <[RecentItem]> recents-audio;
+    in property <[RecentItem]> recents-video;
+    in property <[RecentItem]> recents-text;
+    in property <bool> recording;
+    in property <string> recording-time;
+    in property <bool> drop-hover;
+    // True while a text field has keyboard focus: Tab then belongs to the field, not to the tab cycle.
+    in-out property <bool> field-focus;
+    // The file name in the title (empty when there is no file): click it to rename.
+    in property <string> title-name;
+
+    callback rename(string);
+    callback open-file();
+    callback open-recent(int);
+    // Clears the recent files of one kind ("image", "audio", "video", "text"); "" clears them all.
+    callback clear-recents(string);
+    callback go(string);
+    callback snip(string); // "region", "window", "screen"
+    callback record-screen(string); // "region", "window", "screen"
+    callback stop-recording();
+    callback toggle-full-screen();
+    callback apply-update();
+    // Back to the empty version of the current tab.
+    callback close-tab();
+    // The in-app "Save changes to ...?" question (Text tab). confirm-answer: 0 Save, 1 Don't save, 2 Cancel.
+    in property <bool> confirm-open;
+    in property <string> confirm-name;
+    // The question's wording (app::ask sets them; the defaults are the "Save changes?" question).
+    in property <string> confirm-title: "Save changes?";
+    in property <string> confirm-detail: "Your changes will be lost if you don't save them.";
+    in property <string> confirm-primary: "Save";
+    in property <string> confirm-secondary: "Don't save";
+    callback confirm-answer(int);
+    // Opens the cast popup (and searches for devices).
+    callback cast();
+    callback key(string, bool, bool, bool) -> bool; // text, ctrl, shift, alt
+    // Canvas: a new blank picture at once (Ctrl+N or the top bar). preset: 0 window size, 1 1920 x 1080,
+    // 2 A4 at 150 dpi; the width and height strings are used only for preset 3 (custom).
+    callback new-canvas(int, string, string, bool);
+}
+
+// Casting to a TV or speaker (src/cast.rs): the devices found on the network and the cast in progress.
+export global Cast {
+    in property <[string]> devices;
+    in property <bool> searching;
+    // True once a search has ended, so "nothing found" can be told from "still searching".
+    in property <bool> searched;
+    // The device the file is cast to; empty when not casting.
+    in property <string> casting-to;
+    in property <bool> playing;
+    callback refresh();
+    callback pick(int);
+    callback pause();
+    callback stop();
+    callback system-cast();
+}
+
+export global Viewer {
+    in property <image> picture;
+    in property <int> pic-w: 1;
+    in property <int> pic-h: 1;
+    in property <bool> loading;
+    in property <string> error;
+    in property <string> position; // "3 / 27"
+    in property <bool> has-prev;
+    in property <bool> has-next;
+    in property <bool> dirty;
+    in property <bool> show-info;
+    in property <string> info-name;
+    in property <string> info-detail;
+
+    // Zoom: fit to the window, or `scale` picture pixels per logical pixel.
+    in-out property <bool> fit: true;
+    in-out property <float> scale: 1;
+    in-out property <length> pan-x;
+    in-out property <length> pan-y;
+
+    // "", "crop", "markup", "resize"
+    in-out property <string> mode;
+    in-out property <float> crop-x: 0;
+    in-out property <float> crop-y: 0;
+    in-out property <float> crop-w: 1;
+    in-out property <float> crop-h: 1;
+    // Width over height of the crop box; 0 means free.
+    in-out property <float> crop-aspect: 0;
+
+    in property <[Mark]> marks;
+    // Tools: 0 pen, 1 highlighter, 2 arrow, 3 box, 4 text, 5 eraser, 6 ellipse, 7 line, 8 eyedropper, 9 paint bucket,
+    // 10 rectangle select, 11 move.
+    in-out property <int> tool: 0;
+    in-out property <color> ink: #E5484D;
+    in-out property <float> ink-width: 6;
+    // Box and ellipse are filled with the ink.
+    in-out property <bool> fill-shape;
+    // Up to six recent colours, newest first.
+    in property <[color]> recent-colours;
+    // A canvas (a new document with no file yet), and whether its background is transparent.
+    in property <bool> canvas;
+    in-out property <bool> canvas-transparent;
+    // The canvas size flyout: resize to w x h (strings typed) with the background; a preset: 0 window, 1 1080p, 2 A4.
+    callback canvas-resize(string, string, bool);
+    callback canvas-preset(int);
+    // The eraser: false removes whole marks (object eraser), true paints out markup ink only (pixel eraser).
+    in-out property <bool> pixel-eraser: false;
+    // The rectangle selection (picture pixels), and the mark picked for moving or resizing.
+    in property <bool> has-sel;
+    in property <float> sel-x;
+    in property <float> sel-y;
+    in property <float> sel-w;
+    in property <float> sel-h;
+    in property <bool> has-box;
+    in property <float> box-x;
+    in property <float> box-y;
+    in property <float> box-w;
+    in property <float> box-h;
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    // Where the text tool is typing (picture pixels); -1 when not typing.
+    in property <float> text-x: -1;
+    in property <float> text-y: -1;
+    // The text being typed for the text tool (kept here so Rust can commit it on any exit).
+    in-out property <string> pending-text;
+
+    in-out property <string> resize-w;
+    in-out property <string> resize-h;
+    in-out property <bool> resize-keep: true;
+
+    callback prev();
+    callback next();
+    callback rotate();
+    callback flip(bool); // true: left-right
+    callback set-mode(string);
+    callback apply-crop();
+    callback crop-preset(float);
+    callback apply-resize();
+    callback resize-edited(bool); // true: width changed
+    // Shift was held when a mark's press started: its corner handle keeps the box's proportions.
+    in-out property <bool> mark-shift;
+    callback mark-begin(float, float);
+    callback mark-move(float, float);
+    callback mark-end();
+    callback commit-text();
+    callback undo();
+    callback redo();
+    callback clear-marks();
+    callback apply-marks();
+    callback save();
+    callback save-as();
+    callback copy();
+    callback revert();
+    callback toggle-info();
+    callback open-folder();
+
+    // Animated GIF / WebP.
+    in property <bool> animated;
+    in property <bool> anim-playing;
+    in property <string> frame-text;
+    callback anim-toggle();
+    callback anim-step(int);
+    callback save-frame();
+    // Recycle Bin for a file, discard for a snip that was never saved.
+    callback delete-current();
+
+    // Status bar.
+    in property <string> file-type;
+    in property <string> dims-text;
+    in property <string> size-text;
+    // The three above joined with " | " for the status bar.
+    in property <string> facts-text;
+    // The picture is a file (Share and Show in folder need one).
+    in property <bool> can-share;
+    // The fit-to-window scale the stage computes (for the zoom slider and percentage).
+    in-out property <float> fit-scale: 1;
+    callback print();
+    callback share();
+
+    // Filmstrip, and side-by-side comparison of the pictures picked in it (Ctrl+click).
+    in-out property <bool> filmstrip;
+    in property <[Thumb]> thumbs;
+    in property <bool> comparing;
+    in property <[image]> compare-images;
+    // The grid for the comparison: columns and rows.
+    in property <int> compare-cols: 1;
+    in property <int> compare-rows: 1;
+    callback toggle-filmstrip();
+    callback thumb-clicked(int, bool);
+    callback close-compare();
+
+    // Slideshow: moves through the folder's pictures every few seconds, wrapping at the end.
+    in property <bool> slideshow-on;
+    callback toggle-slideshow();
+
+    // Markup tools and colours.
+    callback set-tool(int);
+    callback pick-colour(color);
+    callback pick-hex(string);
+    callback crop-selection();
+    callback cut-selection();
+    callback delete-selection();
+
+    // The colour picker: hue (0 to 360), saturation and value (0 to 1); the colour and pure hue it shows; the hex text.
+    in-out property <float> picker-h: 0;
+    in-out property <float> picker-s: 1;
+    in-out property <float> picker-v: 1;
+    in property <color> picker-rgb;
+    in property <color> picker-hue;
+    in-out property <string> picker-hex;
+    callback picker-sync();
+    callback picker-changed();
+    callback picker-use();
+    // The colour picker's model (0 RGB, 1 HSL, 2 OKLCH) and its three fields as text; picker-field(index, text) is
+    // a field typed in.
+    in-out property <int> picker-model: 0;
+    in-out property <string> picker-a;
+    in-out property <string> picker-b;
+    in-out property <string> picker-c;
+    callback picker-field(int, string);
+}
+
+export global Player {
+    in property <image> frame;
+    in property <bool> has-video;
+    in property <bool> playing;
+    in property <float> position; // 0..1
+    // Scrubbing: while the seek bar or the waveform is dragged, scrub-pos is the spot under the pointer, and both show it.
+    in-out property <bool> scrubbing: false;
+    in-out property <float> scrub-pos: 0;
+    in property <string> time-text; // "2:42 / 6:16"
+    in-out property <float> volume: 1;
+    in property <bool> muted;
+    // Repeat: 0 off, 1 once more, 2 forever.
+    in property <int> loop-mode;
+    in property <string> subtitle;
+    in property <[Choice]> audio-tracks;
+    in property <[Choice]> subtitle-tracks;
+    in property <string> media-title;
+    in property <string> media-detail;
+    // Details panel (Audio and Video tabs): the file name, then the facts as lines of "Label: value".
+    in property <bool> show-info;
+    in property <string> info-name;
+    in property <string> info-detail;
+    callback toggle-info();
+    in property <string> error;
+    in property <bool> buffering;
+    in-out property <bool> trim-mode;
+    in property <float> trim-start: 0;
+    in property <float> trim-end: 1;
+    in property <string> trim-text;
+    in property <bool> exporting;
+    // Trim edits: undo and redo are possible, and the range differs from the whole file (Discard).
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    in property <bool> trim-dirty;
+
+    in property <int> video-w: 16;
+    in property <int> video-h: 9;
+    in property <string> speed-text: "1×";
+    in property <[Choice]> speeds;
+    // The speed as a number (0.25 to 3), for the speed slider.
+    in property <float> speed-value: 1;
+    // Status bar: codec, bitrate, sample rate, channels, resolution and fps, duration, size.
+    in property <string> meta-text;
+    // Waveform of the sound track: about 300 bar heights (0..1), and whether it is ready.
+    in property <[float]> wave-bars;
+    in property <bool> has-wave;
+    // Markers saved with the recording (<name>.json): each one's place on the seek bar (0..1) and its label.
+    in property <[float]> marker-ticks;
+    in property <[string]> marker-labels;
+    // Show the waveform as the seek bar too (the trim range always shows it).
+    in-out property <bool> wave-seek: false;
+    // Subtitle controls: delay, size, and a picture subtitle placed as fractions of the video.
+    in property <string> sub-delay-text: "0 ms";
+    in property <float> sub-scale: 1;
+    in property <bool> has-sub-picture;
+    in property <image> sub-picture;
+    in property <float> sub-x;
+    in property <float> sub-y;
+    in property <float> sub-w;
+    in property <float> sub-h;
+
+    // Playlist panel (Audio and Video tabs): the files opened together, or the folder's files of the same kind.
+    in property <[PlaylistItem]> playlist;
+    in property <bool> playlist-on;
+    in property <bool> has-prev;
+    in property <bool> has-next;
+    callback toggle-playlist();
+    callback play-item(int);
+    callback play-next();
+    callback play-prev();
+    // Continue: the next playlist item plays when one ends.
+    in-out property <bool> auto-next: true;
+    callback toggle-auto-next();
+
+    callback toggle-play();
+    callback seek(float);
+    callback seek-preview(float);
+    callback seek-marker(int); // index into marker-ticks
+    callback skip(int); // seconds
+    callback set-volume(float);
+    callback toggle-mute();
+    callback toggle-loop();
+    callback pick-audio(int);
+    callback pick-subtitle(int);
+    callback load-subtitle-file();
+    callback snapshot();
+    callback trim-set(bool); // true: start
+    callback trim-save();
+    callback save-in-place();
+    callback trim-undo();
+    callback trim-redo();
+    callback trim-discard();
+    callback share();
+    callback open-folder();
+    callback pick-speed(int);
+    callback speed-step(int);
+    callback set-speed(float); // 0.25 to 3 (Rust rounds to steps of 0.05)
+    callback trim-drag(bool, float); // true: start; the fraction of the timeline
+    callback sub-delay(int); // change in ms; 0 resets
+    callback sub-size(int); // -1 smaller, +1 larger, 0 resets
+}
+
+// The camera page (src/cameractl.rs): the live preview, photo or video mode, the timer, the grid, the mirror and the
+// device list. Rust sets the state; the page's clicks call the callbacks, and Rust sets the values back.
+export global Camera {
+    in property <image> frame;
+    in property <bool> has-frame;
+    in property <bool> running;
+    in property <bool> recording;
+    in property <string> time-text: "0:00";
+    // Seconds left before a timed photo (0 when none is counting down).
+    in property <int> countdown;
+    in property <string> countdown-text;
+    in property <image> thumb;
+    in property <bool> has-thumb;
+    in property <string> status;
+    // The open camera's frame size ("1280 x 720") and the folder photos and videos are saved to.
+    in property <string> resolution;
+    in property <string> save-folder;
+    in property <[string]> devices;
+    in-out property <int> device-index: 0;
+    // True in video mode, false in photo mode.
+    in-out property <bool> video-mode: false;
+    // 0 off, 1 3 s, 2 5 s, 3 10 s.
+    in-out property <int> timer-index: 0;
+    in-out property <bool> grid: false;
+    in-out property <bool> mirror: true;
+    callback shutter();
+    callback set-device(int);
+    callback set-video(bool);
+    callback set-timer(int);
+    callback set-grid(bool);
+    callback set-mirror(bool);
+    callback open-last();
+    callback check-again();
+}
+
+export global Voice {
+    in property <bool> recording;
+    in property <bool> paused;
+    in property <string> time-text: "00:00";
+    in property <float> level;
+    in property <[RecentItem]> takes;
+    in property <string> folder;
+    // The microphones (the first is the default one) and the file formats; the index of the one picked.
+    in property <[string]> mics;
+    in-out property <int> mic-index: 0;
+    in property <[string]> formats;
+    in-out property <int> format-index: 0;
+    // Markers added during the recording, as "Marker 1 · 0:12".
+    in property <[string]> markers;
+    // The take picked in the list (-1 for none), and the new name typed for it.
+    in-out property <int> selected: -1;
+    in-out property <string> rename-text;
+    // The microphone gain in dB (-12 to +24). set-gain applies it while the slider moves; save-gain stores it.
+    in-out property <float> gain-db: 0;
+    callback set-gain(float);
+    callback save-gain();
+    callback toggle();
+    callback pause-toggle();
+    callback add-marker();
+    callback pick-mic(int);
+    callback pick-format(int);
+    callback open-take(int);
+    callback rename(int, string);
+    callback delete(int);
+    callback reveal(int);
+    callback open-folder();
+}
+
+// One cell of a Markdown table: its row and column (0 based), whether it is in the header, and its styled text.
+export struct MdCell {
+    row: int,
+    col: int,
+    header: bool,
+    styled: styled-text,
+}
+
+// One Markdown block for the preview. kind: 0 heading (level 1-6), 1 paragraph, 2 list item (indent, check: -1 none,
+// 0 open task, 1 done task, marker: the bullet or number), 3 code block (all its lines in `text`), 4 quote (one block
+// for the whole quote), 5 unused, 6 rule, 7 table (level: columns, indent: rows, cells). `styled` is the inline-styled
+// text (bold, italic, code, strike, links) for the text kinds; `text` is plain text for code.
+export struct MdBlock {
+    kind: int,
+    level: int,
+    indent: int,
+    check: int,
+    text: string,
+    marker: string,
+    styled: styled-text,
+    cells: [MdCell],
+}
+
+// One row of the JSON tree: depth, key, value summary; containers fold (open) when clicked.
+export struct JsonRow {
+    depth: int,
+    label: string,
+    value: string,
+    container: bool,
+    open: bool,
+    path: string,
+}
+
+// The Text tab. Rust reads the editor's text on demand (TextDoc.text) and fills the status, preview and tree.
+export global TextDoc {
+    // The editor's text (LF line ends) and the caret (byte offset), from the editor.
+    in-out property <string> text;
+    in-out property <int> caret;
+    in property <bool> has-doc;
+    in property <string> file-name;
+    in property <bool> dirty;
+    in property <bool> markdown;
+    in property <bool> json;
+    // The file type (the toolbar's combo): 0 plain, 1 Markdown, 2 JSON, 3 TOML, 4 YAML, 5 XML, 6 CSV, 7 INI, 8 Log.
+    in-out property <int> kind: 0;
+    // Bumped by Rust when a new document is made: the editor takes the focus.
+    in property <int> focus-serial: 0;
+    callback set-kind(int);
+    in property <string> status;
+    // The line under the tools: a JSON error, a result, or nothing.
+    in property <string> message;
+    // 0 editor only; 1 editor with the preview (Markdown) or the tree (JSON) beside it; 2 preview only (Markdown).
+    in-out property <int> view: 0;
+    in-out property <bool> word-wrap: true;
+    in property <[MdBlock]> md-blocks;
+    in property <[JsonRow]> json-rows;
+    // The find bar.
+    in-out property <bool> find-open: false;
+    in property <string> find-status;
+    // A selection the find tools set (sel-serial changes each time, so the editor applies it again).
+    in property <int> sel-start;
+    in property <int> sel-end;
+    in property <int> sel-serial;
+    // The editor's syntax colours (highlight.rs): one layer per kind, each a monospace copy of the text with only that
+    // kind showing. hl-on is off while the text is being typed (the layers would not match it), and for plain or big files.
+    in property <bool> hl-on: false;
+    in property <[color]> hl-colours;
+    in-out property <int> text-font: 0;
+    callback set-text-font(int);
+    in property <[string]> hl-texts;
+    // A code file (a kind highlight.rs knows, and not too big): the editor does not wrap, so the colour layers line up.
+    in property <bool> code-file: false;
+    // The text up to the caret, with a mark after it: the editor lays it out to scroll the caret into view.
+    in property <string> caret-prefix;
+    // The Details panel (the info button): its name and facts, filled in by Rust (textctl.rs).
+    in-out property <bool> show-info;
+    in property <string> info-name;
+    in property <string> info-detail;
+    callback toggle-info();
+
+    callback caret-moved(int);
+    callback edited();
+    // Tab in the editor: inserts a tab at the caret (or over the selection; the two byte offsets are the caret and the anchor).
+    callback insert-tab(int, int);
+    callback save();
+    callback save-as();
+    callback new-doc();
+    callback revert(); // reload the file from disk, dropping the changes
+    // Undo and redo of the text (Rust keeps the history); Share sends the saved file.
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    callback undo();
+    callback redo();
+    callback share();
+    callback open-folder();
+    callback format-json(int); // 2 or 4 spaces
+    callback minify-json();
+    callback validate-json();
+    callback sort-json();
+    callback toggle-node(string);
+    callback find-next(string);
+    callback find-prev(string);
+    callback replace-one(string, string);
+    callback replace-all(string, string);
+    // A link clicked in the Markdown preview: opened with the system.
+    callback open-link(string);
+}
+
+export global Settings {
+    in-out property <int> theme: 2; // 0 light, 1 dark, 2 system
+    // Close to tray: the window closes into the tray and the keys keep working.
+    in-out property <bool> background: false;
+    // Start with Windows: launch at sign-in (the Run entry, read and written in settingsctl.rs).
+    in-out property <bool> start-with-windows: false;
+    // Print Screen goes to Rimelight Media (Windows' own Print Screen snipping is off).
+    in-out property <bool> printscreen-ours: false;
+    in-out property <bool> snip-copy: true;
+    in-out property <bool> snip-save: true;
+    in-out property <bool> snip-open: true;
+    in-out property <bool> rec-system-audio: true;
+    in-out property <bool> rec-mic: false;
+    in-out property <int> rec-fps: 30;
+    in property <string> hotkeys-status;
+    in property <string> screenshot-folder;
+    in property <string> recording-folder;
+    in property <bool> installed;
+    in property <string> install-state;
+    in property <string> update-state;
+    in property <string> about;
+
+    callback changed();
+    callback check-updates();
+    callback open-releases();
+    callback register-defaults();
+    callback open-default-settings();
+    callback pick-folder(bool); // true: screenshots
+    in property <string> canvas-folder;
+    callback pick-canvas-folder();
+    callback open-link(string);
+}

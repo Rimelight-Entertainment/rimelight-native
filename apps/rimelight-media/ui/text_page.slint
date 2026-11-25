@@ -1,0 +1,504 @@
+// Text tab: an editor for plain text (Notepad's job), the Markdown preview beside it or alone, and the JSON tools with a
+// collapsible tree. Rust (src/textctl.rs) fills the status line, the preview blocks and the tree.
+import { ScrollView, LineEdit, ComboBox } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Icons } from "icons.slint";
+import { StatusBar, EmptyState, ToolButton } from "widgets.slint";
+import { Button, ButtonSize, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
+import { ToolDivider, ToolbarRow } from "@rimelight_ui/components/toolbar.slint";
+import { ActionRow } from "@rimelight_ui/components/action-row.slint";
+import { Shell, TextDoc, MdBlock, MdCell, JsonRow } from "state.slint";
+
+// The editor: a TextInput in a scroll view (wrapping, or scrolling sideways when wrap is off). The TextInput draws its own
+// text, caret and selection. Syntax colours are off for now (the colour layers are hidden).
+// It takes the focus when a new document is made (focus-serial changes) and when it is created.
+component Editor inherits ScrollView {
+    in property <int> focus-serial;
+    // Whether the lines wrap: the word-wrap switch, except for a code file (its colour layers need one line per line).
+    property <bool> wrapping: TextDoc.word-wrap && !TextDoc.code-file;
+    // The face: code files are always mono; plain text uses the font chosen in the toolbar (0 Mono, 1 Sans, 2 Serif).
+    property <string> face: (TextDoc.code-file || TextDoc.text-font == 0) ? "Consolas" : (TextDoc.text-font == 1 ? "Segoe UI" : "Georgia");
+    // The height of one line, and of the text up to the caret (a hidden Text lays out caret-prefix as the editor does).
+    property <length> line-h: probe.preferred-height;
+    property <length> caret-bottom: input.y + measure.preferred-height;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    content-width: root.wrapping ? self.visible-width : max(self.visible-width, input.preferred-width + 2 * Tokens.space-3);
+    content-height: max(self.visible-height, input.preferred-height + 2 * Tokens.space-3);
+
+    changed focus-serial => { input.focus(); }
+    init => { input.focus(); }
+    // Keeps the caret in view: scrolls down when it is under the bottom edge, up when it is above the top.
+    changed caret-bottom => { root.reveal(); }
+    function reveal() {
+        if (root.content-y + root.caret-bottom > root.visible-height - Tokens.space-3) {
+            root.content-y = min(0px, root.visible-height - Tokens.space-3 - root.caret-bottom);
+        }
+        if (root.content-y + root.caret-bottom - root.line-h < Tokens.space-3) {
+            root.content-y = min(0px, Tokens.space-3 + root.line-h - root.caret-bottom);
+        }
+    }
+
+
+    probe := Text { x: 0px; y: 0px; text: "Mg"; font-family: root.face; font-size: 14px; opacity: 0; }
+    measure := Text {
+        x: Tokens.space-3;
+        y: 0px;
+        width: input.width;
+        text: TextDoc.caret-prefix;
+        font-family: root.face;
+        font-size: 14px;
+        wrap: root.wrapping ? TextWrap.word-wrap : TextWrap.no-wrap;
+        opacity: 0;
+    }
+
+    // The colour layers (highlight.rs): each kind's characters in its colour, in a monospace copy of the text. Hidden:
+    // they would draw over the TextInput, which shows the text itself. Colour can come back later another way.
+    for layer[i] in TextDoc.hl-texts: Text {
+        x: Tokens.space-3;
+        y: Tokens.space-3;
+        text: layer;
+        font-family: root.face;
+        font-size: 14px;
+        color: TextDoc.hl-colours[i];
+        wrap: TextWrap.no-wrap;
+        visible: false;
+    }
+
+    input := TextInput {
+        // Tab and Shift+Tab stay in the text: the editor accepts them, so the app-wide key handler never sees them.
+        changed has-focus => { Shell.field-focus = self.has-focus; }
+        // Tab inserts a tab character (the input would never see the key, since the handler accepts it). Shift+Tab does nothing.
+        // The input fills the whole editor area (like Notepad): a click anywhere in the page puts the caret, and a click
+        // below the last line goes to the end of the text.
+        x: Tokens.space-3;
+        y: Tokens.space-3;
+        width: root.wrapping ? root.visible-width - 2 * Tokens.space-3 : max(self.preferred-width, root.visible-width - 2 * Tokens.space-3);
+        height: max(self.preferred-height, root.visible-height - 2 * Tokens.space-3);
+        font-family: root.face;
+        font-size: 14px;
+        color: Tokens.text-primary;
+        selection-background-color: Tokens.selection;
+        wrap: root.wrapping ? TextWrap.word-wrap : TextWrap.no-wrap;
+        single-line: false;
+        text <=> TextDoc.text;
+        // The selection the find tools ask for (applied again each time the serial changes).
+        property <int> serial: TextDoc.sel-serial;
+        changed serial => { self.set-selection-offsets(TextDoc.sel-start, TextDoc.sel-end); }
+        changed cursor-position-byte-offset => { TextDoc.caret-moved(self.cursor-position-byte-offset); }
+        edited => { TextDoc.edited(); }
+        key-pressed(e) => {
+            if e.text == Key.Tab {
+                TextDoc.insert-tab(self.cursor-position-byte-offset, self.anchor-position-byte-offset);
+                return accept;
+            }
+            if e.text == Key.Backtab {
+                return accept;
+            }
+            if e.modifiers.control && e.text == "s" {
+                if e.modifiers.shift { TextDoc.save-as(); } else { TextDoc.save(); }
+                return accept;
+            }
+            if e.modifiers.control && e.text == "n" {
+                TextDoc.new-doc();
+                return accept;
+            }
+            if e.modifiers.control && e.text == "f" {
+                TextDoc.find-open = !TextDoc.find-open;
+                return accept;
+            }
+            if e.modifiers.control && e.text == "z" {
+                if e.modifiers.shift { TextDoc.redo(); } else { TextDoc.undo(); }
+                return accept;
+            }
+            if e.modifiers.control && e.text == "y" {
+                TextDoc.redo();
+                return accept;
+            }
+            reject
+        }
+    }
+}
+
+// The Markdown preview: one block per paragraph, list item, quote, code block, table or rule. Inline styles (bold,
+// italic, code, strikethrough, links) come in `styled` and are drawn by StyledText, which wraps them. The preview font is
+// Segoe UI, which has the italic face (the variable Segoe UI the app uses for the rest has none, so *italic* showed upright).
+component MdLine inherits VerticalLayout {
+    in property <MdBlock> block;
+    spacing: Tokens.space-2;
+
+    if root.block.kind == 6: Rectangle { height: 1px; background: Tokens.border-subtle; }
+    if root.block.kind == 0: StyledText {
+        text: root.block.styled;
+        default-color: Tokens.text-primary;
+        default-font-family: "Segoe UI";
+        default-font-size: root.block.level <= 2 ? Type.heading.size : Type.subheading.size;
+        link-color: Tokens.accent-text;
+        horizontal-stretch: 1;
+        link-clicked(url) => { TextDoc.open-link(url); }
+    }
+    if root.block.kind == 1: StyledText {
+        text: root.block.styled;
+        default-color: Tokens.text-primary;
+        default-font-family: "Segoe UI";
+        default-font-size: Type.body.size;
+        link-color: Tokens.accent-text;
+        horizontal-stretch: 1;
+        link-clicked(url) => { TextDoc.open-link(url); }
+    }
+    if root.block.kind == 2: HorizontalLayout {
+        padding-left: root.block.indent * 20px;
+        spacing: Tokens.space-2;
+        alignment: start;
+        // A bullet (per nesting level) or the number of an ordered item.
+        if root.block.check < 0: Text {
+            text: root.block.marker;
+            color: Tokens.text-muted;
+            font-size: Type.body.size;
+            min-width: 24px;
+            vertical-alignment: top;
+        }
+        if root.block.check >= 0: Rectangle {
+            width: 14px;
+            height: 14px;
+            y: 3px;
+            border-width: 1px;
+            border-radius: 3px;
+            border-color: Tokens.border-strong;
+            background: root.block.check == 1 ? Tokens.accent-fill : transparent;
+            if root.block.check == 1: Image { source: SharedIcons.check; width: 12px; height: 12px; colorize: Tokens.text-on-accent; }
+        }
+        StyledText {
+            text: root.block.styled;
+            default-color: root.block.check == 1 ? Tokens.text-muted : Tokens.text-primary;
+            default-font-family: "Segoe UI";
+            default-font-size: Type.body.size;
+            link-color: Tokens.accent-text;
+            horizontal-stretch: 1;
+            link-clicked(url) => { TextDoc.open-link(url); }
+        }
+    }
+    // The whole code block in one dark rounded box, its lines in one monospace Text (no gaps between lines).
+    if root.block.kind == 3: Rectangle {
+        background: Tokens.surface-sunken;
+        border-radius: Tokens.radius-control;
+        VerticalLayout {
+            padding: Tokens.space-3;
+            Text {
+                text: root.block.text;
+                color: Tokens.text-primary;
+                font-family: "Consolas";
+                font-size: 13px;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+    // The quote: one block, with its bar down the left of all its lines.
+    if root.block.kind == 4: HorizontalLayout {
+        spacing: Tokens.space-3;
+        Rectangle { width: 3px; background: Tokens.border-strong; border-radius: 1.5px; }
+        StyledText {
+            text: root.block.styled;
+            default-color: Tokens.text-muted;
+            default-font-family: "Segoe UI";
+            default-font-size: Type.body.size;
+            link-color: Tokens.accent-text;
+            horizontal-stretch: 1;
+            link-clicked(url) => { TextDoc.open-link(url); }
+        }
+    }
+    // The table: a grid of cells with 1px borders and a header background (Rust sets each cell's row and column).
+    if root.block.kind == 7: GridLayout {
+        spacing: 0px;
+        for c in root.block.cells: Rectangle {
+            row: c.row;
+            col: c.col;
+            background: c.header ? Tokens.surface-sunken : transparent;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            VerticalLayout {
+                padding: Tokens.space-2;
+                StyledText {
+                    text: c.styled;
+                    default-color: Tokens.text-primary;
+                    default-font-family: "Segoe UI";
+                    default-font-size: Type.body.size;
+                    link-color: Tokens.accent-text;
+                    horizontal-stretch: 1;
+                    link-clicked(url) => { TextDoc.open-link(url); }
+                }
+            }
+        }
+    }
+}
+
+component Preview inherits ScrollView {
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    content-width: self.visible-width;
+    content-height: body.preferred-height;
+    body := VerticalLayout {
+        width: root.visible-width;
+        padding: Tokens.space-5;
+        spacing: Tokens.space-3;
+        alignment: start;
+        for b in TextDoc.md-blocks: MdLine { block: b; }
+    }
+}
+
+// One row of the JSON tree. Containers fold when clicked.
+component TreeRow inherits Rectangle {
+    in property <JsonRow> item;
+    height: 24px;
+    background: ta.has-hover ? Tokens.surface-hover : transparent;
+    HorizontalLayout {
+        padding-left: Tokens.space-2 + root.item.depth * 16px;
+        padding-right: Tokens.space-2;
+        spacing: Tokens.space-1;
+        // A chevron icon (not a text arrow, which the font can't draw), shown only on containers.
+        Rectangle {
+            width: 14px;
+            if root.item.container: Image {
+                source: root.item.open ? SharedIcons.chevron-down : SharedIcons.chevron-right;
+                width: 14px;
+                height: 14px;
+                y: (parent.height - self.height) / 2;
+                colorize: Tokens.text-muted;
+            }
+        }
+        Text { text: root.item.label; color: Tokens.accent-text; font-family: "Consolas"; font-size: 13px; vertical-alignment: center; }
+        Text { text: root.item.value; color: root.item.container ? Tokens.text-muted : Tokens.text-primary; font-family: "Consolas"; font-size: 13px; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { if root.item.container { TextDoc.toggle-node(root.item.path); } }
+    }
+}
+
+component Tree inherits ScrollView {
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    content-width: self.visible-width;
+    content-height: body.preferred-height;
+    body := VerticalLayout {
+        width: root.visible-width;
+        padding: Tokens.space-3;
+        spacing: 0px;
+        alignment: start;
+        if TextDoc.json-rows.length == 0: Text {
+            text: "Not valid JSON yet. Use Validate to find the error.";
+            color: Tokens.text-muted;
+            font-size: Type.body.size;
+            wrap: word-wrap;
+        }
+        for r in TextDoc.json-rows: TreeRow { item: r; }
+    }
+}
+
+export component TextPage inherits Rectangle {
+    background: Tokens.surface-base;
+    property <string> find-text;
+    property <string> repl-text;
+
+    VerticalLayout {
+        // Main toolbar, as the picture page's: file actions on the left (icons with tooltips), the views and the
+        // find and wrap switches on the right, and the file type last.
+        // Always shown, as on every tab: with no document the file buttons are disabled.
+        ToolbarRow {
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.folder-open; label: "Open a file"; tooltip: "Open a file"; clicked => { Shell.open-file(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-search; label: "Show in folder"; tooltip: "Show in folder"; enabled: TextDoc.has-doc && TextDoc.file-name != ""; clicked => { TextDoc.open-folder(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save; label: "Save (Ctrl+S)"; tooltip: "Save (Ctrl+S)"; enabled: TextDoc.has-doc && (TextDoc.dirty || TextDoc.file-name == ""); clicked => { TextDoc.save(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save-as; label: "Save as (Ctrl+Shift+S)"; tooltip: "Save as (Ctrl+Shift+S)"; enabled: TextDoc.has-doc; clicked => { TextDoc.save-as(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.share-2; label: "Share"; tooltip: "Share"; enabled: TextDoc.has-doc && TextDoc.file-name != ""; clicked => { TextDoc.share(); } }
+            ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.undo-2; label: "Undo (Ctrl+Z)"; tooltip: "Undo (Ctrl+Z)"; enabled: TextDoc.has-doc && TextDoc.can-undo; clicked => { TextDoc.undo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.redo-2; label: "Redo (Ctrl+Y)"; tooltip: "Redo (Ctrl+Y)"; enabled: TextDoc.has-doc && TextDoc.can-redo; clicked => { TextDoc.redo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Discard changes"; tooltip: "Discard changes"; enabled: TextDoc.has-doc && TextDoc.dirty; clicked => { TextDoc.revert(); } }
+            Text {
+                text: !TextDoc.has-doc ? "" : TextDoc.file-name == "" ? "Untitled" : TextDoc.file-name;
+                color: Tokens.text-primary;
+                font-size: Type.body.size;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+                max-width: 260px;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            // Markdown views, as JetBrains' editor and preview switch: editor only, split, preview only.
+            if TextDoc.markdown: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.md-editor; label: "Editor only"; tooltip: "Editor only"; selected: TextDoc.view == 0; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.view = 0; } }
+            if TextDoc.markdown: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.columns-2; label: "Split: editor and preview"; tooltip: "Split: editor and preview"; selected: TextDoc.view == 1; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.view = 1; } }
+            if TextDoc.markdown: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.eye; label: "Preview only"; tooltip: "Preview only"; selected: TextDoc.view == 2; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.view = 2; } }
+            // JSON views, as the Markdown ones: the text editor, or the collapsible tree.
+            if TextDoc.json: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.file-code; label: "Editor: edit the JSON text"; tooltip: "Editor: edit the JSON text"; selected: TextDoc.view == 0; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.view = 0; } }
+            if TextDoc.json: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.list-tree; label: "Tree: browse the JSON, folding its objects and arrays"; tooltip: "Tree: browse the JSON, folding its objects and arrays"; selected: TextDoc.view == 1; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.view = 1; } }
+            if TextDoc.markdown || TextDoc.json: ToolDivider { }
+            // The font of plain text (hidden for a code file, which is always mono).
+            if !TextDoc.code-file: ComboBox {
+                model: ["Mono", "Sans", "Serif"];
+                current-index <=> TextDoc.text-font;
+                enabled: TextDoc.has-doc;
+                width: 100px;
+                height: Tokens.size-control-md;
+                changed current-index => { TextDoc.set-text-font(self.current-index); }
+            }
+            if !TextDoc.code-file: ToolDivider { }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.text-wrap; label: "Word wrap"; tooltip: "Word wrap"; selected: TextDoc.word-wrap; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.word-wrap = !TextDoc.word-wrap; } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.search; label: "Find (Ctrl+F)"; tooltip: "Find (Ctrl+F)"; selected: TextDoc.find-open; ghost-toggle: true; enabled: TextDoc.has-doc; clicked => { TextDoc.find-open = !TextDoc.find-open; } }
+            ToolDivider { }
+            // The file type: sets the mode now; Save as uses its extension by default. Changing it never renames a file.
+            ComboBox {
+                model: ["Plain text", "Markdown", "JSON", "TOML", "YAML", "XML", "CSV", "INI", "Log"];
+                current-index <=> TextDoc.kind;
+                enabled: TextDoc.has-doc;
+                width: 128px;
+                height: Tokens.size-control-md;
+                changed current-index => { TextDoc.set-kind(self.current-index); }
+            }
+            if Shell.recording || TextDoc.has-doc: ToolDivider { }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+            // Closes the text back to the empty tab (shown only when a document is open).
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Close the text"; tooltip: "Close the text"; enabled: TextDoc.has-doc; clicked => { Shell.close-tab(); } }
+        }
+
+        // JSON tools, as an edit row under the toolbar: icons only, each with a tooltip that says what it does, and the
+        // tool's message.
+        if TextDoc.has-doc && TextDoc.json: ActionRow {
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.indent-increase; label: "Format with 2-space indent"; tooltip: "Format with 2-space indent"; clicked => { TextDoc.format-json(2); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.list-indent; label: "Format with 4-space indent"; tooltip: "Format with 4-space indent"; clicked => { TextDoc.format-json(4); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.minimize; label: "Minify: remove all spaces and line breaks"; tooltip: "Minify: remove all spaces and line breaks"; clicked => { TextDoc.minify-json(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.check; label: "Validate: check the JSON and show where it fails"; tooltip: "Validate: check the JSON and show where it fails"; clicked => { TextDoc.validate-json(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.sort-az; label: "Sort keys A to Z at every level"; tooltip: "Sort keys A to Z at every level"; clicked => { TextDoc.sort-json(); } }
+            if TextDoc.message != "": ToolDivider { }
+            Text {
+                text: TextDoc.message;
+                color: Tokens.text-muted;
+                font-size: Type.caption.size;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+        }
+
+        // The find bar (Ctrl+F): the Find and Replace fields, the count, previous and next, Replace and Replace all on
+        // the left; the close button flush right.
+        if TextDoc.has-doc && TextDoc.find-open: ActionRow {
+            LineEdit {
+                placeholder-text: "Find";
+                width: 220px;
+                height: Tokens.size-control-md;
+                text <=> root.find-text;
+                accepted => { TextDoc.find-next(root.find-text); }
+            }
+            LineEdit {
+                placeholder-text: "Replace with";
+                width: 220px;
+                height: Tokens.size-control-md;
+                text <=> root.repl-text;
+            }
+            Text {
+                text: TextDoc.find-status;
+                color: Tokens.text-muted;
+                font-size: Type.caption.size;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+                min-width: 72px;
+                overflow: elide;
+            }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.chevron-up; label: "Previous match"; tooltip: "Previous match"; clicked => { TextDoc.find-prev(root.find-text); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.chevron-down; label: "Next match"; tooltip: "Next match"; clicked => { TextDoc.find-next(root.find-text); } }
+            Button { text: "Replace"; variant: ButtonVariant.secondary; clicked => { TextDoc.replace-one(root.find-text, root.repl-text); } }
+            Button { text: "Replace all"; variant: ButtonVariant.secondary; clicked => { TextDoc.replace-all(root.find-text, root.repl-text); } }
+            Rectangle { horizontal-stretch: 1; }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Close the find bar"; tooltip: "Close the find bar"; clicked => { TextDoc.find-open = false; } }
+        }
+
+        // The body: the editor, and the preview or tree beside it (or the preview alone).
+        Rectangle {
+            vertical-stretch: 1;
+            background: Tokens.surface-base;
+            if !TextDoc.has-doc: EmptyState {
+                width: parent.width;
+                height: parent.height;
+                icon-kind: "text";
+                title: "Open a text file";
+                formats: ".bat, .cfg, .conf, .css, .csv, .env, .html, .ini, .js, .json, .log, .markdown, .md, .ps1, .rs, .sh, .text, .toml, .ts, .txt, .xml, .yaml, .yml";
+                open-text: "Open a file";
+                new-text: "New text file";
+                new-icon: Icons.file-plus;
+                recents: Shell.recents-text;
+                open => { Shell.open-file(); }
+                new-file => { TextDoc.new-doc(); }
+                open-recent(i) => { Shell.open-recent(i); }
+                clear-recents => { Shell.clear-recents("text"); }
+            }
+            if TextDoc.has-doc: HorizontalLayout {
+                // Details: on the far left of the body (hidden in full screen with the other bars).
+                if TextDoc.show-info && !Shell.full-screen: Rectangle {
+                    width: 280px;
+                    background: Tokens.surface-raised;
+                    border-width: 1px;
+                    border-color: Tokens.border-subtle;
+                    VerticalLayout {
+                        padding: Tokens.space-4;
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        Text { text: "Details"; color: Tokens.text-primary; font-size: Type.subheading.size; font-weight: 600; }
+                        Text { text: TextDoc.info-name; color: Tokens.text-primary; font-size: Type.body.size; wrap: word-wrap; }
+                        Text { text: TextDoc.info-detail; color: Tokens.text-muted; font-size: Type.caption.size; wrap: word-wrap; }
+                    }
+                }
+                if !(TextDoc.markdown && TextDoc.view == 2): Editor { focus-serial: TextDoc.focus-serial; }
+                if (TextDoc.markdown && TextDoc.view >= 1) || (TextDoc.json && TextDoc.view == 1): Rectangle {
+                    width: 1px;
+                    background: Tokens.border-subtle;
+                }
+                if TextDoc.markdown && TextDoc.view >= 1: Preview { }
+                if TextDoc.json && TextDoc.view == 1: Tree { }
+            }
+        }
+
+        // The status bar, as on every tab: "Ln 1, Col 1 | 0 characters | LF | UTF-8" (empty with no document).
+        // The saved state comes first, always shown (no layout shift on edit): "Saved" when clean, "Unsaved" when
+        // dirty or never saved. It is as wide as "Unsaved" and is followed by the same " | "
+        // separator as the rest.
+        StatusBar {
+          // One row with no spacing, so the " | " after the saved state matches the separators inside the status text.
+          HorizontalLayout {
+            spacing: 0;
+            horizontal-stretch: 1;
+            // The Details button, bottom left, as on the picture tab (the same size and look).
+            if TextDoc.has-doc: HorizontalLayout {
+                height: 28px;
+                padding-right: 6px;
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.info; label: "Details"; tooltip: "Details"; selected: TextDoc.show-info; ghost-toggle: true; clicked => { TextDoc.toggle-info(); } }
+            }
+            if TextDoc.has-doc: Rectangle {
+                // As wide as the longest label, so the bar never shifts when the state changes.
+                width: widest.preferred-width;
+                widest := Text { text: "Unsaved"; font-size: Type.caption.size; opacity: 0; }
+                saved-state := Text {
+                    x: 0; width: parent.width;
+                    text: (TextDoc.dirty || TextDoc.file-name == "") ? "Unsaved" : "Saved";
+                    color: (TextDoc.dirty || TextDoc.file-name == "") ? Tokens.status-warning : Tokens.text-muted;
+                    font-size: Type.caption.size;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+            Text {
+                text: TextDoc.has-doc ? " | " + TextDoc.status : TextDoc.status;
+                color: Tokens.text-muted;
+                font-size: Type.caption.size;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+          }
+        }
+    }
+}

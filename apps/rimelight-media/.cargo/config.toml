@@ -1,0 +1,14 @@
+# FFmpeg (LGPL, shared build): the same pinned build rimelight-space uses, fetched into ffmpeg/current by
+# tools/get-ffmpeg.ps1. An FFMPEG_DIR already set in the environment wins.
+[env]
+FFMPEG_DIR = { value = "ffmpeg/current", relative = true, force = false }
+
+# Rimelight Media builds into its own target/ folder: never the shared rimelight-space one.
+[build]
+target-dir = "target"
+
+# The LLVM linker shipped with the toolchain: much faster than link.exe for Slint apps. The C runtime is linked in, so
+# the app doesn't need the Visual C++ Redistributable installed.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustflags = ["-C", "target-feature=+crt-static"]

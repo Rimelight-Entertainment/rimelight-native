@@ -1,0 +1,4 @@
+# The short YAML extension.
+service:
+  name: sample
+  port: 8080

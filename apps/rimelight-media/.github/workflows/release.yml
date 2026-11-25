@@ -1,0 +1,52 @@
+name: Release
+
+# Pushing a version tag such as v0.2.0 builds the installer and update package and publishes them as a GitHub release.
+# Installed copies check this repository's latest release and update themselves (Velopack, as rimelight-space).
+# The tag must equal `version` in Cargo.toml. Uses only the built-in GITHUB_TOKEN: no secrets to set up.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  # Also runnable by hand (Actions > Release > Run workflow), choosing the tag to release under "Use workflow from".
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # The Velopack CLI version. Keep in step with tools/pack.ps1 ($vpkVersion).
+  VPK_VERSION: "1.2.161"
+
+jobs:
+  windows:
+    name: Windows installer and update package
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3 (Node 24)
+      - name: Install vpk (Velopack CLI)
+        run: dotnet tool install --global vpk --version $env:VPK_VERSION
+        shell: pwsh
+      - name: Fetch the previous release (for small delta updates)
+        run: vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --outputDir releases
+        continue-on-error: true # the first release has nothing to fetch
+      - name: Build and pack
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          ./tools/pack.ps1 -Version $version -Repo "${{ github.repository }}"
+      - name: Publish the GitHub release
+        run: >
+          vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
+          --token "${{ secrets.GITHUB_TOKEN }}" --publish
+          --releaseName "Rimelight Media ${{ github.ref_name }}" --tag "${{ github.ref_name }}"
+          --outputDir releases

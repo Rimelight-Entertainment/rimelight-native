@@ -1,0 +1,315 @@
+// Media's own controls that the shared rimelight_ui components cannot replace without losing behaviour. Everything else
+// (Button, IconButton, Switch, Slider, Card, ToolbarRow, ActionRow, ToolDivider, FileKindTile, RecentList, Dialog) comes
+// from @rimelight_ui. The kept pieces and why:
+// - Choice: the row struct the track and subtitle lists fill (Rust builds it, ui::Choice).
+// - StageIconButton: the light-on-dark button for the picture and capture stage (the shared Button cannot take a tint).
+// - ConfirmDialog: an inline overlay with Cancel on the left, as Media's save prompt (the shared Dialog is a popup that
+//   needs open() and right-aligned footer actions).
+// - EmptyState: Open and New buttons, a file-kind tile and the Recent list in one fixed layout (the shared EmptyState has
+//   one action and no file tile). It also holds Media's file-kind tile colours and glyphs.
+// - StatusBar: a left text, a centre text and a free row of children (the shared StatusBar is the shell's job and zoom bar).
+// - ShortcutsCtl: the open flag of Media's shortcut list.
+import { ScrollView } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
+import { Icons } from "icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Tooltip, TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
+import { FileKindTile } from "@rimelight_ui/components/tile.slint";
+import { RecentList, RecentItem, FileKindStyle, FileKindStyles } from "@rimelight_ui/components/recent-list.slint";
+
+export struct Choice {
+    label: string,
+    detail: string,
+    selected: bool,
+}
+
+// The toolbar and status-bar icon button: the shared IconButton, always the ghost variant (no outline), as Media always had.
+export component ToolButton inherits IconButton {
+    variant: ButtonVariant.ghost;
+}
+
+// An icon button on the dark picture and capture stage: the light icon, with the stage's hover and pressed fills. The
+// shared IconButton's colours cannot be changed, so the stage keeps its own. The tooltip is the shared Tooltip.
+export component StageIconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    in property <length> size: Tokens.size-control-md;
+    in property <length> icon-size: Tokens.icon-medium;
+    in property <TooltipPlacement> tooltip-placement: TooltipPlacement.bottom;
+    callback clicked();
+
+    width: root.size;
+    height: root.size;
+    border-radius: Tokens.radius-control;
+    background: !root.enabled ? transparent
+        : root.active ? #FFFFFF33
+        : ta.pressed ? #FFFFFF2A
+        : ta.has-hover ? Tokens.extension-media-stage-control-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+
+    Image {
+        source: root.icon;
+        width: root.icon-size;
+        height: root.icon-size;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        colorize: root.enabled ? Tokens.extension-media-text-on-stage : Tokens.text-faint;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    tip := Tooltip {
+        text: root.label;
+        placement: root.tooltip-placement;
+        anchor-width: root.width;
+        anchor-height: root.height;
+        anchor-hovered: ta.has-hover && root.enabled;
+    }
+}
+
+// A modal question over the window: a dimmed overlay and a card with a title, a name and the buttons. The overlay takes
+// every click, so nothing behind it works until the question is answered. `answer(0)` Save, `answer(1)` Don't save,
+// `answer(2)` Cancel.
+export component ConfirmDialog inherits Rectangle {
+    in property <string> title: "Save changes?";
+    in property <string> name;
+    in property <string> detail: "Your changes will be lost if you don't save them.";
+    // The first two buttons' labels (answer 0 and 1); an empty second label hides that button. Cancel is answer 2.
+    in property <string> primary-text: "Save";
+    in property <string> secondary-text: "Don't save";
+    callback answer(int);
+
+    background: Tokens.scrim;
+    // Swallows the clicks that would reach the page behind.
+    TouchArea { }
+
+    Rectangle {
+        width: min(420px, parent.width - 2 * Tokens.space-6);
+        height: layout.preferred-height;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Tokens.surface-overlay;
+        border-radius: Tokens.radius-r8;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 16px;
+        drop-shadow-color: #00000060;
+
+        layout := VerticalLayout {
+            padding: Tokens.space-5;
+            spacing: Tokens.space-2;
+            alignment: start;
+            Text { text: root.title; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; }
+            Text { text: root.name; color: Tokens.text-primary; font-size: Type.body.size; font-weight: 600; overflow: elide; }
+            Text { text: root.detail; color: Tokens.text-muted; font-size: Type.body.size; wrap: word-wrap; }
+            Rectangle { height: Tokens.space-3; }
+            // Cancel bottom-left; Don't save then Save flush right, with the same gap as Tokens.space-2 elsewhere.
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { root.answer(2); } }
+                Rectangle { horizontal-stretch: 1; }
+                if root.secondary-text != "": Button { text: root.secondary-text; variant: ButtonVariant.secondary; clicked => { root.answer(1); } }
+                Button { text: root.primary-text; variant: ButtonVariant.primary; clicked => { root.answer(0); } }
+            }
+        }
+    }
+}
+
+// The Ctrl+? shortcut list: `open` is true while it is shown. Every status bar sets it; the app window shows the list.
+export global ShortcutsCtl {
+    in-out property <bool> open;
+}
+
+// The bottom bar of a tab: the same height on every tab, always shown (empty left text when nothing is open).
+// Left: left-text (metadata joined with " | "), elided. Middle: center-text, when set. Right: @children (icon buttons
+// and short controls, vertically centred). Rightmost: the shortcuts button.
+export component StatusBar inherits Rectangle {
+    in property <string> left-text;
+    in property <string> center-text;
+
+    height: Tokens.component-status-bar-height;
+    background: Tokens.surface-raised;
+
+    HorizontalLayout {
+        padding-left: Tokens.space-2;
+        // Room for the shortcuts button at the right edge (see below).
+        padding-right: Tokens.space-2 + 28px + Tokens.space-3;
+        padding-top: (Tokens.component-status-bar-height - 28px) / 2;
+        padding-bottom: (Tokens.component-status-bar-height - 28px) / 2;
+        spacing: Tokens.space-3;
+        alignment: stretch;
+        // With no left-text, the page lays out the whole bar itself in @children (e.g. buttons on the left too).
+        if root.left-text != "": Text {
+            text: root.left-text;
+            color: Tokens.text-muted;
+            font-size: Type.caption.size;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+        if root.center-text != "": Text {
+            text: root.center-text;
+            color: Tokens.text-muted;
+            font-size: Type.caption.size;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            min-width: 48px;
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+            alignment: root.left-text != "" ? LayoutAlignment.end : LayoutAlignment.stretch;
+            horizontal-stretch: root.left-text != "" ? 0 : 1;
+            @children
+        }
+    }
+    // Rightmost on every page: opens the Ctrl+? shortcut list. Placed at the right edge; the row leaves room for it.
+    ToolButton {
+        // A Rectangle does not constrain its children, so the square size is set here (else it fills the whole bar).
+        width: Tokens.size-control-sm;
+        x: root.width - self.width - Tokens.space-2;
+        y: (root.height - self.height) / 2;
+        size: ButtonSize.sm;
+        icon: SharedIcons.keyboard;
+        label: "Keyboard shortcuts (Ctrl+?)";
+        tooltip: "Keyboard shortcuts (Ctrl+?)";
+        clicked => { ShortcutsCtl.open = true; }
+    }
+    Rectangle { y: 0px; height: 1px; background: Tokens.border-subtle; }
+}
+
+// The empty state of a tab: a centred column (max 640 px wide) with the big icon in the file-type colour, the title,
+// the supported file types, the Open button and, when new-text is set, the New button beside it. The tab's Recent list
+// (already filtered to its kind by the host) sits under the buttons, with a Clear button that clears that kind.
+// on-stage: the light-on-dark look for the picture and video stage. The host supplies the background.
+export component EmptyState inherits Rectangle {
+    in property <image> icon;
+    in property <color> icon-colour: Tokens.text-muted;
+    // The icon keeps its own colours (the app icon); otherwise it is tinted with icon-colour.
+    in property <bool> icon-full-colour: false;
+    // A file kind ("picture", "video", "music" or "text"): shows that kind's Explorer tile instead of `icon`.
+    in property <string> icon-kind;
+    in property <string> title;
+    // The types the open button takes, e.g. ".png, .jpg and more". A "Supported file types:" label sits above them.
+    in property <string> formats;
+    // A sentence shown in place of the types (the home page). Empty: the types are shown.
+    in property <string> hint;
+    in property <string> open-text: "Open a file";
+    // Empty: no new-file button (audio, for example).
+    in property <string> new-text: "";
+    in property <image> new-icon;
+    in property <[RecentItem]> recents;
+    in property <bool> on-stage: false;
+    callback open();
+    callback new-file();
+    callback open-recent(int);
+    callback clear-recents();
+
+    property <color> ink: root.on-stage ? Tokens.extension-media-text-on-stage : Tokens.text-primary;
+    property <color> muted: root.on-stage ? #9AA4B2 : Tokens.text-muted;
+    // The file-kind tiles of Media: the header tile and the Recent rows use these.
+    property <FileKindStyles> file-kinds: {
+        picture: { top-colour: #7DD3FC, bottom-colour: #0284C7, glyph: SharedIcons.image, styled: true },
+        video: { top-colour: #C4B5FD, bottom-colour: #7C3AED, glyph: SharedIcons.video, styled: true },
+        music: { top-colour: #FDA4AF, bottom-colour: #E11D48, glyph: Icons.music, styled: true },
+        text: { top-colour: #86EFAC, bottom-colour: #16A34A, glyph: SharedIcons.type, styled: true },
+    };
+    property <FileKindStyle> icon-style: root.icon-kind == "picture" ? root.file-kinds.picture
+        : root.icon-kind == "video" ? root.file-kinds.video
+        : root.icon-kind == "music" ? root.file-kinds.music
+        : root.file-kinds.text;
+
+    ScrollView {
+        VerticalLayout {
+            // Every empty tab and the home page use this one layout: the top section starts at the same height and has
+            // fixed-height rows, so nothing moves when the text changes. The Recent list starts below it, the same place
+            // everywhere. The list scrolls.
+            padding-top: Tokens.space-8;
+            padding-bottom: Tokens.space-6;
+            padding-left: Tokens.space-6;
+            padding-right: Tokens.space-6;
+            alignment: start;
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    width: min(640px, root.width - 2 * Tokens.space-6);
+                    alignment: start;
+                    VerticalLayout {
+                        height: Tokens.component-empty-state-top-section;
+                        alignment: start;
+                        spacing: Tokens.space-3;
+                        HorizontalLayout {
+                            height: 56px;
+                            alignment: center;
+                            if root.icon-kind != "": FileKindTile {
+                                kind: root.icon-kind;
+                                tile-size: 56px;
+                                top-colour: root.icon-style.top-colour;
+                                bottom-colour: root.icon-style.bottom-colour;
+                                glyph: root.icon-style.glyph;
+                            }
+                            if root.icon-kind == "" && !root.icon-full-colour: Image { source: root.icon; width: 56px; height: 56px; colorize: root.icon-colour; }
+                            if root.icon-kind == "" && root.icon-full-colour: Image { source: root.icon; width: 56px; height: 56px; }
+                        }
+                        Text {
+                            text: root.title;
+                            color: root.ink;
+                            font-size: Type.title.size;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            height: 40px;
+                        }
+                        // Three lines for the text, whatever the list holds, so the buttons never move.
+                        VerticalLayout {
+                            height: 88px;
+                            alignment: start;
+                            spacing: Tokens.space-1;
+                            if root.hint == "": Text { text: "Supported file types:"; color: root.muted; font-size: Type.body.size; horizontal-alignment: center; height: 20px; }
+                            if root.hint == "": Text { text: root.formats; color: root.muted; font-size: Type.body.size; horizontal-alignment: center; wrap: word-wrap; vertical-alignment: top; }
+                            if root.hint != "": Text { text: root.hint; color: root.muted; font-size: Type.body.size; horizontal-alignment: center; wrap: word-wrap; vertical-alignment: top; }
+                        }
+                        HorizontalLayout {
+                            height: Tokens.size-control-md;
+                            alignment: center;
+                            spacing: Tokens.space-2;
+                            Button {
+                                text: root.open-text;
+                                variant: ButtonVariant.primary;
+                                leading-icon: SharedIcons.folder-open;
+                                clicked => { root.open(); }
+                            }
+                            if root.new-text != "": Button {
+                                text: root.new-text;
+                                variant: ButtonVariant.secondary;
+                                leading-icon: root.new-icon;
+                                clicked => { root.new-file(); }
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        padding-top: Tokens.space-5;
+                        RecentList {
+                            recents: root.recents;
+                            ink: root.ink;
+                            muted: root.muted;
+                            file-kind-styles: root.file-kinds;
+                            open-recent(i) => { root.open-recent(i); }
+                            clear-recents => { root.clear-recents(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

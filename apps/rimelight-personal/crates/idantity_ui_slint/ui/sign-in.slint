@@ -1,0 +1,28 @@
+// The session state (crate idantity_ui_slint), driven by the Rust side (src/session.rs). The shell draws the shared
+// SignInScreen over the whole window (sidebar included) until the phase is signed-in, so nothing of the app shows before
+// sign-in, and one full-window "Connection lost" overlay while signed in and offline. Same behaviour as Rimelight Space
+// (rimelight_shell SignInScreen and SessionPhase, ConnectionState).
+//
+// Phases: loading (checking the server and any stored session), signed-out (the sign-in button and any error), waiting (the
+// browser finishes the sign-in), signed-in (the app shows) and unreachable ("Can't reach idantity", retried on its own).
+import { SessionPhase } from "@rimelight_shell/components/sign-in-screen.slint";
+import { ConnectionState } from "@rimelight_shell/components/connection-state.slint";
+
+export global Session {
+    in-out property <SessionPhase> phase: SessionPhase.loading;
+    // The line under the sign-in button. Empty when there is no error.
+    in-out property <string> error: "";
+    // The state the periodic reachability check sets while signed in.
+    in-out property <ConnectionState> connection: ConnectionState.connected;
+    out property <bool> signed-in: self.phase == SessionPhase.signed-in;
+    // Signed in and the server cannot be reached: the connection-lost overlay blocks the app.
+    out property <bool> connection-lost: self.phase == SessionPhase.signed-in && self.connection == ConnectionState.offline;
+    // The user pressed Sign in. Rust opens the Access login.
+    callback sign-in();
+    // The user cancelled a sign-in that is waiting for the browser.
+    callback cancel();
+    // The user pressed Retry on the unreachable screen.
+    callback retry();
+    // The user chose Sign out (the shell's account menu calls it).
+    callback sign-out();
+}

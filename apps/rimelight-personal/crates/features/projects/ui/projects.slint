@@ -1,0 +1,229 @@
+// The Projects page (web: src/components/projects/KanbanBoard.tsx). It draws only.
+// The columns are the shared BoardPage template (rimelight-rs rimelight_shell/templates/board-page.slint): drag a card
+// to a column, or use the Left and Right arrows on a focused card. The template reports each move as `moved(key, lane)`
+// and the Rust controller applies it. Data comes in through the properties; every user action goes out through a
+// `*-requested` callback. The Rust controller (src/lib.rs of this crate) holds the state, and the shell's glue wires the
+// two. No colour, size, font or duration literal here: everything comes from Tokens, Type and Icons.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { BoardPage, BoardLane, BoardItem } from "@rimelight_shell/templates/board-page.slint";
+
+export struct ProjectBoardTab {
+    id: string,
+    title: string,
+    active: bool,
+}
+
+export component ProjectsPage inherits VerticalLayout {
+    // Data in.
+    in property <[ProjectBoardTab]> boards;
+    in property <bool> has-active-board;
+    // The active board's columns, in board order. A lane's index is what the move and add callbacks carry.
+    in property <[BoardLane]> lanes;
+    // The lane whose "Task card title" input is open (-1 for none).
+    in property <int> adding-lane: -1;
+    in property <bool> loading;
+    // Empty means no error.
+    in property <string> error;
+    // The text of the three inputs. Rust clears them when the page accepts the input.
+    in-out property <string> new-board-title;
+    in-out property <string> new-list-title;
+    in-out property <string> card-title;
+    // The card last picked (pressed without a drag). Its delete action shows while it is set; Rust does not read it.
+    in-out property <string> picked-key;
+
+    // Actions out.
+    callback refresh-requested();
+    callback select-board-requested(string);
+    callback create-board-requested();
+    callback create-list-requested();
+    callback start-card-requested(int);
+    callback cancel-card-requested();
+    callback submit-card-requested();
+    callback move-card-requested(string, int);
+    callback delete-card-requested(string);
+    callback dismiss-error-requested();
+    // The column under a point, asked of the caller (see the BoardPage comment). Answered by the Rust glue.
+    callback column-at(float, float, float, int) -> int;
+
+    spacing: Tokens.space-3;
+
+    // Board selector and the new-board form.
+    Card {
+        title: "Boards";
+
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            Flickable {
+                horizontal-stretch: 1;
+                interactive: true;
+                content-width: boards-row.preferred-width;
+                content-height: boards-row.preferred-height;
+
+                boards-row := HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    for board in root.boards : Button {
+                        text: board.title;
+                        accessible-name: "Board " + board.title;
+                        variant: board.active ? ButtonVariant.primary : ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        clicked => { root.select-board-requested(board.id); }
+                    }
+                }
+            }
+
+            Input {
+                placeholder: "New board name";
+                accessible-name: "New board name";
+                size: InputSize.md;
+                text <=> root.new-board-title;
+                submitted(value) => { root.create-board-requested(); }
+            }
+            Button {
+                text: "+ Board";
+                variant: ButtonVariant.primary;
+                size: ButtonSize.md;
+                clicked => { root.create-board-requested(); }
+            }
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    if root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+    }
+
+    if !root.has-active-board && !root.loading : EmptyState {
+        title: "No board yet";
+        description: "Create a board to start adding columns and tasks.";
+    }
+
+    // The picked card's actions.
+    if root.picked-key != "" : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Button {
+            text: "Delete card";
+            accessible-name: "Delete selected card";
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.sm;
+            clicked => {
+                root.delete-card-requested(root.picked-key);
+                root.picked-key = "";
+            }
+        }
+        Button {
+            text: "Clear selection";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.picked-key = ""; }
+        }
+    }
+
+    // The "Task card title" input for the lane whose "+ Add Task" was pressed.
+    if root.adding-lane >= 0 : Card {
+        title: "New task";
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+
+            Input {
+                placeholder: "Task card title";
+                accessible-name: "Task card title";
+                size: InputSize.md;
+                text <=> root.card-title;
+                submitted(value) => { root.submit-card-requested(); }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                Button {
+                    text: "Add";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.sm;
+                    clicked => { root.submit-card-requested(); }
+                }
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.cancel-card-requested(); }
+                }
+            }
+        }
+    }
+
+    // The shared board: lanes side by side, drag and keyboard moves, and "+ Add Task" at each lane's foot.
+    BoardPage {
+        vertical-stretch: 1;
+        title: "Projects";
+        state: root.lanes.length > 0 ? PageLoadState.loaded : (root.loading ? PageLoadState.loading : PageLoadState.empty);
+        error: root.error;
+        empty-title: "No tasks yet";
+        empty-description: "Add a column and a task to start the board.";
+        board: root.lanes;
+        add-label: "+ Add Task";
+
+        moved(key, lane) => { root.move-card-requested(key, lane); }
+        add-card(lane) => { root.start-card-requested(lane); }
+        picked(key) => { root.picked-key = key; }
+        retry() => { root.refresh-requested(); }
+        column-at(x, width, gap, count) => { return root.column-at(x, width, gap, count); }
+    }
+
+    // The "Add Column" panel.
+    if root.has-active-board : Card {
+        title: "Add another column";
+        horizontal-stretch: 0;
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+
+            Input {
+                placeholder: "e.g. Blocked, Testing";
+                accessible-name: "New column name";
+                size: InputSize.md;
+                text <=> root.new-list-title;
+                submitted(value) => { root.create-list-requested(); }
+            }
+            Button {
+                text: "+ Add Column";
+                variant: ButtonVariant.secondary;
+                size: ButtonSize.md;
+                full-width: true;
+                clicked => { root.create-list-requested(); }
+            }
+        }
+    }
+}

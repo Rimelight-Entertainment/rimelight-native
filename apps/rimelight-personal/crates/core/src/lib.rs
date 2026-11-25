@@ -1,0 +1,34 @@
+//! Shared models and HTTP client for the personal API (`/api/personal/...`), the Cloudflare Access sign-in, and FX rates.
+
+pub mod api;
+pub mod auth;
+pub mod finance;
+pub mod habits;
+pub mod health;
+pub mod housing;
+pub mod inbox;
+pub mod local_date;
+pub mod music;
+pub mod notebooks;
+pub mod notes;
+pub mod projects;
+pub mod rates;
+/// The desktop Access CLI login. Native only: the browser and a worker thread.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod signin;
+pub mod storage;
+pub mod todo;
+pub mod watchlist;
+/// The browser's Access session: navigation and the cookie probe. Wasm only.
+#[cfg(target_arch = "wasm32")]
+pub mod web_session;
+
+pub use api::{ApiClient, ApiError, DEFAULT_API_BASE};
+pub use api::{BearerSource, HeaderToken};
+pub use auth::{ACCESS_HEADER, Auth, AuthError, MemoryStore, SessionStore};
+pub use finance::{Account, Bill, FinanceData};
+pub use habits::{HabitAction, HabitData};
+pub use notes::{NewNote, Note, NoteBatchAction, NotePatch};
+pub use rates::{BASE_CURRENCY, Rates, convert_to_brl, fetch_rates};
+pub use todo::NewDatedTodo;
+pub use todo::{Ack, Todo};

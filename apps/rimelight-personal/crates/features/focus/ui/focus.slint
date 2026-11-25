@@ -1,0 +1,333 @@
+// The Focus page (ported from crates/app/src/focus.rs and the web floating tools: the Focus timer, the stretch routine
+// card and the metronome card). It draws only. Data comes in through the properties; every press goes out through a
+// callback. The Rust controller (src/lib.rs of this crate) holds the state, and the shell wires the two.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and Icons.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+import { Progress } from "@rimelight_ui/components/progress.slint";
+
+// The three presets. Rust maps them to the controller's Mode.
+export enum FocusMode { work, short, long }
+
+// The Focus timer card.
+component FocusCard inherits Card {
+    in property <FocusMode> mode: FocusMode.work;
+    // The countdown, already formatted as MM:SS.
+    in property <string> time-text;
+    in property <bool> running;
+    in property <int> sessions;
+
+    callback mode-requested(FocusMode);
+    callback toggle-requested();
+    callback reset-requested();
+
+    width: Tokens.size-sheet-sm;
+
+    Text {
+        text: "Focus Timer";
+        color: Tokens.text-primary;
+        font-family: Type.subheading.family;
+        font-size: Type.subheading.size;
+        font-weight: Type.subheading.weight;
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Button {
+            horizontal-stretch: 1;
+            text: "Work";
+            leading-icon: @image-url("icons/timer.svg");
+            variant: root.mode == FocusMode.work ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.mode-requested(FocusMode.work); }
+        }
+        Button {
+            horizontal-stretch: 1;
+            text: "Short";
+            leading-icon: @image-url("icons/timer.svg");
+            variant: root.mode == FocusMode.short ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.mode-requested(FocusMode.short); }
+        }
+        Button {
+            horizontal-stretch: 1;
+            text: "Long";
+            leading-icon: @image-url("icons/timer.svg");
+            variant: root.mode == FocusMode.long ? ButtonVariant.primary : ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.mode-requested(FocusMode.long); }
+        }
+    }
+
+    VerticalLayout {
+        spacing: Tokens.space-1;
+
+        Text {
+            text: root.time-text;
+            color: Tokens.text-primary;
+            horizontal-alignment: center;
+            font-family: Type.display.family;
+            font-size: Type.display.size;
+            font-weight: Type.display.weight;
+            accessible-role: text;
+            accessible-label: "Time left " + root.time-text;
+        }
+        Text {
+            text: "Completed sessions: \{root.sessions}";
+            color: Tokens.text-muted;
+            horizontal-alignment: center;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Button {
+            horizontal-stretch: 1;
+            text: root.running ? "Pause Timer" : "Start Focus";
+            leading-icon: @image-url("icons/timer.svg");
+            variant: ButtonVariant.primary;
+            size: ButtonSize.md;
+            clicked => { root.toggle-requested(); }
+        }
+        Button {
+            horizontal-stretch: 1;
+            text: "Reset";
+            leading-icon: @image-url("icons/timer.svg");
+            variant: ButtonVariant.secondary;
+            size: ButtonSize.md;
+            clicked => { root.reset-requested(); }
+        }
+    }
+}
+
+// The metronome card: the tempo slider, four beat dots and the start or stop button.
+component MetronomeCard inherits Card {
+    in property <int> bpm;
+    in property <bool> running;
+    // The beat the dots highlight, 0 to 3.
+    in property <int> beat;
+    // The tempo range, from the controller (40 to 240 beats per minute).
+    in property <int> bpm-min: 40;
+    in property <int> bpm-max: 240;
+
+    callback bpm-changed(int);
+    callback toggle-requested();
+
+    width: Tokens.size-sheet-sm;
+
+    Text {
+        text: "Metronome";
+        color: Tokens.text-primary;
+        font-family: Type.subheading.family;
+        font-size: Type.subheading.size;
+        font-weight: Type.subheading.weight;
+    }
+
+    VerticalLayout {
+        spacing: Tokens.space-1;
+
+        Text {
+            text: "\{root.bpm} BPM";
+            color: Tokens.text-primary;
+            horizontal-alignment: center;
+            font-family: Type.display.family;
+            font-size: Type.display.size;
+            font-weight: Type.display.weight;
+            accessible-role: text;
+            accessible-label: "Tempo " + root.bpm + " beats per minute";
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: Tokens.space-2;
+
+            for index in [0, 1, 2, 3] : Rectangle {
+                width: Tokens.space-3;
+                height: Tokens.space-3;
+                border-radius: Tokens.radius-pill;
+                background: root.running && root.beat == index ? Tokens.accent-default : Tokens.surface-sunken;
+            }
+        }
+    }
+
+    Slider {
+        minimum: root.bpm-min;
+        maximum: root.bpm-max;
+        step: 1;
+        value: root.bpm;
+        accessible-name: "Tempo";
+        changed(v) => { root.bpm-changed(round(v)); }
+    }
+
+    Button {
+        text: root.running ? "Stop Metronome" : "Start Metronome";
+        leading-icon: @image-url("icons/timer.svg");
+        variant: ButtonVariant.primary;
+        size: ButtonSize.md;
+        clicked => { root.toggle-requested(); }
+    }
+}
+
+// The stretch routine card: the current step, its countdown bar, and pause, resume and stop.
+component StretchCard inherits Card {
+    in property <string> category;
+    in property <string> name;
+    // Zero-based index of the current step, and the step count.
+    in property <int> index;
+    in property <int> total;
+    in property <int> seconds-left;
+    // The step's time left, 0 to 1, for the bar.
+    in property <float> progress;
+    in property <bool> paused;
+
+    callback pause-requested();
+    callback resume-requested();
+    callback stop-requested();
+
+    width: Tokens.size-sheet-sm;
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Text {
+            horizontal-stretch: 1;
+            text: (root.category == "" ? "Stretching Routine" : root.category) + " (\{root.index + 1}/\{root.total})";
+            color: Tokens.text-primary;
+            vertical-alignment: center;
+            overflow: elide;
+            font-family: Type.subheading.family;
+            font-size: Type.subheading.size;
+            font-weight: Type.subheading.weight;
+        }
+        IconButton {
+            icon: Icons.x;
+            label: "Stop stretching routine";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.stop-requested(); }
+        }
+    }
+
+    Text {
+        text: root.name == "" ? "Stretch" : root.name;
+        color: Tokens.text-primary;
+        horizontal-alignment: center;
+        overflow: elide;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        font-weight: Type.body.weight;
+    }
+    Text {
+        text: "\{root.seconds-left}s";
+        color: Tokens.text-primary;
+        horizontal-alignment: center;
+        font-family: Type.display.family;
+        font-size: Type.display.size;
+        font-weight: Type.display.weight;
+        accessible-role: text;
+        accessible-label: "Seconds left " + root.seconds-left;
+    }
+
+    Progress {
+        value: root.progress;
+        accessible-name: "Step time left";
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-2;
+
+        Button {
+            horizontal-stretch: 1;
+            text: root.paused ? "Resume" : "Pause";
+            variant: ButtonVariant.primary;
+            size: ButtonSize.md;
+            clicked => {
+                if (root.paused) { root.resume-requested(); } else { root.pause-requested(); }
+            }
+        }
+        Button {
+            horizontal-stretch: 1;
+            text: "Stop";
+            variant: ButtonVariant.danger;
+            size: ButtonSize.md;
+            clicked => { root.stop-requested(); }
+        }
+    }
+}
+
+// The whole page: the timer, the metronome and, while a routine runs, the stretch card, stacked in one column.
+export component FocusPage inherits VerticalLayout {
+    // Timer data in.
+    in property <FocusMode> mode: FocusMode.work;
+    // The countdown, already formatted as MM:SS.
+    in property <string> time-text;
+    in property <bool> running;
+    in property <int> sessions;
+
+    // Metronome data in.
+    in property <int> bpm;
+    in property <bool> metronome-running;
+    in property <int> beat;
+
+    // Stretch routine data in. The card shows only while `stretch-visible`.
+    in property <bool> stretch-visible: false;
+    in property <string> stretch-category;
+    in property <string> stretch-name;
+    in property <int> stretch-index;
+    in property <int> stretch-total;
+    in property <int> stretch-seconds-left;
+    in property <float> stretch-progress;
+    in property <bool> stretch-paused;
+
+    // Actions out.
+    callback mode-requested(FocusMode);
+    callback toggle-requested();
+    callback reset-requested();
+    callback bpm-changed(int);
+    callback metronome-toggle-requested();
+    callback stretch-pause-requested();
+    callback stretch-resume-requested();
+    callback stretch-stop-requested();
+
+    spacing: Tokens.space-3;
+
+    FocusCard {
+        mode: root.mode;
+        time-text: root.time-text;
+        running: root.running;
+        sessions: root.sessions;
+        mode-requested(m) => { root.mode-requested(m); }
+        toggle-requested => { root.toggle-requested(); }
+        reset-requested => { root.reset-requested(); }
+    }
+
+    MetronomeCard {
+        bpm: root.bpm;
+        running: root.metronome-running;
+        beat: root.beat;
+        bpm-changed(v) => { root.bpm-changed(v); }
+        toggle-requested => { root.metronome-toggle-requested(); }
+    }
+
+    if root.stretch-visible : StretchCard {
+        category: root.stretch-category;
+        name: root.stretch-name;
+        index: root.stretch-index;
+        total: root.stretch-total;
+        seconds-left: root.stretch-seconds-left;
+        progress: root.stretch-progress;
+        paused: root.stretch-paused;
+        pause-requested => { root.stretch-pause-requested(); }
+        resume-requested => { root.stretch-resume-requested(); }
+        stop-requested => { root.stretch-stop-requested(); }
+    }
+}

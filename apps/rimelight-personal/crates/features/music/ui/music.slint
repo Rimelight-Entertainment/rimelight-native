@@ -1,0 +1,877 @@
+// The Music page (ported from crates/app/src/music.rs, the piano studio). It draws only.
+// Data comes in through the properties; every user action goes out through a `music-*` callback. The Rust controller
+// (src/lib.rs of this crate) holds the state, and apps/desktop/src/pages/music.rs wires the two.
+// Text the user types goes out on each change and is kept by the controller, so a rebuilt row shows it again.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and Icons.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Checkbox, CheckState } from "@rimelight_ui/components/checkbox.slint";
+import { Select, SelectOption, SelectSize } from "@rimelight_ui/components/select.slint";
+import { Tabs } from "@rimelight_ui/components/content-tabs.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+
+// One exercise row. The BPM texts are the drafts the user typed (or the value, or the default).
+export struct MusicExerciseRow {
+    id: string,
+    name: string,
+    bpm-text: string,
+    target-text: string,
+    done: bool,
+    can-up: bool,
+    can-down: bool,
+}
+
+export struct MusicAttachmentRow {
+    id: string,
+    name: string,
+    audio: bool,
+}
+
+// One repertoire card. `expanded` shows its attachments.
+export struct MusicPieceRow {
+    id: string,
+    title: string,
+    composer: string,
+    status: string,
+    difficulty: int,
+    expanded: bool,
+    uploading: bool,
+    attachments: [MusicAttachmentRow],
+}
+
+export struct MusicBlockItemRow {
+    id: string,
+    name: string,
+    done: bool,
+}
+
+// One routine block: its title and its checklist.
+export struct MusicBlockRow {
+    id: string,
+    name: string,
+    items: [MusicBlockItemRow],
+}
+
+// One row of the routine's two columns: the left block, and the right one when there is one.
+export struct MusicBlockPair {
+    left: MusicBlockRow,
+    right: MusicBlockRow,
+    has-right: bool,
+}
+
+// One beat button of the metronome. `kind`: 0 accent, 1 normal, 2 muted.
+export struct MusicBeatCell {
+    label: string,
+    kind: int,
+}
+
+// One routine block as a card: its title, its checklist and its add-item button. Its actions go out through the
+// callbacks, which the page forwards to the controller.
+component MusicBlockCard inherits Card {
+    in property <MusicBlockRow> block;
+    callback name-edited(string, string);
+    callback remove-requested(string);
+    callback item-add-requested(string);
+    callback item-remove-requested(string, string);
+    callback item-edited(string, string, string);
+    callback item-check-changed(string, bool);
+
+    VerticalLayout {
+        spacing: Tokens.space-2;
+
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            Input {
+                horizontal-stretch: 1;
+                size: InputSize.md;
+                placeholder: "Block Title";
+                accessible-name: "Block title";
+                text: root.block.name;
+                changed(value) => { root.name-edited(root.block.id, value); }
+            }
+            Button {
+                text: "Remove Block";
+                accessible-name: "Remove block " + root.block.name;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.remove-requested(root.block.id); }
+            }
+        }
+        for item in root.block.items : HorizontalLayout {
+            spacing: Tokens.space-2;
+            Checkbox {
+                check-state: item.done ? CheckState.checked : CheckState.unchecked;
+                accessible-name: "Done " + item.name;
+                changed(checked) => { root.item-check-changed(item.id, checked); }
+            }
+            // A done task is struck through: the line runs through the editable field.
+            Rectangle {
+                horizontal-stretch: 1;
+                min-height: Tokens.size-control-md;
+                Input {
+                    x: 0;
+                    y: 0;
+                    width: parent.width;
+                    height: parent.height;
+                    size: InputSize.md;
+                    placeholder: "Task / Exercise";
+                    accessible-name: "Task";
+                    text: item.name;
+                    changed(value) => { root.item-edited(root.block.id, item.id, value); }
+                }
+                Rectangle {
+                    x: 0;
+                    width: parent.width;
+                    height: 2px;
+                    y: parent.height / 2;
+                    visible: item.done;
+                    background: Tokens.text-muted;
+                }
+            }
+            Button {
+                leading-icon: Icons.x;
+                accessible-name: "Remove item " + item.name;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.item-remove-requested(root.block.id, item.id); }
+            }
+        }
+        Button {
+            text: "Add item";
+            accessible-name: "Add item to " + root.block.name;
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.item-add-requested(root.block.id); }
+        }
+    }
+}
+
+export component MusicPage inherits VerticalLayout {
+    // Data in.
+    in property <bool> loaded;
+    // Empty means no notice.
+    in property <string> notice;
+    // "" when idle; otherwise the save line. `save-kind`: 0 idle, 1 saving, 2 saved, 3 error.
+    in property <string> save-label;
+    in property <int> save-kind;
+    in property <[MusicExerciseRow]> exercises;
+    // The repertoire after the search and the stage filter.
+    in property <[MusicPieceRow]> pieces;
+    // The repertoire before any filter: zero means the empty state with its add button.
+    in property <int> piece-count;
+    in property <[SelectOption]> stage-options;
+    in property <[SelectOption]> filter-options;
+    in property <[MusicBlockRow]> blocks;
+    // The routine's blocks, two to a row.
+    in property <[MusicBlockPair]> block-pairs;
+    // The metronome.
+    in-out property <float> metronome-bpm;
+    in property <int> metronome-bpm-whole;
+    in property <float> bpm-min: 30;
+    in property <float> bpm-max: 260;
+    in property <bool> metronome-running;
+    in property <int> metronome-beats;
+    in property <int> metronome-subdivision;
+    in property <[MusicBeatCell]> metronome-cells;
+    // The beat lit while the metronome runs (-1 for none).
+    in property <int> metronome-lit;
+    in property <int> metronome-total;
+    in property <[string]> subdivision-labels: ["Quarter", "Eighth", "Sixteenth", "Triplet"];
+    in property <[int]> beat-options: [2, 3, 4, 5, 6, 7, 8];
+    in property <[int]> difficulty-steps: [1, 2, 3, 4, 5];
+    // The tab shown, and the text the fields hold (kept here so Rust can read them when an action runs).
+    in-out property <int> tab;
+    // The studio: 0 piano, 1 guitar, 2 DJ. Its title and tab strip follow it. The DJ strip has no repertoire tab, so
+    // `tab-strip` is the index in the strip shown, and `tab` stays the index in the full list.
+    in property <int> studio;
+    in property <int> tab-strip;
+    // The metronome's 5-minute countdown: whether it is on, and the time left while it runs ("mm:ss").
+    in property <bool> countdown;
+    in property <string> remaining-text;
+    in-out property <string> search;
+    in-out property <string> status-filter;
+    // True while a file is dragged over the window (the platform's drag state): the drop zone highlights.
+    in property <bool> drag-hovering;
+
+    // Actions out.
+    callback music-tab-requested(int);
+    callback music-dismiss-notice-requested();
+    callback music-exercise-add-requested();
+    callback music-exercise-move-requested(string, bool);
+    callback music-exercise-remove-requested(string);
+    callback music-exercise-check-changed(string, bool);
+    callback music-exercise-name-edited(string, string);
+    callback music-exercise-bpm-edited(string, string);
+    callback music-exercise-target-edited(string, string);
+    callback music-search-edited(string);
+    callback music-filter-picked(string);
+    callback music-piece-add-requested();
+    callback music-piece-expand-requested(string);
+    callback music-piece-remove-requested(string);
+    callback music-piece-title-edited(string, string);
+    callback music-piece-composer-edited(string, string);
+    callback music-piece-status-picked(string, string);
+    callback music-piece-difficulty-requested(string, int);
+    callback music-attachment-open-requested(string);
+    callback music-attachment-remove-requested(string, string);
+    callback music-attachment-pick-requested(string);
+    callback music-block-add-requested();
+    callback music-block-remove-requested(string);
+    callback music-block-name-edited(string, string);
+    callback music-block-item-add-requested(string);
+    callback music-block-item-remove-requested(string, string);
+    callback music-block-item-edited(string, string, string);
+    callback music-block-item-check-changed(string, bool);
+    callback music-metronome-tap-requested();
+    callback music-metronome-toggle-requested();
+    callback music-metronome-bpm-changed(float);
+    callback music-metronome-step-requested(float);
+    callback music-metronome-beats-picked(int);
+    callback music-metronome-subdivision-picked(int);
+    callback music-metronome-beat-cycled(int);
+    callback music-metronome-countdown-changed(bool);
+
+    spacing: Tokens.space-3;
+    // The page takes the whole content width, as the egui studio did (its columns split the available width).
+    horizontal-stretch: 1;
+
+    // Header: the title, and the save line on the right.
+    HorizontalLayout {
+        spacing: Tokens.space-3;
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Tokens.space-1;
+
+            Text {
+                text: root.studio == 1 ? "Guitar Studio & Practice" : (root.studio == 2 ? "DJ Studio & Practice" : "Piano Studio & Practice");
+                color: Tokens.text-primary;
+                font-family: Type.heading.family;
+                font-size: Type.heading.size;
+                font-weight: Type.heading.weight;
+            }
+            Text {
+                text: "Daily routines, metronome, technical exercises, and repertoire.";
+                color: Tokens.text-muted;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+        }
+        if root.save-kind != 0 : Text {
+            vertical-alignment: center;
+            text: root.save-label;
+            color: root.save-kind == 2 ? Tokens.status-success : (root.save-kind == 3 ? Tokens.status-danger : Tokens.text-muted);
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+    }
+
+    if root.notice != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Music";
+        description: root.notice;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.music-dismiss-notice-requested(); }
+    }
+
+    if !root.loaded : Text {
+        text: "Loading music studio...";
+        color: Tokens.text-muted;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+        font-weight: Type.body.weight;
+    }
+
+    // The studio is laid out at its full height; the shell's page body scrolls it.
+    if root.loaded : VerticalLayout {
+        vertical-stretch: 1;
+
+        studio := VerticalLayout {
+            spacing: Tokens.space-3;
+            alignment: start;
+
+            Tabs {
+                horizontal-stretch: 1;
+                accessible-name: "Music sections";
+                tabs: root.studio == 2
+                    ? [{ label: "Exercises" }, { label: "Daily Routine" }, { label: "Metronome" }]
+                    : [{ label: "Exercises" }, { label: "Repertoire" }, { label: "Daily Routine" }, { label: "Metronome" }];
+                active: root.tab-strip;
+                activated(index) => { root.music-tab-requested(index); }
+            }
+
+            // Practice exercises: a checklist of drills with their current and target BPM.
+            if root.tab == 0 : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Text {
+                        horizontal-stretch: 1;
+                        text: "Practice Exercises";
+                        vertical-alignment: center;
+                        color: Tokens.text-primary;
+                        font-family: Type.subheading.family;
+                        font-size: Type.subheading.size;
+                        font-weight: Type.subheading.weight;
+                    }
+                    Button {
+                        text: "Add Exercise";
+                        accessible-name: "Add Exercise";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.md;
+                        leading-icon: Icons.plus;
+                        clicked => { root.music-exercise-add-requested(); }
+                    }
+                }
+                if root.exercises.length == 0 : EmptyState {
+                    title: "No exercises added yet";
+                    description: "Add drills, scales, and speed exercises to track your BPM progress.";
+                    action-label: "Add First Exercise";
+                    action => { root.music-exercise-add-requested(); }
+                }
+                for row in root.exercises : HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    Checkbox {
+                        check-state: row.done ? CheckState.checked : CheckState.unchecked;
+                        accessible-name: "Practised " + row.name;
+                        changed(checked) => { root.music-exercise-check-changed(row.id, checked); }
+                    }
+                    Button {
+                        text: "▲";
+                        accessible-name: "Move up " + row.name;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        enabled: row.can-up;
+                        clicked => { root.music-exercise-move-requested(row.id, true); }
+                    }
+                    Button {
+                        text: "▼";
+                        accessible-name: "Move down " + row.name;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        enabled: row.can-down;
+                        clicked => { root.music-exercise-move-requested(row.id, false); }
+                    }
+                    // A done exercise is struck through: the line runs through the editable field.
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        min-height: Tokens.size-control-md;
+                        Input {
+                            x: 0;
+                            y: 0;
+                            width: parent.width;
+                            height: parent.height;
+                            size: InputSize.md;
+                            placeholder: "e.g. Major Scale Alt Picking";
+                            accessible-name: "Exercise name";
+                            text: row.name;
+                            changed(value) => { root.music-exercise-name-edited(row.id, value); }
+                        }
+                        Rectangle {
+                            x: 0;
+                            width: parent.width;
+                            height: 2px;
+                            y: parent.height / 2;
+                            visible: row.done;
+                            background: Tokens.text-muted;
+                        }
+                    }
+                    Text {
+                        text: "CURRENT BPM";
+                        vertical-alignment: center;
+                        color: Tokens.text-faint;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    Input {
+                        width: Tokens.size-control-md * 2;
+                        size: InputSize.md;
+                        placeholder: "60";
+                        accessible-name: "Current BPM";
+                        text: row.bpm-text;
+                        changed(value) => { root.music-exercise-bpm-edited(row.id, value); }
+                    }
+                    Text {
+                        text: "TARGET BPM";
+                        vertical-alignment: center;
+                        color: Tokens.text-faint;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    Input {
+                        width: Tokens.size-control-md * 2;
+                        size: InputSize.md;
+                        placeholder: "—";
+                        accessible-name: "Target BPM";
+                        text: row.target-text;
+                        changed(value) => { root.music-exercise-target-edited(row.id, value); }
+                    }
+                    Button {
+                        leading-icon: Icons.x;
+                        accessible-name: "Delete exercise " + row.name;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.sm;
+                        clicked => { root.music-exercise-remove-requested(row.id); }
+                    }
+                }
+            }
+
+            // Repertoire: search, a stage filter, and one card per piece.
+            if root.tab == 1 : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Input {
+                        horizontal-stretch: 1;
+                        size: InputSize.md;
+                        placeholder: "Search repertoire songs & composers...";
+                        accessible-name: "Search repertoire";
+                        text <=> root.search;
+                        changed(value) => { root.music-search-edited(value); }
+                    }
+                    Select {
+                        size: SelectSize.md;
+                        options: root.filter-options;
+                        value <=> root.status-filter;
+                        accessible-name: "Stage filter";
+                        changed(value) => { root.music-filter-picked(value); }
+                    }
+                    Button {
+                        text: "Add Song / Piece";
+                        accessible-name: "Add Song / Piece";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.md;
+                        leading-icon: Icons.plus;
+                        clicked => { root.music-piece-add-requested(); }
+                    }
+                }
+                if root.piece-count == 0 : EmptyState {
+                    title: "No repertoire pieces found";
+                    description: "Add classical pieces, songs, solos, or etudes to your repertoire list.";
+                    action-label: "Add First Piece";
+                    action => { root.music-piece-add-requested(); }
+                }
+                if root.piece-count > 0 && root.pieces.length == 0 : EmptyState {
+                    title: "No repertoire pieces found";
+                    description: "No piece matches the search or the stage.";
+                }
+                for piece in root.pieces : Card {
+                    VerticalLayout {
+                        spacing: Tokens.space-2;
+
+                        HorizontalLayout {
+                            spacing: Tokens.space-2;
+                            Button {
+                                text: piece.expanded ? "▾" : "▸";
+                                accessible-name: "Open " + piece.title;
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.music-piece-expand-requested(piece.id); }
+                            }
+                            Input {
+                                horizontal-stretch: 2;
+                                size: InputSize.md;
+                                placeholder: "Piece Title";
+                                accessible-name: "Piece title";
+                                text: piece.title;
+                                changed(value) => { root.music-piece-title-edited(piece.id, value); }
+                            }
+                            Input {
+                                horizontal-stretch: 1;
+                                size: InputSize.md;
+                                placeholder: "Composer / Artist";
+                                accessible-name: "Composer of " + piece.title;
+                                text: piece.composer;
+                                changed(value) => { root.music-piece-composer-edited(piece.id, value); }
+                            }
+                            Select {
+                                size: SelectSize.md;
+                                options: root.stage-options;
+                                value: piece.status;
+                                accessible-name: "Stage of " + piece.title;
+                                changed(value) => { root.music-piece-status-picked(piece.id, value); }
+                            }
+                            for step in root.difficulty-steps : Button {
+                                text: step <= piece.difficulty ? "★" : "☆";
+                                accessible-name: "Difficulty " + step + " of " + piece.title;
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.music-piece-difficulty-requested(piece.id, step); }
+                            }
+                            Text {
+                                text: piece.attachments.length > 0 ? "\{piece.attachments.length} files" : "";
+                                vertical-alignment: center;
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            Button {
+                                leading-icon: Icons.x;
+                                accessible-name: "Delete " + piece.title;
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.sm;
+                                clicked => { root.music-piece-remove-requested(piece.id); }
+                            }
+                        }
+
+                        if piece.expanded : VerticalLayout {
+                            spacing: Tokens.space-2;
+
+                            Text {
+                                text: "Progress Audio Memos, Sheets & Tabs";
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            Text {
+                                text: "Upload practice audio recordings, sheet music PDFs, or tabs into Cloudflare R2";
+                                color: Tokens.text-muted;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            // File picker: the same upload as a drop, chosen in the system dialog.
+                            Button {
+                                text: "Choose file...";
+                                variant: ButtonVariant.secondary;
+                                size: ButtonSize.md;
+                                enabled: !piece.uploading;
+                                accessible-name: "Choose attachment file";
+                                clicked => { root.music-attachment-pick-requested(piece.id); }
+                            }
+                            // The drop zone: files dropped on the window attach to the open piece. It highlights while a
+                            // file is dragged over the window.
+                            Rectangle {
+                                height: Tokens.size-control-md * 3;
+                                background: root.drag-hovering ? Tokens.selection : Tokens.surface-sunken;
+                                border-color: root.drag-hovering ? Tokens.accent-default : Tokens.border-subtle;
+                                border-width: 1px;
+                                border-radius: Tokens.radius-control;
+
+                                Text {
+                                    x: 0;
+                                    width: parent.width;
+                                    height: parent.height;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    text: piece.uploading ? "Uploading..." : "Drop an audio or score file here to upload";
+                                    color: root.drag-hovering ? Tokens.text-primary : Tokens.text-muted;
+                                    font-family: Type.code.family;
+                                    font-size: Type.code.size;
+                                    font-weight: Type.code.weight;
+                                }
+                            }
+                            if piece.attachments.length == 0 : Text {
+                                text: "No audio memos or sheet attachments uploaded yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            for att in piece.attachments : HorizontalLayout {
+                                spacing: Tokens.space-2;
+                                Text {
+                                    text: att.audio ? "Audio Recording" : "Document";
+                                    vertical-alignment: center;
+                                    color: Tokens.text-faint;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                                // The name is a link: a click opens the stored file in the system.
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    Text {
+                                        x: 0;
+                                        width: parent.width;
+                                        height: parent.height;
+                                        vertical-alignment: center;
+                                        text: att.name;
+                                        color: Tokens.accent-text;
+                                        font-family: Type.body.family;
+                                        font-size: Type.body.size;
+                                        font-weight: Type.body.weight;
+                                    }
+                                    TouchArea {
+                                        mouse-cursor: pointer;
+                                        accessible-role: button;
+                                        accessible-label: "Open " + att.name;
+                                        clicked => { root.music-attachment-open-requested(att.id); }
+                                    }
+                                }
+                                Button {
+                                    leading-icon: Icons.x;
+                                    accessible-name: "Remove attachment " + att.name;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.sm;
+                                    clicked => { root.music-attachment-remove-requested(piece.id, att.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Daily routine: blocks of checklist items.
+            if root.tab == 2 : VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Tokens.space-2;
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: Tokens.space-1;
+                        Text {
+                            text: "Practice Routine Checklist";
+                            color: Tokens.text-primary;
+                            font-family: Type.subheading.family;
+                            font-size: Type.subheading.size;
+                            font-weight: Type.subheading.weight;
+                        }
+                        Text {
+                            text: "Structured daily practice checklist for piano.";
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                    }
+                    Button {
+                        text: "Add Practice Block";
+                        accessible-name: "Add Practice Block";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.md;
+                        leading-icon: Icons.plus;
+                        clicked => { root.music-block-add-requested(); }
+                    }
+                }
+                // Two equal columns of blocks, as egui's `columns(2)` laid them out: each row is a pair of cells that split the
+                // width. Rust pairs the blocks row by row, and says which right-hand cell is empty.
+                for pair in root.block-pairs : HorizontalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Tokens.space-2;
+                    MusicBlockCard {
+                        horizontal-stretch: 1;
+                        block: pair.left;
+                        name-edited(id, text) => { root.music-block-name-edited(id, text); }
+                        remove-requested(id) => { root.music-block-remove-requested(id); }
+                        item-add-requested(id) => { root.music-block-item-add-requested(id); }
+                        item-remove-requested(block, item) => { root.music-block-item-remove-requested(block, item); }
+                        item-edited(block, item, text) => { root.music-block-item-edited(block, item, text); }
+                        item-check-changed(item, done) => { root.music-block-item-check-changed(item, done); }
+                    }
+                    if pair.has-right : MusicBlockCard {
+                        horizontal-stretch: 1;
+                        block: pair.right;
+                        name-edited(id, text) => { root.music-block-name-edited(id, text); }
+                        remove-requested(id) => { root.music-block-remove-requested(id); }
+                        item-add-requested(id) => { root.music-block-item-add-requested(id); }
+                        item-remove-requested(block, item) => { root.music-block-item-remove-requested(block, item); }
+                        item-edited(block, item, text) => { root.music-block-item-edited(block, item, text); }
+                        item-check-changed(item, done) => { root.music-block-item-check-changed(item, done); }
+                    }
+                    if !pair.has-right : Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+
+            // Metronome: tap tempo, start and stop, the tempo, the time signature, the subdivision and the beats.
+            if root.tab == 3 : Card {
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+
+                    Text {
+                        text: "Precision Web Audio Metronome";
+                        color: Tokens.text-primary;
+                        font-family: Type.subheading.family;
+                        font-size: Type.subheading.size;
+                        font-weight: Type.subheading.weight;
+                    }
+                    Text {
+                        text: "High-accuracy sub-millisecond audio synthesis & practice timer.";
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        Button {
+                            text: "Tap Tempo";
+                            accessible-name: "Tap Tempo";
+                            variant: ButtonVariant.secondary;
+                            size: ButtonSize.md;
+                            clicked => { root.music-metronome-tap-requested(); }
+                        }
+                        Button {
+                            text: root.metronome-running ? "Stop" : "Start";
+                            accessible-name: root.metronome-running ? "Stop metronome" : "Start metronome";
+                            variant: ButtonVariant.primary;
+                            size: ButtonSize.md;
+                            clicked => { root.music-metronome-toggle-requested(); }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: "\{root.metronome-bpm-whole}";
+                            vertical-alignment: center;
+                            color: Tokens.text-primary;
+                            font-family: Type.display.family;
+                            font-size: Type.display.size;
+                            font-weight: Type.display.weight;
+                        }
+                        Text {
+                            text: "BPM";
+                            vertical-alignment: center;
+                            color: Tokens.text-faint;
+                            font-family: Type.code.family;
+                            font-size: Type.code.size;
+                            font-weight: Type.code.weight;
+                        }
+                        Button {
+                            leading-icon: Icons.minus;
+                            accessible-name: "Slower";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.music-metronome-step-requested(-1); }
+                        }
+                        Slider {
+                            horizontal-stretch: 1;
+                            minimum: root.bpm-min;
+                            maximum: root.bpm-max;
+                            step: 1;
+                            accessible-name: "Tempo";
+                            value <=> root.metronome-bpm;
+                            changed(value) => { root.music-metronome-bpm-changed(value); }
+                        }
+                        Button {
+                            leading-icon: Icons.plus;
+                            accessible-name: "Faster";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.music-metronome-step-requested(1); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Checkbox {
+                            text: "5-minute countdown";
+                            accessible-name: "5-minute countdown";
+                            check-state: root.countdown ? CheckState.checked : CheckState.unchecked;
+                            changed(checked) => { root.music-metronome-countdown-changed(checked); }
+                        }
+                        if root.remaining-text != "" : Text {
+                            text: root.remaining-text;
+                            vertical-alignment: center;
+                            color: Tokens.text-muted;
+                            font-family: Type.code.family;
+                            font-size: Type.code.size;
+                            font-weight: Type.code.weight;
+                        }
+                    }
+
+                    Text {
+                        text: "TIME SIGNATURE";
+                        color: Tokens.text-faint;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-1;
+                        alignment: start;
+                        for beats in root.beat-options : Button {
+                            text: "\{beats}/4";
+                            accessible-name: "\{beats}/4 time";
+                            variant: beats == root.metronome-beats ? ButtonVariant.primary : ButtonVariant.secondary;
+                            size: ButtonSize.sm;
+                            clicked => { root.music-metronome-beats-picked(beats); }
+                        }
+                    }
+
+                    Text {
+                        text: "SUBDIVISION";
+                        color: Tokens.text-faint;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-1;
+                        alignment: start;
+                        for label[index] in root.subdivision-labels : Button {
+                            text: label;
+                            accessible-name: label;
+                            variant: index == root.metronome-subdivision ? ButtonVariant.primary : ButtonVariant.secondary;
+                            size: ButtonSize.sm;
+                            clicked => { root.music-metronome-subdivision-picked(index); }
+                        }
+                    }
+
+                    Text {
+                        text: "BEAT ACCENT PATTERN (CLICK TO CHANGE)";
+                        color: Tokens.text-faint;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        for cell[index] in root.metronome-cells : VerticalLayout {
+                            spacing: Tokens.space-1;
+                            alignment: start;
+                            Button {
+                                text: "Beat \{index + 1}";
+                                accessible-name: "Beat \{index + 1}";
+                                variant: cell.kind == 0 ? ButtonVariant.primary : (cell.kind == 2 ? ButtonVariant.ghost : ButtonVariant.secondary);
+                                size: ButtonSize.md;
+                                clicked => { root.music-metronome-beat-cycled(index); }
+                            }
+                            // The lit beat while the metronome runs.
+                            Rectangle {
+                                height: Tokens.space-1;
+                                background: index == root.metronome-lit ? Tokens.accent-fill : Tokens.surface-base;
+                            }
+                            Text {
+                                text: cell.label;
+                                color: Tokens.text-faint;
+                                font-family: Type.code.family;
+                                font-size: Type.code.size;
+                                font-weight: Type.code.weight;
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Total Subdivisions: \{root.metronome-total}";
+                        color: Tokens.text-muted;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                }
+            }
+        }
+    }
+}

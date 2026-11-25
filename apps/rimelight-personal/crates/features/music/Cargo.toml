@@ -1,0 +1,17 @@
+[package]
+name = "idantity_feature_music"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Plain Rust: no slint dependency and no build.rs. The page markup is in ui/music.slint and is compiled by apps/desktop.
+[lints]
+workspace = true
+
+[dependencies]
+idantity_core.workspace = true
+# Metronome clicks (rimelight_sound) and the attachment file picker (rimelight_platform), from rimelight-rs.
+rimelight_sound = { workspace = true }
+rimelight_platform = { workspace = true }

@@ -1,0 +1,848 @@
+// The Inbox page (ported from the web MailboxSplitView and its children, and from crates/app/src/inbox.rs).
+// It draws only. Data comes in through properties; every action goes out through a `*-requested` or `*-changed`
+// callback. The Rust controller (src/lib.rs of this crate) holds the state, and the shell glue wires the two.
+// Mail bodies are structured text (src/html.rs). The web's rich-text compose toolbar is a plain editor with markup
+// buttons (bold, italic, link, list) that the controller turns into HTML.
+// No colour, size, font or duration literal here: everything comes from Tokens and Type.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Switch } from "@rimelight_ui/components/switch.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { Pagination } from "@rimelight_ui/components/pagination.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { Slider } from "@rimelight_ui/components/slider.slint";
+
+export struct InboxMailbox {
+    id: string,
+    label: string,
+    email: string,
+    selected: bool,
+}
+
+// A folder in the sidebar. `custom` folders can be renamed and deleted.
+export struct InboxFolder {
+    id: string,
+    label: string,
+    unread: int,
+    custom: bool,
+    selected: bool,
+}
+
+// An id and label pair (move targets, and the choice lists).
+export struct InboxChoice {
+    id: string,
+    label: string,
+}
+
+export struct InboxListRow {
+    id: string,
+    thread-key: string,
+    sender: string,
+    subject: string,
+    snippet: string,
+    date: string,
+    unread: bool,
+    starred: bool,
+    attachments: int,
+    selected: bool,
+}
+
+// One line of a message body. kind: 0 paragraph, 1 list item, 2 link, 3 rule, 4 picture, 5 picture not loaded.
+// depth: quote nesting. For kind 4 the glue sets `picture` from the decoded picture named by `text`.
+export struct InboxLine {
+    kind: int,
+    depth: int,
+    text: string,
+    href: string,
+    picture: image,
+}
+
+export struct InboxAttachment {
+    id: string,
+    filename: string,
+    size: string,
+}
+
+export struct InboxMessage {
+    id: string,
+    sender: string,
+    to: string,
+    cc: string,
+    date: string,
+    subject: string,
+    starred: bool,
+    read: bool,
+    is-draft: bool,
+    lines: [InboxLine],
+    attachments: [InboxAttachment],
+}
+
+export struct InboxHeader {
+    key: string,
+    value: string,
+}
+
+export component InboxPage inherits HorizontalLayout {
+    // ----- Data in -----
+    in property <bool> loading;
+    in property <string> banner;
+    in property <[InboxMailbox]> mailboxes;
+    in property <[InboxFolder]> folders;
+    in property <[InboxChoice]> move-targets;
+    in property <string> folder;
+    in-out property <string> search;
+    in property <[InboxListRow]> list;
+    in property <bool> list-loading;
+    in property <string> list-error;
+    in-out property <int> page: 1;
+    in property <int> pages: 1;
+    in property <int> total: 0;
+    in property <string> thread-key;
+    in property <[InboxMessage]> thread;
+    in property <bool> thread-loading;
+    in property <string> thread-error;
+
+    // Compose (a dialog while open).
+    in property <bool> compose-open;
+    in property <string> compose-title;
+    in property <string> compose-to;
+    in property <string> compose-cc;
+    in property <string> compose-bcc;
+    in property <bool> compose-show-cc-bcc;
+    in property <string> compose-subject;
+    in property <string> compose-body;
+    in property <string> compose-status;
+    in property <string> compose-error;
+    in property <bool> compose-sending;
+    in property <[string]> compose-attachments;
+
+    // Settings, create mailbox, folder form, confirmation, headers (dialogs while open).
+    in property <bool> settings-open;
+    in property <bool> settings-loading;
+    in property <string> settings-from-name;
+    in property <string> settings-signature;
+    in property <bool> settings-signature-enabled;
+    in property <bool> settings-saving;
+    in property <string> settings-error;
+    in property <bool> create-open;
+    in property <string> create-prefix;
+    in property <string> create-domain;
+    in property <[string]> create-domains;
+    in property <string> create-name;
+    in property <bool> create-creating;
+    in property <string> create-error;
+    in property <bool> folder-form-open;
+    in property <bool> folder-form-rename;
+    in property <string> folder-form-name;
+    in property <string> folder-form-error;
+    in property <bool> confirm-open;
+    in property <string> confirm-title;
+    in property <string> confirm-message;
+    in property <bool> headers-open;
+    in property <[InboxHeader]> headers;
+    // The attachment viewer: kind 0 picture (viewer-picture), 1 text (viewer-text), 2 media (viewer-path, played by
+    // the glue with rimelight_media). -1 when closed.
+    in property <int> viewer-kind: -1;
+    in property <string> viewer-title;
+    in property <string> viewer-text;
+    in property <string> viewer-path;
+    in property <image> viewer-picture;
+    // The message whose Move menu is open. Empty when none.
+    in-out property <string> move-menu-id;
+    // Media playback state for kind 2: playing or not, the position and length in ms, and the volume (0 to 1).
+    in property <bool> media-playing;
+    in property <int> media-position-ms;
+    in property <int> media-duration-ms;
+    in property <float> media-volume: 1;
+
+    // ----- Actions out -----
+    callback banner-dismissed();
+    callback mailbox-requested(string);
+    callback folder-requested(string);
+    callback search-requested(string);
+    callback page-requested(int);
+    callback thread-requested(string);
+    callback thread-closed();
+    callback star-requested(string, bool);
+    callback read-requested(string, bool);
+    callback move-requested(string, string);
+    callback headers-requested(string);
+    callback headers-closed();
+    // Copy the value of a header row to the clipboard (the glue writes it with rimelight_ui's clipboard).
+    callback header-copy-requested(int);
+    callback original-requested(string);
+    callback attachment-requested(string, string);
+    callback new-message-requested();
+    callback reply-requested(string, bool);
+    callback forward-requested(string);
+    callback draft-requested(string);
+    callback discard-draft-requested(string);
+    callback compose-field-changed(int, string);
+    callback compose-cc-toggled();
+    callback compose-markup-requested(string);
+    callback compose-attach-requested();
+    callback compose-attachment-removed(int);
+    callback compose-sent();
+    callback compose-closed();
+    callback settings-open-requested();
+    callback settings-closed();
+    callback settings-field-changed(int, string);
+    callback settings-signature-toggled(bool);
+    callback settings-saved();
+    callback create-open-requested();
+    callback create-closed();
+    callback create-field-changed(int, string);
+    callback create-domain-requested(int);
+    callback create-submitted();
+    callback folder-create-requested();
+    callback folder-rename-requested(string);
+    callback folder-delete-requested(string);
+    callback folder-form-closed();
+    callback folder-name-changed(string);
+    callback folder-submitted();
+    callback mailbox-delete-requested();
+    callback confirm-yes-requested();
+    callback confirm-no-requested();
+    callback viewer-closed();
+    callback media-toggle-requested();
+    callback media-seek-requested(int);
+    callback media-volume-requested(float);
+
+    spacing: Tokens.space-3;
+
+    // ===== Sidebar: mailboxes and folders =====
+    VerticalLayout {
+        width: Tokens.size-control-lg * 2;
+        spacing: Tokens.space-2;
+        for mailbox in root.mailboxes : Button {
+            text: mailbox.label;
+            accessible-name: "Mailbox " + mailbox.label;
+            variant: mailbox.selected ? ButtonVariant.primary : ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.mailbox-requested(mailbox.id); }
+        }
+        HorizontalLayout {
+            spacing: Tokens.space-1;
+            Button {
+                text: "Create Mailbox";
+                accessible-name: "Create mailbox";
+                size: ButtonSize.sm;
+                clicked => { root.create-open-requested(); }
+            }
+            Button {
+                text: "Settings";
+                accessible-name: "Mailbox settings";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.settings-open-requested(); }
+            }
+            Button {
+                text: "Delete";
+                accessible-name: "Delete mailbox";
+                variant: ButtonVariant.danger;
+                size: ButtonSize.sm;
+                clicked => { root.mailbox-delete-requested(); }
+            }
+        }
+        for f in root.folders : HorizontalLayout {
+            spacing: Tokens.space-1;
+            Button {
+                text: f.label + (f.unread > 0 ? "  " + f.unread : "");
+                accessible-name: f.label;
+                variant: f.selected ? ButtonVariant.primary : ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.folder-requested(f.id); }
+            }
+            if f.custom : Button {
+                text: "Rename";
+                accessible-name: "Rename " + f.label;
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.folder-rename-requested(f.id); }
+            }
+            if f.custom : Button {
+                text: "Delete";
+                accessible-name: "Delete " + f.label;
+                variant: ButtonVariant.danger;
+                size: ButtonSize.sm;
+                clicked => { root.folder-delete-requested(f.id); }
+            }
+        }
+        Button {
+            text: "New Folder";
+            accessible-name: "New folder";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.folder-create-requested(); }
+        }
+        Button {
+            text: "Compose";
+            accessible-name: "New message";
+            variant: ButtonVariant.primary;
+            clicked => { root.new-message-requested(); }
+        }
+    }
+
+    // ===== List: search, rows, pages =====
+    VerticalLayout {
+        width: Tokens.size-control-lg * 3;
+        spacing: Tokens.space-2;
+        if root.banner != "" : Banner {
+            tone: BannerTone.danger;
+            title: root.banner;
+            dismiss-label: "Dismiss";
+            dismiss-clicked => { root.banner-dismissed(); }
+        }
+        Input {
+            size: InputSize.md;
+            placeholder: "Search emails, try from:... is:unread";
+            accessible-name: "Search emails";
+            text <=> root.search;
+            changed(value) => { root.search-requested(value); }
+        }
+        if root.list-loading : Spinner { size: SpinnerSize.sm; }
+        if root.list-error != "" : Text {
+            text: root.list-error;
+            color: Tokens.status-danger;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            wrap: word-wrap;
+        }
+        if root.list.length == 0 && !root.list-loading : Text {
+            text: "No messages in this folder";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+        Flickable {
+            VerticalLayout {
+                spacing: Tokens.space-1;
+                for row in root.list : Rectangle {
+                    height: Tokens.size-control-lg * 1.4;
+                    background: row.selected ? Tokens.selection : Tokens.surface-raised;
+                    border-radius: Tokens.radius-control;
+                    TouchArea {
+                        accessible-role: button;
+                        accessible-label: row.subject + " from " + row.sender;
+                        clicked => { root.thread-requested(row.thread-key); }
+                    }
+                    HorizontalLayout {
+                        padding: Tokens.space-2;
+                        spacing: Tokens.space-2;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            Text {
+                                text: row.sender;
+                                color: Tokens.text-primary;
+                                font-family: row.unread ? Type.body-strong.family : Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: row.unread ? Type.body-strong.weight : Type.body.weight;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.subject;
+                                color: Tokens.text-primary;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.snippet;
+                                color: Tokens.text-muted;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                overflow: elide;
+                            }
+                        }
+                        VerticalLayout {
+                            Text {
+                                text: row.date;
+                                color: Tokens.text-muted;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                            }
+                            Button {
+                                text: row.starred ? "★" : "☆";
+                                accessible-name: row.starred ? "Unstar" : "Star";
+                                variant: ButtonVariant.link;
+                                size: ButtonSize.sm;
+                                clicked => { root.star-requested(row.id, !row.starred); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Pagination {
+            total: root.pages;
+            page <=> root.page;
+            page-changed(p) => { root.page-requested(p); }
+        }
+    }
+
+    // ===== Detail: the open conversation =====
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: Tokens.space-2;
+        if root.thread-loading : Spinner { size: SpinnerSize.md; }
+        if root.thread-error != "" : Text {
+            text: root.thread-error;
+            color: Tokens.status-danger;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            wrap: word-wrap;
+        }
+        if root.thread-key != "" && root.thread.length == 0 && !root.thread-loading : Text {
+            text: "Loading conversation";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+        if root.thread-key != "" : HorizontalLayout {
+            spacing: Tokens.space-1;
+            Button {
+                text: "Close";
+                accessible-name: "Close conversation";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.thread-closed(); }
+            }
+        }
+        Flickable {
+            VerticalLayout {
+                spacing: Tokens.space-3;
+                for message in root.thread : VerticalLayout {
+                    spacing: Tokens.space-1;
+                    Text {
+                        text: message.subject;
+                        color: Tokens.text-primary;
+                        font-family: Type.subheading.family;
+                        font-size: Type.subheading.size;
+                        font-weight: Type.subheading.weight;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: "From " + message.sender + " · " + message.date;
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        wrap: word-wrap;
+                    }
+                    if message.cc != "" : Text {
+                        text: "Cc " + message.cc;
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-1;
+                        Button {
+                            text: "Reply";
+                            accessible-name: "Reply to " + message.sender;
+                            size: ButtonSize.sm;
+                            clicked => { root.reply-requested(message.id, false); }
+                        }
+                        Button {
+                            text: "Reply All";
+                            accessible-name: "Reply all to " + message.sender;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.reply-requested(message.id, true); }
+                        }
+                        Button {
+                            text: "Forward";
+                            accessible-name: "Forward message";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.forward-requested(message.id); }
+                        }
+                        Button {
+                            text: message.starred ? "Unstar" : "Star";
+                            accessible-name: message.starred ? "Unstar message" : "Star message";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.star-requested(message.id, !message.starred); }
+                        }
+                        Button {
+                            text: message.read ? "Mark unread" : "Mark read";
+                            accessible-name: message.read ? "Mark unread" : "Mark read";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.read-requested(message.id, !message.read); }
+                        }
+                        Button {
+                            text: "Archive";
+                            accessible-name: "Archive message";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.move-requested(message.id, "archive"); }
+                        }
+                        Button {
+                            text: "Trash";
+                            accessible-name: "Move message to trash";
+                            variant: ButtonVariant.danger;
+                            size: ButtonSize.sm;
+                            clicked => { root.move-requested(message.id, "trash"); }
+                        }
+                        // Move menu, as the web's dropdown: moves this message only.
+                        Button {
+                            text: "Move to Folder";
+                            accessible-name: "Move to folder";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => {
+                                root.move-menu-id = root.move-menu-id == message.id ? "" : message.id;
+                            }
+                        }
+                        Button {
+                            text: "View original";
+                            accessible-name: "View original in browser";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.original-requested(message.id); }
+                        }
+                        Button {
+                            text: "Headers";
+                            accessible-name: "View headers";
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.headers-requested(message.id); }
+                        }
+                        if message.is-draft : Button {
+                            text: "Discard draft";
+                            accessible-name: "Discard draft";
+                            variant: ButtonVariant.danger;
+                            size: ButtonSize.sm;
+                            clicked => { root.discard-draft-requested(message.id); }
+                        }
+                    }
+                    if root.move-menu-id == message.id : HorizontalLayout {
+                        spacing: Tokens.space-1;
+                        for folder-choice in root.move-targets : Button {
+                            text: folder-choice.label;
+                            accessible-name: "Move message to " + folder-choice.label;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => {
+                                root.move-requested(message.id, folder-choice.id);
+                                root.move-menu-id = "";
+                            }
+                        }
+                    }
+                    // The body as structured text. Links are listed under the paragraph that holds them.
+                    for line in message.lines : HorizontalLayout {
+                        padding-left: Tokens.space-4 * (line.depth * 1.0);
+                        spacing: Tokens.space-1;
+                        if line.kind == 1 : Text {
+                            text: line.text;
+                            color: Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            wrap: word-wrap;
+                        }
+                        if line.kind == 0 : Text {
+                            text: line.text;
+                            color: line.depth > 0 ? Tokens.text-muted : Tokens.text-primary;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            wrap: word-wrap;
+                        }
+                        if line.kind == 2 : Button {
+                            text: line.text;
+                            accessible-name: "Link " + line.text;
+                            variant: ButtonVariant.link;
+                            size: ButtonSize.sm;
+                            clicked => { root.original-requested(message.id); }
+                        }
+                        if line.kind == 4 : Image {
+                            source: line.picture;
+                            accessible-role: image;
+                            accessible-label: "Picture in the message";
+                            image-fit: contain;
+                            max-width: Tokens.size-control-lg * 4;
+                        }
+                        if line.kind == 5 : Text {
+                            text: line.text;
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            wrap: word-wrap;
+                        }
+                        if line.kind == 3 : Rectangle {
+                            height: Tokens.space-1 / 4;
+                            background: Tokens.border-subtle;
+                        }
+                    }
+                    for attachment in message.attachments : HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Text {
+                            text: attachment.filename + " · " + attachment.size;
+                            color: Tokens.text-muted;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            vertical-alignment: center;
+                        }
+                        Button {
+                            text: "Open";
+                            accessible-name: "Open " + attachment.filename;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.sm;
+                            clicked => { root.attachment-requested(message.id, attachment.id); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ===== Compose: plain editor with markup buttons =====
+    if root.compose-open : Dialog {
+        title: root.compose-title;
+        size: DialogSize.lg;
+        actions: [
+            { text: "Send", variant: ButtonVariant.primary },
+            { text: "Save draft", variant: ButtonVariant.ghost },
+            { text: "Attach", variant: ButtonVariant.ghost }
+        ];
+        init => { self.open(); }
+        closed => { root.compose-closed(); }
+        action-clicked(index) => {
+            if (index == 0) { root.compose-sent(); }
+            if (index == 1) { root.compose-sent(); }
+            if (index == 2) { root.compose-attach-requested(); }
+        }
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            Input { size: InputSize.md; placeholder: "recipient@example.com"; accessible-label: "To"; text: root.compose-to; changed(v) => { root.compose-field-changed(0, v); } }
+            if !root.compose-show-cc-bcc : Button {
+                text: "CC/BCC";
+                accessible-name: "Show CC and BCC";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.compose-cc-toggled(); }
+            }
+            if root.compose-show-cc-bcc : Input { size: InputSize.md; placeholder: "Cc"; accessible-label: "Cc"; text: root.compose-cc; changed(v) => { root.compose-field-changed(1, v); } }
+            if root.compose-show-cc-bcc : Input { size: InputSize.md; placeholder: "Bcc"; accessible-label: "Bcc"; text: root.compose-bcc; changed(v) => { root.compose-field-changed(2, v); } }
+            Input { size: InputSize.md; placeholder: "Subject"; accessible-label: "Subject"; text: root.compose-subject; changed(v) => { root.compose-field-changed(3, v); } }
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                Button { text: "Bold"; accessible-label: "Bold"; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.compose-markup-requested("bold"); } }
+                Button { text: "Italic"; accessible-label: "Italic"; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.compose-markup-requested("italic"); } }
+                Button { text: "Link"; accessible-label: "Insert link"; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.compose-markup-requested("link"); } }
+                Button { text: "List"; accessible-label: "Insert list"; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.compose-markup-requested("list"); } }
+            }
+            Textarea { rows: 10; placeholder: "Write your message"; accessible-label: "Message body"; text: root.compose-body; changed(v) => { root.compose-field-changed(4, v); } }
+            for name[i] in root.compose-attachments : HorizontalLayout {
+                spacing: Tokens.space-2;
+                Text { text: name; color: Tokens.text-muted; font-family: Type.caption.family; font-size: Type.caption.size; vertical-alignment: center; }
+                Button { text: "Remove"; accessible-label: "Remove " + name; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.compose-attachment-removed(i); } }
+            }
+            if root.compose-status != "" : Text { text: root.compose-status; color: Tokens.text-muted; font-family: Type.caption.family; font-size: Type.caption.size; }
+            if root.compose-error != "" : Banner { tone: BannerTone.danger; title: root.compose-error; }
+        }
+    }
+
+    // ===== Mailbox settings =====
+    if root.settings-open : Dialog {
+        title: "Mailbox settings";
+        size: DialogSize.md;
+        actions: [
+            { text: "Save", variant: ButtonVariant.primary },
+            { text: "Cancel", variant: ButtonVariant.ghost }
+        ];
+        init => { self.open(); }
+        closed => { root.settings-closed(); }
+        action-clicked(index) => {
+            if (index == 0) { root.settings-saved(); }
+            if (index == 1) { root.settings-closed(); }
+        }
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            if root.settings-loading : Spinner { size: SpinnerSize.sm; }
+            Input { size: InputSize.md; placeholder: "Sender name"; accessible-label: "Sender name"; text: root.settings-from-name; changed(v) => { root.settings-field-changed(0, v); } }
+            Switch {
+                text: "Use signature";
+                accessible-name: "Use signature";
+                checked: root.settings-signature-enabled;
+                changed(on) => { root.settings-signature-toggled(on); }
+            }
+            Textarea { rows: 4; placeholder: "Signature"; accessible-label: "Signature"; text: root.settings-signature; changed(v) => { root.settings-field-changed(1, v); } }
+            if root.settings-error != "" : Banner { tone: BannerTone.danger; title: root.settings-error; }
+        }
+    }
+
+    // ===== Create mailbox =====
+    if root.create-open : Dialog {
+        title: "Create Mailbox";
+        size: DialogSize.md;
+        actions: [
+            { text: "Create", variant: ButtonVariant.primary },
+            { text: "Cancel", variant: ButtonVariant.ghost }
+        ];
+        init => { self.open(); }
+        closed => { root.create-closed(); }
+        action-clicked(index) => {
+            if (index == 0) { root.create-submitted(); }
+            if (index == 1) { root.create-closed(); }
+        }
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            HorizontalLayout {
+                spacing: Tokens.space-1;
+                Input { size: InputSize.md; placeholder: "name"; accessible-label: "Address name"; text: root.create-prefix; changed(v) => { root.create-field-changed(0, v); } }
+                Text { text: "@"; color: Tokens.text-muted; font-family: Type.body.family; font-size: Type.body.size; vertical-alignment: center; }
+                for domain[di] in root.create-domains : Button {
+                    text: domain;
+                    accessible-name: "Domain " + domain;
+                    variant: root.create-domain == domain ? ButtonVariant.primary : ButtonVariant.ghost;
+                    size: ButtonSize.sm;
+                    clicked => { root.create-domain-requested(di); }
+                }
+            }
+            Input { size: InputSize.md; placeholder: "Display name"; accessible-label: "Display name"; text: root.create-name; changed(v) => { root.create-field-changed(1, v); } }
+            if root.create-error != "" : Banner { tone: BannerTone.danger; title: root.create-error; }
+        }
+    }
+
+    // ===== Folder form (new or rename) =====
+    if root.folder-form-open : Dialog {
+        title: root.folder-form-rename ? "Rename folder" : "New folder";
+        size: DialogSize.sm;
+        actions: [
+            { text: "Save", variant: ButtonVariant.primary },
+            { text: "Cancel", variant: ButtonVariant.ghost }
+        ];
+        init => { self.open(); }
+        closed => { root.folder-form-closed(); }
+        action-clicked(index) => {
+            if (index == 0) { root.folder-submitted(); }
+            if (index == 1) { root.folder-form-closed(); }
+        }
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            Input { size: InputSize.md; placeholder: "Folder name"; accessible-label: "Folder name"; text: root.folder-form-name; changed(v) => { root.folder-name-changed(v); } }
+            if root.folder-form-error != "" : Banner { tone: BannerTone.danger; title: root.folder-form-error; }
+        }
+    }
+
+    // ===== Confirmation =====
+    if root.confirm-open : Dialog {
+        title: root.confirm-title;
+        description: root.confirm-message;
+        size: DialogSize.sm;
+        actions: [
+            { text: "Yes", variant: ButtonVariant.danger },
+            { text: "No", variant: ButtonVariant.ghost }
+        ];
+        init => { self.open(); }
+        closed => { root.confirm-no-requested(); }
+        action-clicked(index) => {
+            if (index == 0) { root.confirm-yes-requested(); }
+            if (index == 1) { root.confirm-no-requested(); }
+        }
+    }
+
+    // ===== Attachment viewer: pictures, text, and media (the glue plays media from viewer-path) =====
+    if root.viewer-kind >= 0 : Dialog {
+        title: root.viewer-title;
+        size: DialogSize.lg;
+        actions: [ { text: "Close", variant: ButtonVariant.ghost } ];
+        init => { self.open(); }
+        closed => { root.viewer-closed(); }
+        action-clicked(index) => { root.viewer-closed(); }
+        VerticalLayout {
+            spacing: Tokens.space-2;
+            if root.viewer-kind == 0 : Image {
+                source: root.viewer-picture;
+                accessible-role: image;
+                accessible-label: root.viewer-title;
+                image-fit: contain;
+            }
+            if root.viewer-kind == 1 : Flickable {
+                Text {
+                    text: root.viewer-text;
+                    color: Tokens.text-primary;
+                    font-family: Type.code.family;
+                    font-size: Type.code.size;
+                    wrap: word-wrap;
+                }
+            }
+            // Media (audio or video): the frame (video only), play or pause, seek and volume. The glue drives them.
+            if root.viewer-kind == 2 : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                if root.viewer-picture.width > 0 : Image {
+                    source: root.viewer-picture;
+                    accessible-role: image;
+                    accessible-label: root.viewer-title;
+                    image-fit: contain;
+                    height: 360px;
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+
+                    Button {
+                        text: root.media-playing ? "Pause" : "Play";
+                        accessible-name: root.media-playing ? "Pause" : "Play";
+                        variant: ButtonVariant.primary;
+                        size: ButtonSize.md;
+                        clicked => { root.media-toggle-requested(); }
+                    }
+                    // controlled: the value follows playback and is never written back; `released` fires only when the
+                    // person ends a drag or a key change, so playback updates never seek.
+                    Slider {
+                        horizontal-stretch: 1;
+                        accessible-name: "Seek";
+                        controlled: true;
+                        minimum: 0;
+                        maximum: root.media-duration-ms;
+                        value: root.media-position-ms;
+                        released(ms) => { root.media-seek-requested(ms); }
+                    }
+                    Slider {
+                        width: 120px;
+                        accessible-name: "Volume";
+                        controlled: true;
+                        minimum: 0;
+                        maximum: 1;
+                        value: root.media-volume;
+                        released(v) => { root.media-volume-requested(v); }
+                    }
+                }
+                Text {
+                    text: root.viewer-path;
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+
+    // ===== Source headers, with copy per row =====
+    if root.headers-open : Dialog {
+        title: "Message headers";
+        size: DialogSize.lg;
+        actions: [ { text: "Close", variant: ButtonVariant.ghost } ];
+        init => { self.open(); }
+        closed => { root.headers-closed(); }
+        action-clicked(index) => { root.headers-closed(); }
+        Flickable {
+            VerticalLayout {
+                spacing: Tokens.space-1;
+                for header[hi] in root.headers : HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Text { text: header.key; color: Tokens.text-muted; font-family: Type.caption.family; font-size: Type.caption.size; min-width: Tokens.size-control-lg; }
+                    Text { text: header.value; color: Tokens.text-primary; font-family: Type.code.family; font-size: Type.code.size; wrap: word-wrap; horizontal-stretch: 1; }
+                    Button { text: "Copy"; accessible-label: "Copy " + header.key; variant: ButtonVariant.ghost; size: ButtonSize.sm; clicked => { root.header-copy-requested(hi); } }
+                }
+            }
+        }
+    }
+}

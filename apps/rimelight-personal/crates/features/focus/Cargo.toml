@@ -1,0 +1,15 @@
+[package]
+name = "idantity_feature_focus"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Plain Rust: no slint dependency and no build.rs. The page markup is in ui/focus.slint and is compiled by apps/desktop.
+# No network. The clicks and cues come from rimelight_sound, behind the `Sounds` trait so the tests need no audio device.
+[lints]
+workspace = true
+
+[dependencies]
+rimelight_sound = { workspace = true }

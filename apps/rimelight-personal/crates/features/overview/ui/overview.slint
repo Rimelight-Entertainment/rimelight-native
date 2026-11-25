@@ -1,0 +1,392 @@
+// The Overview (home) page (web: src/components/overview/DashboardOverview.tsx). It draws only.
+// Data comes in through the properties; every user action goes out through a callback. Links go out through
+// `navigate-requested` so the shell owns the routes. The Rust controller (src/lib.rs of this crate) holds the state.
+// No colour, size, font or duration literal here: everything comes from Tokens, Type and Icons.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input, InputSize } from "@rimelight_ui/components/input.slint";
+import { Checkbox, CheckState } from "@rimelight_ui/components/checkbox.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { Stat } from "@rimelight_ui/components/stat.slint";
+import { Tag } from "@rimelight_ui/components/tag.slint";
+import { BadgeTone } from "@rimelight_ui/components/badge.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+
+export struct OverviewTask {
+    id: string,
+    title: string,
+    category: string,
+    priority: string,
+    // urgent, high or normal.
+    tone: string,
+}
+
+export struct OverviewNote {
+    id: string,
+    title: string,
+    preview: string,
+}
+
+export component OverviewPage inherits VerticalLayout {
+    // Data in.
+    in property <string> date;
+    in property <int> pending-count;
+    in property <int> due-today-count;
+    in property <int> urgent-count;
+    in property <[OverviewTask]> tasks;
+    in property <int> todo-total;
+    in property <string> net-worth;
+    in property <int> account-count;
+    in property <string> monthly-bills;
+    in property <int> active-subscriptions;
+    in property <[OverviewNote]> notes;
+    in property <int> note-total;
+    in property <bool> loading;
+    in property <string> error;
+    // The quick-task field. Rust clears it when the task is accepted.
+    in-out property <string> quick-task;
+
+    // Actions out.
+    callback navigate-requested(string);
+    callback quick-task-submitted();
+    callback toggle-todo-requested(string);
+    callback dismiss-error-requested();
+
+    spacing: Tokens.space-4;
+
+    // Welcome banner with the two shortcuts.
+    Card {
+        title: "Welcome";
+
+        HorizontalLayout {
+            spacing: Tokens.space-4;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Tokens.space-1;
+
+                Text {
+                    text: root.date;
+                    color: Tokens.accent-text;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.body-strong.weight;
+                }
+                Text {
+                    text: "Welcome to your life workspace";
+                    color: Tokens.text-primary;
+                    font-family: Type.heading.family;
+                    font-size: Type.heading.size;
+                    font-weight: Type.heading.weight;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: "Everything in one unified place: tasks, finances, notes, health, housing, and music.";
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    wrap: word-wrap;
+                }
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: end;
+
+                Button {
+                    text: "Action Items";
+                    variant: ButtonVariant.primary;
+                    size: ButtonSize.md;
+                    clicked => { root.navigate-requested("/todos"); }
+                }
+                Button {
+                    text: "Open Inbox";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.navigate-requested("/inbox"); }
+                }
+            }
+        }
+    }
+
+    if root.error != "" : Banner {
+        tone: BannerTone.danger;
+        title: "Something went wrong";
+        description: root.error;
+        dismiss-label: "Dismiss";
+        dismiss-clicked => { root.dismiss-error-requested(); }
+    }
+
+    // Metrics row.
+    HorizontalLayout {
+        spacing: Tokens.space-3;
+
+        Card {
+            title: "Pending Tasks";
+            horizontal-stretch: 1;
+
+            Stat {
+                label: "Pending Tasks";
+                value: "" + root.pending-count;
+                caption: "" + root.due-today-count + " due today • " + root.urgent-count + " high priority";
+            }
+        }
+        Card {
+            title: "Liquid Balance";
+            horizontal-stretch: 1;
+
+            Stat {
+                label: "Liquid Balance";
+                value: root.net-worth;
+                caption: "Across " + root.account-count + " connected accounts";
+            }
+        }
+        Card {
+            title: "Monthly Bills";
+            horizontal-stretch: 1;
+
+            Stat {
+                label: "Monthly Bills";
+                value: root.monthly-bills;
+                caption: "" + root.active-subscriptions + " active subscriptions";
+            }
+        }
+        Card {
+            title: "Health & Focus";
+            horizontal-stretch: 1;
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Button {
+                    text: "Fasting";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.navigate-requested("/health/fasting"); }
+                }
+                Button {
+                    text: "Habits";
+                    variant: ButtonVariant.secondary;
+                    size: ButtonSize.md;
+                    clicked => { root.navigate-requested("/habits"); }
+                }
+            }
+        }
+    }
+
+    if root.loading : HorizontalLayout {
+        spacing: Tokens.space-2;
+        alignment: start;
+
+        Spinner {
+            size: SpinnerSize.sm;
+        }
+        Text {
+            text: "Loading…";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-4;
+        vertical-stretch: 1;
+
+        // Left: priority action items, then the quick launch links.
+        VerticalLayout {
+            horizontal-stretch: 2;
+            spacing: Tokens.space-4;
+
+            Card {
+                title: "Priority Action Items";
+
+                VerticalLayout {
+                    spacing: Tokens.space-3;
+
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+
+                        Button {
+                            text: "View all (" + root.todo-total + ") →";
+                            variant: ButtonVariant.link;
+                            size: ButtonSize.sm;
+                            clicked => { root.navigate-requested("/todos"); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+
+                        Input {
+                            horizontal-stretch: 1;
+                            size: InputSize.md;
+                            placeholder: "Add a quick task for today";
+                            accessible-name: "Add a quick task for today";
+                            text <=> root.quick-task;
+                            submitted(value) => { root.quick-task-submitted(); }
+                        }
+                        Button {
+                            text: "Add";
+                            variant: ButtonVariant.primary;
+                            size: ButtonSize.md;
+                            clicked => { root.quick-task-submitted(); }
+                        }
+                    }
+
+                    if root.tasks.length == 0 && !root.loading : EmptyState {
+                        title: "All caught up!";
+                        description: "No pending action items right now.";
+                    }
+
+                    for task in root.tasks : HorizontalLayout {
+                        spacing: Tokens.space-2;
+
+                        Checkbox {
+                            horizontal-stretch: 1;
+                            text: task.title;
+                            accessible-name: "Complete " + task.title;
+                            check-state: CheckState.unchecked;
+                            changed(checked) => { root.toggle-todo-requested(task.id); }
+                        }
+                        Text {
+                            text: task.category;
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                        }
+                        Tag {
+                            label: task.priority;
+                            tone: task.tone == "urgent" ? BadgeTone.danger : task.tone == "high" ? BadgeTone.warning : BadgeTone.neutral;
+                        }
+                    }
+                }
+            }
+
+            Card {
+                title: "Workspace Quick Launch";
+
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+
+                    Button {
+                        text: "Kanban · Boards & tasks";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        horizontal-stretch: 1;
+                        clicked => { root.navigate-requested("/projects"); }
+                    }
+                    Button {
+                        text: "Finances · Ledger & bills";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        horizontal-stretch: 1;
+                        clicked => { root.navigate-requested("/finances"); }
+                    }
+                    Button {
+                        text: "Workouts · Logs & stretches";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        horizontal-stretch: 1;
+                        clicked => { root.navigate-requested("/health/workouts"); }
+                    }
+                    Button {
+                        text: "Music · Repertoire & tools";
+                        variant: ButtonVariant.secondary;
+                        size: ButtonSize.md;
+                        horizontal-stretch: 1;
+                        clicked => { root.navigate-requested("/music"); }
+                    }
+                }
+            }
+        }
+
+        // Right: pinned notes, then household and media links.
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Tokens.space-4;
+
+            Card {
+                title: "Pinned Notes";
+
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+
+                    Button {
+                        text: "Notes (" + root.note-total + ") →";
+                        variant: ButtonVariant.link;
+                        size: ButtonSize.sm;
+                        clicked => { root.navigate-requested("/notes"); }
+                    }
+
+                    if root.notes.length == 0 : VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        Text {
+                            text: "No pinned notes";
+                            color: Tokens.text-muted;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                        }
+                        Button {
+                            text: "Pin important notes for quick access";
+                            variant: ButtonVariant.link;
+                            size: ButtonSize.sm;
+                            clicked => { root.navigate-requested("/notes"); }
+                        }
+                    }
+
+                    for note in root.notes : Button {
+                        text: note.title;
+                        accessible-name: "Open note " + note.title;
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        full-width: true;
+                        clicked => { root.navigate-requested("/notes"); }
+                    }
+                }
+            }
+
+            Card {
+                title: "Household & Media";
+
+                VerticalLayout {
+                    spacing: Tokens.space-2;
+
+                    Button {
+                        text: "Grocery pantry list";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        full-width: true;
+                        clicked => { root.navigate-requested("/housing/groceries"); }
+                    }
+                    Button {
+                        text: "Pets care records";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        full-width: true;
+                        clicked => { root.navigate-requested("/housing/pets"); }
+                    }
+                    Button {
+                        text: "Watchlist (Movies, TV, Books)";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        full-width: true;
+                        clicked => { root.navigate-requested("/watchlist"); }
+                    }
+                    Button {
+                        text: "Cloudflare R2 file assets";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        full-width: true;
+                        clicked => { root.navigate-requested("/storage"); }
+                    }
+                }
+            }
+        }
+    }
+}

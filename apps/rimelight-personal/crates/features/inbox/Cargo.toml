@@ -1,0 +1,25 @@
+[package]
+name = "idantity_feature_inbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Plain Rust: no slint dependency and no build.rs. The page markup is in ui/inbox.slint and is compiled by the shell.
+[lints]
+workspace = true
+
+[dependencies]
+idantity_core.workspace = true
+ehttp.workspace = true
+rimelight_picture = { workspace = true }
+rimelight_platform = { workspace = true }
+web-time = "1.1"
+
+# Local clock times (src/local_time.rs): jiff on native, js-sys in the browser. The same pins as idantity_core.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jiff = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"

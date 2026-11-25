@@ -1,0 +1,76 @@
+// The Todos route (crates/features/README.md, "Wiring into idantity_ui_slint"). The feature page owns the markup; this
+// file mirrors its properties and callbacks in the TodosState global, so Rust reaches them as ui.global::<TodosState>().
+import { TodosPage, TodoRow, TodoTab } from "@idantity_feature_todos/todos.slint";
+
+export { TodoRow, TodoTab } from "@idantity_feature_todos/todos.slint";
+
+export global TodosState {
+    in property <[TodoRow]> rows;
+    in property <[TodoTab]> tabs;
+    in property <int> filter: 0;
+    in property <int> selected-count: 0;
+    in property <bool> loading;
+    in property <string> error;
+    in property <bool> confirm-open;
+    in property <[string]> priorities: ["low", "medium", "high", "urgent"];
+    in property <[string]> intervals: ["daily", "weekly", "monthly"];
+    in-out property <string> new-title;
+    in-out property <string> new-category: "General";
+    in-out property <string> new-priority: "medium";
+    in-out property <string> new-due;
+    in-out property <bool> new-recurring: false;
+    in-out property <string> new-interval: "daily";
+    in-out property <string> search;
+
+    callback add-requested(string, string, string, string, bool, string);
+    callback search-changed(string);
+    callback filter-requested(int);
+    callback refresh-requested();
+    callback toggle-requested(string, bool);
+    callback delete-requested(string);
+    callback select-requested(string);
+    callback batch-complete-requested();
+    callback batch-delete-requested();
+    callback batch-cancel-requested();
+    callback batch-delete-confirmed();
+    callback batch-delete-cancelled();
+    callback dismiss-error-requested();
+}
+
+export component TodosRoute inherits VerticalLayout {
+    TodosPage {
+        vertical-stretch: 1;
+        rows: TodosState.rows;
+        tabs: TodosState.tabs;
+        filter: TodosState.filter;
+        selected-count: TodosState.selected-count;
+        loading: TodosState.loading;
+        error: TodosState.error;
+        confirm-open: TodosState.confirm-open;
+        priorities: TodosState.priorities;
+        intervals: TodosState.intervals;
+        new-title <=> TodosState.new-title;
+        new-category <=> TodosState.new-category;
+        new-priority <=> TodosState.new-priority;
+        new-due <=> TodosState.new-due;
+        new-recurring <=> TodosState.new-recurring;
+        new-interval <=> TodosState.new-interval;
+        search <=> TodosState.search;
+
+        add-requested(title, category, priority, due, recurring, interval) => {
+            TodosState.add-requested(title, category, priority, due, recurring, interval);
+        }
+        search-changed(text) => { TodosState.search-changed(text); }
+        filter-requested(index) => { TodosState.filter-requested(index); }
+        refresh-requested => { TodosState.refresh-requested(); }
+        toggle-requested(id, done) => { TodosState.toggle-requested(id, done); }
+        delete-requested(id) => { TodosState.delete-requested(id); }
+        select-requested(id) => { TodosState.select-requested(id); }
+        batch-complete-requested => { TodosState.batch-complete-requested(); }
+        batch-delete-requested => { TodosState.batch-delete-requested(); }
+        batch-cancel-requested => { TodosState.batch-cancel-requested(); }
+        batch-delete-confirmed => { TodosState.batch-delete-confirmed(); }
+        batch-delete-cancelled => { TodosState.batch-delete-cancelled(); }
+        dismiss-error-requested => { TodosState.dismiss-error-requested(); }
+    }
+}

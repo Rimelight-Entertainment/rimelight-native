@@ -1,0 +1,5 @@
+# FFmpeg (LGPL, shared build) for rimelight_media (the Storage page's video posters and audio): the same pinned build
+# rimelight-space and rimelight-media use. tools/get-ffmpeg.ps1 fetches it into ffmpeg/current. An FFMPEG_DIR already set
+# in the environment wins (for example one pointing at rimelight-media's ffmpeg/current, to avoid a second copy).
+[env]
+FFMPEG_DIR = { value = "ffmpeg/current", relative = true, force = false }

@@ -1,0 +1,3 @@
+[[proxy]]
+rewrite = "/api/personal/"
+backend = "http://localhost:5173/api/personal/"

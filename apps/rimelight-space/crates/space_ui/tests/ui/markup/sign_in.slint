@@ -1,0 +1,24 @@
+// Test markup for tests/ui/sign_in.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { AccountMenu } from "@rimelight_shell/components/account-menu.slint";
+
+export component ProfileForm inherits Window {
+    width: 280px;
+    height: 420px;
+
+    in-out property <string> user-name: "You";
+    in-out property <string> user-initials: "Y";
+    in-out property <string> user-email: "you@rimelight";
+    out property <string> shown-name: menu.shown-name;
+
+    callback sign-out-clicked();
+
+    public function test-click-sign-out() { menu.test-click-sign-out(); }
+
+    menu := AccountMenu {
+        width: root.width;
+        user-name: root.user-name;
+        user-initials: root.user-initials;
+        user-email: root.user-email;
+        sign-out-clicked => { root.sign-out-clicked(); }
+    }
+}

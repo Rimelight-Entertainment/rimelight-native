@@ -1,0 +1,122 @@
+name: CI
+
+# Minutes matter on the free plan for private repos (2000 a month; Windows counts double and macOS ten times). So: no run for
+# every branch push, a newer push cancels the older run, and the macOS job runs weekly instead of on every push. The
+# pre-commit hook already runs fmt and clippy locally. Tag pushes (releases) are handled by release.yml, not here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays 03:00 UTC: the macOS and iOS compile check.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows quick gate
+    # Not on the weekly schedule: the Linux jobs and the local hook cover it between pushes to main.
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - run: cargo xtask gate quick
+
+  linux:
+    if: github.event_name != 'schedule'
+    name: Linux test gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install Slint Linux dependencies
+        # Slint's winit backend needs fontconfig, freetype, xkbcommon and wayland development files.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig1-dev \
+            libfreetype-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libwayland-dev \
+            libxcb1-dev
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - run: cargo xtask gate test
+
+  wasm:
+    if: github.event_name != 'schedule'
+    name: Web (wasm32, trunk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Install trunk
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: trunk@0.22.1
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Build web shell
+        working-directory: apps/web
+        run: trunk build --release
+
+  android:
+    if: github.event_name != 'schedule'
+    name: Android (arm64 check, no emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - name: Add Android target
+        run: rustup target add aarch64-linux-android
+      - name: Install cargo-ndk
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-ndk@4.1.2
+      - name: Point cargo-ndk at the preinstalled NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          # Slint's Android backend build script needs a platform android.jar.
+          jar=$(ls -d "$ANDROID_HOME"/platforms/android-*/android.jar | sort -V | tail -n1)
+          echo "Using $jar"
+          echo "ANDROID_JAR=$jar" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Check rimelight_android for arm64-v8a
+        run: cargo ndk -t arm64-v8a check -p rimelight_android
+
+  apple:
+    # Ten times the minutes of a Linux job: weekly and on request, not on every push.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: macOS and iOS (compile check)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - name: Add Apple targets
+        run: rustup target add aarch64-apple-darwin aarch64-apple-ios
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Check workspace for macOS
+        run: cargo check --workspace --target aarch64-apple-darwin
+      # iOS is a compile check only (decision 0009). The rimelight_ios crate exists, so it is not skipped.
+      - name: Check rimelight_ios for iOS
+        run: cargo check -p rimelight_ios --target aarch64-apple-ios

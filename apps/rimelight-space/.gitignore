@@ -1,0 +1,48 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Android / Gradle
+.gradle/
+local.properties
+apps/android/build/
+*.apk
+*.aab
+
+# Apple
+apps/ios/build/
+DerivedData/
+*.xcuserstate
+
+# Local dev data (avatar files from the dev server, SP.2)
+.data/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors and OS
+.idea/
+.vscode/
+.zed/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Build output and local machine files (P0.10: untracked Android build output)
+**/android/app/build/
+**/android/build/
+**/android/.gradle/
+**/jniLibs/
+**/local.properties
+**/dist/
+
+# Local backend secrets (decision 0014). Only the .example file is committed.
+.dev.vars
+**/.dev.vars

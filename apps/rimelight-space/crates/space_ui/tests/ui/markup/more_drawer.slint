@@ -1,0 +1,51 @@
+// Test markup for tests/ui/more_drawer.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { MoreDrawer } from "@rimelight_shell/components/more-drawer.slint";
+import { RailItem } from "@rimelight_shell/components/rail.slint";
+import { JobItem } from "@rimelight_shell/components/status-bar.slint";
+export { RailItem, JobItem }
+
+export component MoreForm inherits Window {
+    width: 240px;
+    height: 760px;
+
+    in-out property <bool> timer-running: false;
+    in-out property <string> timer-text: "1:02:03";
+    in-out property <[JobItem]> jobs: [];
+    in-out property <[RailItem]> areas;
+    in-out property <string> theme-label: "Theme: light";
+    in-out property <int> language-index: 0;
+
+    drawer := MoreDrawer {
+        height: root.height;
+        timer-running <=> root.timer-running;
+        timer-text <=> root.timer-text;
+        jobs <=> root.jobs;
+        areas <=> root.areas;
+        theme-label <=> root.theme-label;
+        language-index <=> root.language-index;
+        // The shell records a pick by setting `language-index` (app_shell::wire_language); the form does the same.
+        language-picked(index) => { root.language-index = index; }
+    }
+
+    // Test hooks: the drawer's state, forwarded from the drawer.
+    out property <string> test-timer-text: drawer.test-timer-text;
+    out property <bool> test-jobs-shown: drawer.test-jobs-shown;
+    out property <int> test-jobs-count: drawer.test-jobs-count;
+    out property <bool> test-language-open: drawer.test-language-open;
+    out property <[string]> test-language-choices: drawer.test-language-choices;
+    out property <bool> test-has-language: drawer.test-has-language;
+    out property <bool> test-has-record: drawer.test-has-record;
+    out property <bool> test-has-fullscreen: drawer.test-has-fullscreen;
+    out property <bool> test-has-shortcuts: drawer.test-has-shortcuts;
+    out property <bool> test-has-about: drawer.test-has-about;
+    out property <bool> test-has-report-issue: drawer.test-has-report-issue;
+    out property <bool> test-has-settings: drawer.test-has-settings;
+
+    public function test-click-language() {
+        drawer.test-click-language();
+    }
+
+    public function test-pick-language(index: int) {
+        drawer.test-pick-language(index);
+    }
+}

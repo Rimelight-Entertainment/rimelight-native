@@ -1,0 +1,83 @@
+// Slint entry point for space_ui (decision 0007, S1). build.rs compiles this file; everything the Rust side uses is
+// exported here. Feature code imports space_ui's Rust API and these components, not the std-widgets directly.
+
+export { Tokens, ThemeChoice } from "@rimelight_design/tokens.slint";
+export { Type, TextStyle } from "@rimelight_ui/typography.slint";
+export { Icons } from "@rimelight_ui/icons.slint";
+// AboutScreen is not exported here: Slint generates Rust code only for exported Windows. The shell reaches it
+// through `import { AboutScreen } from "@rimelight_shell/about.slint";` in its own markup.
+// The component gallery now lives in rimelight-rs (`rimelight_gallery`, apps/gallery). It is not compiled here. Space's
+// own stories are in `ui/stories/` (stories.txt and stories.slint), which `space_gallery` passes to the shared gallery.
+// Select (S6): the Rust side wires the SelectNav search callbacks of every window that uses Select (rimelight-rs `crates/rimelight_ui_kit/src/select.rs`, wired by `glue::select`).
+export { SelectNav, SelectOption } from "@rimelight_ui/components/select.slint";
+export { MultiOption } from "@rimelight_ui/components/multiselect.slint";
+// Menu and ContextMenu (S7): the Rust side wires the MenuNav callbacks of every window that uses them (rimelight-rs `crates/rimelight_ui_kit/src/menu.rs`, wired by `glue::menu`).
+// Toast (S8): the stack and its row struct. The Rust side (rimelight-rs `crates/rimelight_ui_kit/src/toast.rs`) fills the model.
+export { ToastEntry, ToastTone } from "@rimelight_ui/components/toast.slint";
+// Rail and sidebar (S9.1): the row structs. The Rust side (src/slint_ui/shell.rs) fills the models from space_nav.
+export { RailItem, RailBadge } from "@rimelight_shell/components/rail.slint";
+// Status bar (OQ18): the background-job struct the shell fills (src/slint_ui/app_shell.rs and tests/ui/status_bar.rs).
+export { JobItem } from "@rimelight_shell/components/status-bar.slint";
+// Command palette (S9.3): the palette row struct. The Rust side fills the palette rows (src/slint_ui/palette.rs).
+export { PaletteRow } from "@rimelight_shell/components/command-palette.slint";
+// Quick action (SF.4): the category and item structs. The Rust side fills the menu (src/slint_ui/app_shell.rs).
+export { QuickCategory, QuickItem } from "@rimelight_shell/components/quick-action.slint";
+// Connection state (OQ26, SA.9): the enum the shell and the Rust side set (src/slint_ui/app_shell.rs, tests/ui/connection_lost.rs).
+export { ConnectionState } from "@rimelight_shell/components/connection-state.slint";
+// Sign-in screen (SA.4): the phase enum the shell and the desktop session driver set (src/slint_ui/session.rs).
+export { SessionPhase } from "@rimelight_shell/components/sign-in-screen.slint";
+// Page data (SP.3b): the load state every API-backed page sets, and Company > Employees' row struct (crates/areas/company/src/employees.rs).
+export { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+export { EmployeeRow, EmployeesTable } from "@space_area_company/employees.slint";
+// Projects > Issues (S1.3): the issue list's row struct (src/pages/projects/issues.rs).
+export { IssueRow } from "@space_area_projects/issues.slint";
+export { BoardLane, BoardItem, BoardChip } from "@rimelight_shell/templates/board-page.slint";
+// Projects > Overview (/p/:key): the count and area rows the overview page draws (src/pages/projects/overview.rs).
+export { OverviewCountRow, OverviewAreaRow } from "@space_area_projects/overview.slint";
+// Projects > New issue (S1.5c): the similar issue row (src/pages/projects/new_issue.rs).
+// Projects > Issue (S1.3, part 3): the issue page's view, its rows and its comment row (src/pages/projects/issue.rs).
+export { IssueDetailView, IssueRef, LinkRow, CommentRow } from "@space_area_projects/issue.slint";
+// Profile (SP.3c): the profile's view and form structs (crates/areas/company/src/profile.rs).
+export { PersonLink, ProfileView, ProfileDraft } from "@space_area_company/profile.slint";
+// Company > Teams (SP.3d): the team row and org chart row structs, the team's view, and the department rows and view.
+export { TeamRow, OrgRow, TeamsTable } from "@space_area_company/teams.slint";
+export { TeamView } from "@space_area_company/team.slint";
+export { DeptView, DeptsTable } from "@space_area_company/departments.slint";
+export { LocationsState } from "@space_area_company/locations.slint";
+// Canvas (CV.6, decision 0045): the canvas page's view struct, guide and palette, and its state (areas/canvas/), and the
+// canvases list's row struct and state.
+export { CanvasItemView, CanvasGuide, CanvasPalette, CanvasState, CanvasMenuPanel, CanvasMenuRow } from "@space_area_canvas/canvas.slint";
+export { CanvasPeer, CanvasPeerBox, CanvasHierarchyRow, CanvasAssetRow, CanvasWindowItem, CanvasVideoControl } from "@space_area_canvas/canvas-types.slint";
+export { CanvasPopout } from "@space_area_canvas/canvas-popout.slint";
+export { CanvasListState } from "@space_area_canvas/canvas-list.slint";
+// Admin (SP.3e): the admin pages' row structs and their state globals (space_area_admin).
+export { AdminUserRow, AdminUsersState } from "@space_area_admin/users.slint";
+// The start date pickers of Admin > Users draw these cells (the Rust calendar rules fill them).
+export { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+export { AdminRow, AdminOrgState } from "@space_area_admin/organisation.slint";
+export { RolePerson, AdminRolesState } from "@space_area_admin/roles.slint";
+export { AreaRow, TypeRow, AdminTypesTagsState } from "@space_area_admin/types-tags.slint";
+// Home > Dashboard (S2): the card rows and the dashboard's state (space_area_home).
+export { HomeIssueRow, HomeCanvasRow, HomeState } from "@space_area_home/home.slint";
+export { ProjectSettingsState } from "@space_area_management/settings.slint";
+export { MemberRow, ProjectMembersState } from "@space_area_management/members.slint";
+export { TabItem } from "@rimelight_ui/components/tabs.slint";
+export { SidebarItem, SidebarKind, SidebarStatus, ProjectChoice } from "@rimelight_shell/components/sidebar.slint";
+export { MenuNav, MenuItem, MenuKind, MenuChecked, MenuRow } from "@rimelight_ui/components/menu.slint";
+// ColorPicker (Hex field): the parser the Rust side wires in every window that shows a picker (rimelight-rs `crates/rimelight_ui_kit/src/color.rs`, wired by `glue::color`).
+export { ColorHex } from "@rimelight_ui/components/color-picker.slint";
+// Action components (S3) are not exported here: Slint generates Rust only for exported Windows.
+// Feature markup imports them from "ui/components/*.slint"; the S3 tests import them into their own test window.
+// App shell (S9.4): the window apps/desktop opens. Its Rust side is src/slint_ui/app_shell.rs.
+export { AppShell } from "app-shell.slint";
+// Content area (CMS.6): the page globals and the structs their Rust side fills (space_area_content). TabItem is renamed
+// ContentTabItem here, as the company tabs own TabItem.
+export { ContentHomeState } from "@space_area_content/home.slint";
+export { ContentPageState } from "@space_area_content/page.slint";
+export { ContentCollectionsState } from "@space_area_content/collections.slint";
+export { ContentMediaState } from "@space_area_content/media.slint";
+export { ContentReviewsState } from "@space_area_content/reviews.slint";
+export { ContentTabItem, ListRowItem, DraftRowItem, ChoiceItem, PageHeaderItem, CollectionRowItem, FieldRowItem, MediaCellItem, ReviewRowItem, PropertyItem } from "@space_area_content/types.slint";
+// The shared block editor (rimelight_editor): the global the Rust side binds (`wire_block_editor!`), and the structs it fills.
+export { EditorBridge } from "@rimelight_editor/block-editor.slint";
+export { EditorRow, RemoteCaret, InsertItem, MentionItem, EmojiItem, BlockMenuItem, LocaleItem, CommentItem, PresenceItem, InspectorField, KeyOutcome } from "@rimelight_editor/types.slint";

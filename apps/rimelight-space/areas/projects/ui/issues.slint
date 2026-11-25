@@ -1,0 +1,504 @@
+// Projects > Issues (S1.3). The issue list of one project from the API: the query bar (page header), the chips, the New issue
+// form for a member, the column headers (sort), the rows and Load more. The data comes from src/pages/projects/issues.rs,
+// which sets the window's `issues-*` properties.
+//
+// The page reports `opened` from its `init` and when its route changes. The query bar reports each change; the Rust side
+// waits 400 ms after the last change before it asks the server, and Enter asks at once.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { ViewSwitcher, ViewOption } from "@rimelight_ui/components/view-switcher.slint";
+import { BoardPage, BoardLane } from "@rimelight_shell/templates/board-page.slint";
+
+// One issue in the list. `assignee` is the initials, empty when nobody is assigned.
+export struct IssueRow {
+    key: string,
+    issue-type: string,
+    summary: string,
+    state: string,
+    priority: string,
+    assignee: string,
+    updated: string,
+}
+
+// A column header. A sortable header sets `sort by:` in the query, and the sorted one shows its direction. The width is set
+// where the header is used.
+component SortHeader inherits TouchArea {
+    in property <string> label;
+    in property <string> field;
+    in property <bool> sortable;
+    in property <bool> active;
+    in property <bool> desc;
+    callback picked(string);
+
+    accessible-role: button;
+    accessible-label: root.label;
+    enabled: root.sortable;
+    clicked => {
+        root.picked(root.field);
+    }
+
+    HorizontalLayout {
+        spacing: Tokens.space-1;
+        alignment: start;
+        height: parent.height;
+        Text {
+            height: parent.height;
+            vertical-alignment: center;
+            text: root.label;
+            color: root.active ? Tokens.text-primary : Tokens.text-muted;
+            overflow: elide;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.body-strong.weight;
+        }
+        if root.sortable && root.active : Image {
+            source: Icons.chevron-down;
+            width: 12px;
+            height: 12px;
+            colorize: Tokens.text-primary;
+            transform-rotation: root.desc ? 0deg : 180deg;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component IssuesPage inherits Rectangle {
+    // The route of the page (`/p/:key/issues`). The page reports `opened` for it.
+    in property <string> route;
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <[IssueRow]> rows;
+    in property <bool> has-more;
+    in property <bool> loading-more;
+    // The query text, two-way with the bar. The chips and the sort headers set it from Rust.
+    in-out property <string> query;
+    // One flag per chip, in the chips' order. True when the chip's clause is in the query.
+    in property <[bool]> chip-on;
+    // The field and direction of the `sort by:` clause, if there is one.
+    in property <string> sort-field;
+    in property <bool> sort-desc;
+    // The server's message for a query it refused, and the span it is about (split in three parts for the marked span).
+    in property <string> query-message;
+    in property <string> query-before;
+    in property <string> query-span;
+    in property <string> query-after;
+    // New issue: shown for a member or an admin, not a viewer. The button opens the New issue dialog (new-issue.slint).
+    in property <bool> can-create;
+    // The view on show: 0 the table, 1 the board. Two-way, so the switcher and Rust agree. Rust restores it on open.
+    in-out property <int> view-mode: 0;
+    // The board: one lane per workflow state in position order.
+    in property <[BoardLane]> board;
+    // The message for a board move the server refused. Empty when there is none.
+    in property <string> board-error;
+    // The board column under a pointer, from the Rust side: the content x in px, the column width, the gap between columns and
+    // the count of columns. Returns the column's index, or -1 when x is not over one.
+    callback column-at(float, float, float, int) -> int;
+
+    callback search(string);
+    // A card moved to column `int` (an index into `board`): the issue's key and the target column.
+    callback board-move(string, int);
+    // The switcher picked a view.
+    callback view-changed(int);
+    callback submit(string);
+    callback chip(int);
+    callback sort(string);
+    callback load-more();
+    callback retry();
+    callback open-issue(string);
+    callback new-issue();
+    // Opens the New sprint dialog (the button beside New issue).
+    callback new-sprint();
+    callback opened(string);
+
+    property <[ViewOption]> view-options: [
+        { label: "Table", icon: Icons.table-properties },
+        { label: "Board", icon: Icons.kanban },
+    ];
+
+
+    // Column widths, shared by the headers and the rows.
+    property <length> w-key: 88px;
+    property <length> w-type: 84px;
+    property <length> w-state: 120px;
+    property <length> w-priority: 88px;
+    property <length> w-assignee: 64px;
+    property <length> w-updated: 104px;
+
+    background: transparent;
+    init => {
+        root.opened(root.route);
+    }
+    changed route => {
+        root.opened(root.route);
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-6;
+        padding-top: 0px;
+        spacing: Tokens.space-3;
+
+        // Page header: the query bar, and New issue for a member.
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+
+            SearchField {
+                horizontal-stretch: 1;
+                text <=> root.query;
+                placeholder: "Query, for example: assignee: me sort by: -updated";
+                accessible-name: "Issue query";
+                changed(text) => {
+                    root.search(text);
+                }
+                submitted(text) => {
+                    root.submit(text);
+                }
+            }
+            Button {
+                text: "New sprint";
+                variant: ButtonVariant.secondary;
+                accessible-name: "New sprint";
+                clicked => {
+                    root.new-sprint();
+                }
+            }
+            if root.can-create : Button {
+                text: "New issue";
+                variant: ButtonVariant.primary;
+                leading-icon: Icons.plus;
+                accessible-name: "New issue";
+                clicked => {
+                    root.new-issue();
+                }
+            }
+        }
+
+        // The server's message for the query, with the span it is about marked.
+        if root.query-message != "" : VerticalLayout {
+            spacing: Tokens.space-1;
+
+            HorizontalLayout {
+                alignment: start;
+                Text {
+                    text: root.query-before;
+                    color: Tokens.text-primary;
+                    font-family: Type.code.family;
+                    font-size: Type.code.size;
+                    font-weight: Type.code.weight;
+                }
+                Rectangle {
+                    border-width: 1px;
+                    border-radius: Tokens.radius-r4;
+                    border-color: Tokens.status-danger-border;
+                    background: Tokens.status-danger-surface;
+                    Text {
+                        text: root.query-span;
+                        color: Tokens.status-danger-text-on-surface;
+                        font-family: Type.code.family;
+                        font-size: Type.code.size;
+                        font-weight: Type.code.weight;
+                    }
+                }
+                Text {
+                    text: root.query-after;
+                    color: Tokens.text-primary;
+                    font-family: Type.code.family;
+                    font-size: Type.code.size;
+                    font-weight: Type.code.weight;
+                }
+            }
+            Text {
+                text: root.query-message;
+                color: Tokens.status-danger-text-on-surface;
+                wrap: word-wrap;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+        }
+
+        // Quick filter chips. Each one toggles its clause in the query.
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+            alignment: stretch;
+
+            for label[index] in ["Assigned to me", "Unresolved", "Current sprint"] : Button {
+                text: label;
+                size: ButtonSize.sm;
+                variant: root.chip-on[index] ? ButtonVariant.primary : ButtonVariant.secondary;
+                accessible-name: label;
+                clicked => {
+                    root.chip(index);
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            // The view switcher: Table or Board. A later view is one more entry in view-options and one more body below.
+            ViewSwitcher {
+                // The chips are small controls, so the switcher takes the small height to sit on the same centre line.
+                trigger-height: Tokens.size-control-sm;
+                options: root.view-options;
+                active: root.view-mode;
+                accessible-name: "View";
+                picked(index) => {
+                    root.view-mode = index;
+                    root.view-changed(index);
+                }
+            }
+        }
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.circle-dot;
+            empty-title: "No issues";
+            empty-description: "No issues match this query.";
+            error-description: "The issues could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        if root.state == PageLoadState.loaded : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-1;
+
+            // The board: one column per workflow state, the cards grouped by state. The board scrolls across (the columns) and
+            // each column scrolls down. A card moves through its "Move to" list, which sets the issue's state.
+            if root.view-mode == 1 : VerticalLayout {
+                vertical-stretch: 1;
+                spacing: Tokens.space-2;
+
+                BoardPage {
+                    vertical-stretch: 1;
+                    state: PageLoadState.loaded;
+                    board: root.board;
+                    move-error: root.board-error;
+                    add-label: "";
+                    column-at(x, width, gap, count) => {
+                        return root.column-at(x, width, gap, count);
+                    }
+                    picked(key) => {
+                        root.open-issue(key);
+                    }
+                    moved(key, target) => {
+                        root.board-move(key, target);
+                    }
+                }
+            }
+
+            // The column headers. Key, State, Priority and Updated sort; the others do not. The table is the table view.
+            if root.view-mode == 0 : HorizontalLayout {
+                height: 32px;
+                padding-left: Tokens.space-3;
+                padding-right: Tokens.space-3;
+                spacing: Tokens.space-3;
+
+                SortHeader {
+                    min-width: root.w-key;
+                    max-width: root.w-key;
+                    label: "Key";
+                    field: "key";
+                    sortable: true;
+                    active: root.sort-field == "key";
+                    desc: root.sort-desc;
+                    picked(field) => {
+                        root.sort(field);
+                    }
+                }
+                SortHeader {
+                    min-width: root.w-type;
+                    max-width: root.w-type;
+                    label: "Type";
+                    field: "";
+                    sortable: false;
+                    active: false;
+                }
+                SortHeader {
+                    horizontal-stretch: 1;
+                    label: "Title";
+                    field: "";
+                    sortable: false;
+                    active: false;
+                }
+                SortHeader {
+                    min-width: root.w-state;
+                    max-width: root.w-state;
+                    label: "State";
+                    field: "state";
+                    sortable: true;
+                    active: root.sort-field == "state";
+                    desc: root.sort-desc;
+                    picked(field) => {
+                        root.sort(field);
+                    }
+                }
+                SortHeader {
+                    min-width: root.w-priority;
+                    max-width: root.w-priority;
+                    label: "Priority";
+                    field: "priority";
+                    sortable: true;
+                    active: root.sort-field == "priority";
+                    desc: root.sort-desc;
+                    picked(field) => {
+                        root.sort(field);
+                    }
+                }
+                SortHeader {
+                    min-width: root.w-assignee;
+                    max-width: root.w-assignee;
+                    label: "Assignee";
+                    field: "";
+                    sortable: false;
+                    active: false;
+                }
+                SortHeader {
+                    min-width: root.w-updated;
+                    max-width: root.w-updated;
+                    label: "Updated";
+                    field: "updated";
+                    sortable: true;
+                    active: root.sort-field == "updated";
+                    desc: root.sort-desc;
+                    picked(field) => {
+                        root.sort(field);
+                    }
+                }
+            }
+
+            if root.view-mode == 0 : ScrollArea {
+                vertical-stretch: 1;
+                accessible-name: "Issues";
+
+                VerticalLayout {
+                    spacing: Tokens.space-1;
+                    alignment: start;
+
+                    for row in root.rows : Rectangle {
+                        height: 44px;
+                        border-radius: Tokens.radius-r6;
+                        background: row-touch.has-hover ? Tokens.surface-raised : transparent;
+
+                        row-touch := TouchArea {
+                            accessible-role: button;
+                            accessible-label: row.key + " " + row.summary;
+                            clicked => {
+                                root.open-issue(row.key);
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: Tokens.space-3;
+                            padding-right: Tokens.space-3;
+                            spacing: Tokens.space-3;
+                            width: parent.width;
+                            height: parent.height;
+
+                            Text {
+                                min-width: root.w-key;
+                                max-width: root.w-key;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.key;
+                                color: Tokens.text-muted;
+                                overflow: elide;
+                                font-family: Type.code.family;
+                                font-size: Type.code.size;
+                                font-weight: Type.code.weight;
+                            }
+                            Text {
+                                min-width: root.w-type;
+                                max-width: root.w-type;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.issue-type;
+                                color: Tokens.text-muted;
+                                overflow: elide;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            Text {
+                                horizontal-stretch: 1;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.summary;
+                                color: Tokens.text-primary;
+                                overflow: elide;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            Text {
+                                min-width: root.w-state;
+                                max-width: root.w-state;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.state;
+                                color: Tokens.text-muted;
+                                overflow: elide;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            Text {
+                                min-width: root.w-priority;
+                                max-width: root.w-priority;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.priority;
+                                color: Tokens.text-muted;
+                                overflow: elide;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            Text {
+                                min-width: root.w-assignee;
+                                max-width: root.w-assignee;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.assignee;
+                                color: Tokens.text-primary;
+                                overflow: elide;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            Text {
+                                min-width: root.w-updated;
+                                max-width: root.w-updated;
+                                height: parent.height;
+                                vertical-alignment: center;
+                                text: row.updated;
+                                color: Tokens.text-muted;
+                                overflow: elide;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                        }
+                    }
+
+                    if root.has-more : Button {
+                        text: "Load more";
+                        variant: ButtonVariant.secondary;
+                        enabled: !root.loading-more;
+                        loading: root.loading-more;
+                        clicked => {
+                            root.load-more();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

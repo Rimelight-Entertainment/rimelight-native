@@ -1,0 +1,115 @@
+// Content > Collections admin (CMS.6, /admin/content/collections): the list, and the form for a collection: label, plural, icon,
+// colour, path pattern, taxonomies, and the field list (name, type, label, required, options). State is ContentCollectionsState.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Switch } from "@rimelight_ui/components/switch.slint";
+import { CollectionRowItem, FieldRowItem } from "types.slint";
+
+export global ContentCollectionsState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <[CollectionRowItem]> rows;
+    in-out property <string> notice;
+    // The form. `editing` is the slug of an existing collection (its slug cannot change).
+    in-out property <bool> form-open: false;
+    in-out property <string> editing;
+    in-out property <string> slug;
+    in-out property <string> label;
+    in-out property <string> plural;
+    in-out property <string> icon;
+    in-out property <string> color;
+    in-out property <string> path;
+    in-out property <bool> taxonomies: false;
+    in-out property <[FieldRowItem]> fields;
+    in-out property <string> form-error;
+
+    callback reload();
+    callback new-item();
+    callback edit(string);
+    callback cancel();
+    callback save();
+    callback delete(string);
+    // index -1 is the collection's own field; `key` names the field (slug, label, plural, icon, color, path, taxonomies,
+    // or for a field: name, kind, label, required, options).
+    callback form-field(int, string, string);
+    callback field-add();
+    callback field-remove(int);
+}
+
+export component ContentCollectionsPage inherits Rectangle {
+    background: Tokens.surface-base;
+    in property <string> route;
+    callback opened(string);
+    init => { root.opened(root.route); }
+    changed route => { root.opened(root.route); }
+
+    VerticalLayout {
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        HorizontalLayout {
+            spacing: Tokens.space-3;
+            Text { text: "Collections"; font-size: Type.heading.size; color: Tokens.text-primary; horizontal-stretch: 1; vertical-alignment: center; }
+            Button { text: "New collection"; variant: ButtonVariant.primary; clicked => { ContentCollectionsState.new-item(); } }
+        }
+        if ContentCollectionsState.notice != "": Text { text: ContentCollectionsState.notice; color: Tokens.text-muted; }
+        if ContentCollectionsState.error != "": Text { text: ContentCollectionsState.error; color: Tokens.text-muted; }
+
+        if !ContentCollectionsState.form-open: ScrollArea {
+            vertical-stretch: 1;
+            VerticalLayout {
+                for row in ContentCollectionsState.rows: HorizontalLayout {
+                    height: 44px;
+                    spacing: Tokens.space-3;
+                    padding-left: Tokens.space-3;
+                    Rectangle { width: 10px; height: 10px; border-radius: 5px; background: row.chip; }
+                    Text { text: row.label; color: Tokens.text-primary; horizontal-stretch: 1; vertical-alignment: center; }
+                    Text { text: row.mode; color: Tokens.text-muted; vertical-alignment: center; }
+                    Button { text: "Edit"; variant: ButtonVariant.ghost; clicked => { ContentCollectionsState.edit(row.slug); } }
+                    // Delete shows the 409 "has pages" sentence when the collection is still in use.
+                    Button { text: "Delete"; variant: ButtonVariant.danger; clicked => { ContentCollectionsState.delete(row.slug); } }
+                }
+            }
+        }
+
+        if ContentCollectionsState.form-open: ScrollArea {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: Tokens.space-2;
+                Text { text: ContentCollectionsState.editing == "" ? "New collection" : "Edit collection"; font-size: Type.subheading.size; color: Tokens.text-primary; }
+                if ContentCollectionsState.editing == "": Input { placeholder: "Slug"; text: ContentCollectionsState.slug; accessible-name: "Slug"; changed(t) => { ContentCollectionsState.form-field(-1, "slug", t); } }
+                Input { placeholder: "Label"; text: ContentCollectionsState.label; accessible-name: "Label"; changed(t) => { ContentCollectionsState.form-field(-1, "label", t); } }
+                Input { placeholder: "Plural label"; text: ContentCollectionsState.plural; accessible-name: "Plural label"; changed(t) => { ContentCollectionsState.form-field(-1, "plural", t); } }
+                Input { placeholder: "Icon"; text: ContentCollectionsState.icon; accessible-name: "Icon"; changed(t) => { ContentCollectionsState.form-field(-1, "icon", t); } }
+                Input { placeholder: "Colour #rrggbb"; text: ContentCollectionsState.color; accessible-name: "Colour"; changed(t) => { ContentCollectionsState.form-field(-1, "color", t); } }
+                Input { placeholder: "Path pattern, for example /wiki/:slug"; text: ContentCollectionsState.path; accessible-name: "Path pattern"; changed(t) => { ContentCollectionsState.form-field(-1, "path", t); } }
+                Switch { text: "Taxonomies"; checked: ContentCollectionsState.taxonomies; changed(on) => { ContentCollectionsState.form-field(-1, "taxonomies", on ? "true" : "false"); } }
+
+                Text { text: "Fields"; font-size: Type.body.size; color: Tokens.text-primary; }
+                for field[i] in ContentCollectionsState.fields: VerticalLayout {
+                    spacing: Tokens.space-1;
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        Input { horizontal-stretch: 1; placeholder: "name"; text: field.name; accessible-name: "Field name"; changed(t) => { ContentCollectionsState.form-field(i, "name", t); } }
+                        Input { horizontal-stretch: 1; placeholder: "type"; text: field.kind; accessible-name: "Field type"; changed(t) => { ContentCollectionsState.form-field(i, "kind", t); } }
+                        Input { horizontal-stretch: 1; placeholder: "label"; text: field.label; accessible-name: "Field label"; changed(t) => { ContentCollectionsState.form-field(i, "label", t); } }
+                        Button { text: "Remove"; variant: ButtonVariant.ghost; clicked => { ContentCollectionsState.field-remove(i); } }
+                    }
+                    if field.kind == "select": Input { placeholder: "Options, one per line"; text: field.options; accessible-name: "Options"; changed(t) => { ContentCollectionsState.form-field(i, "options", t); } }
+                }
+                Button { text: "Add field"; variant: ButtonVariant.ghost; clicked => { ContentCollectionsState.field-add(); } }
+
+                if ContentCollectionsState.form-error != "": Text { text: ContentCollectionsState.form-error; color: Tokens.text-muted; }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { ContentCollectionsState.cancel(); } }
+                    Button { text: "Save"; variant: ButtonVariant.primary; clicked => { ContentCollectionsState.save(); } }
+                }
+            }
+        }
+    }
+}

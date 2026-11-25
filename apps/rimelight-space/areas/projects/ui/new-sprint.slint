@@ -1,0 +1,158 @@
+// New sprint dialog. Opened by the Issues page's New sprint button (src/pages/projects/new_sprint.rs), which fills the
+// date pickers' grids and answers the callbacks. The markup holds no logic. Create and Cancel are the footer.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+
+export component NewSprintDialog inherits Rectangle {
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    in-out property <string> name;
+    in-out property <string> goal;
+    in-out property <string> start-date;
+    in-out property <string> end-date;
+    in property <[CalendarDay]> start-days;
+    in property <[CalendarDay]> end-days;
+    in property <string> start-title;
+    in property <string> end-title;
+    in property <[string]> weekday-labels;
+    // Set by Rust: no create in progress.
+    in property <bool> creating: false;
+    // The message under the footer (a refused create, a bad field).
+    in property <string> error;
+
+    callback create();
+    callback start-picked(int);
+    callback start-step(int);
+    callback end-picked(int);
+    callback end-step(int);
+
+    // True while the dialog is shown.
+    out property <bool> is-open: dlg.is-open;
+
+    public function open() {
+        dlg.open();
+    }
+
+    public function close() {
+        dlg.close();
+    }
+
+    x: 0px;
+    y: 0px;
+    width: 0px;
+    height: 0px;
+
+    dlg := Dialog {
+        title: "New sprint";
+        size: DialogSize.lg;
+        dismissible: !root.creating;
+        close-label: "Close new sprint";
+        host-width: root.host-width;
+        host-height: root.host-height;
+
+        VerticalLayout {
+            spacing: Tokens.space-4;
+
+            Input {
+                text <=> root.name;
+                placeholder: "Sprint name";
+                accessible-name: "Sprint name";
+                enabled: !root.creating;
+            }
+            Input {
+                text <=> root.goal;
+                placeholder: "Goal (optional)";
+                accessible-name: "Sprint goal";
+                enabled: !root.creating;
+            }
+            HorizontalLayout {
+                spacing: Tokens.space-4;
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Tokens.space-1;
+                    Text {
+                        text: "Start date";
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    DatePicker {
+                        text: root.start-date;
+                        placeholder: "Pick a start date";
+                        accessible-name: "Start date";
+                        enabled: !root.creating;
+                        days: root.start-days;
+                        weekday-labels: root.weekday-labels;
+                        title: root.start-title;
+                        picked(index) => { root.start-picked(index); }
+                        month-step(step) => { root.start-step(step); }
+                    }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Tokens.space-1;
+                    Text {
+                        text: "End date";
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    DatePicker {
+                        text: root.end-date;
+                        placeholder: "Pick an end date";
+                        accessible-name: "End date";
+                        enabled: !root.creating;
+                        days: root.end-days;
+                        weekday-labels: root.weekday-labels;
+                        title: root.end-title;
+                        picked(index) => { root.end-picked(index); }
+                        month-step(step) => { root.end-step(step); }
+                    }
+                }
+            }
+
+            if root.error != "" : Text {
+                text: root.error;
+                color: Tokens.status-danger-text-on-surface;
+                wrap: word-wrap;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    enabled: !root.creating;
+                    clicked => {
+                        dlg.close();
+                    }
+                }
+                Button {
+                    text: "Create";
+                    variant: ButtonVariant.primary;
+                    enabled: !root.creating;
+                    loading: root.creating;
+                    clicked => {
+                        root.create();
+                    }
+                }
+            }
+        }
+    }
+}

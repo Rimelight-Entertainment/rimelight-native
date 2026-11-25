@@ -1,0 +1,59 @@
+// The window shown while the desktop app checks for, downloads and applies an update before it opens (REL.3).
+// It uses the system palette of the Slint style, not the app's design tokens: it runs before the app shell exists.
+import { Button, Palette, ProgressIndicator } from "std-widgets.slint";
+
+export component UpdateWindow inherits Window {
+    in property <string> heading: "Rimelight Space";
+    in property <string> status: "Checking for updates";
+    // 0 to 1; a negative value shows an indeterminate bar.
+    in property <float> progress: -1;
+    in property <bool> failed: false;
+    callback retry();
+    callback quit();
+
+    title: "Rimelight Space";
+    preferred-width: 440px;
+    preferred-height: 220px;
+    min-width: 440px;
+    min-height: 220px;
+    background: Palette.background;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 14px;
+        alignment: center;
+
+        Text {
+            text: root.heading;
+            font-size: 20px;
+            font-weight: 600;
+            color: Palette.foreground;
+        }
+
+        Text {
+            text: root.status;
+            wrap: word-wrap;
+            font-size: 14px;
+            color: root.failed ? #d14343 : Palette.foreground;
+        }
+
+        if !root.failed: ProgressIndicator {
+            progress: max(root.progress, 0);
+            indeterminate: root.progress < 0;
+        }
+
+        if root.failed: HorizontalLayout {
+            spacing: 10px;
+            alignment: end;
+            Button {
+                text: "Quit";
+                clicked => { root.quit(); }
+            }
+            Button {
+                text: "Try again";
+                primary: true;
+                clicked => { root.retry(); }
+            }
+        }
+    }
+}

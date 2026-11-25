@@ -1,0 +1,59 @@
+[package]
+name = "space_client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+space_proto = { path = "../space_proto" }
+# The content document wire frames and the block mapping (CMS.5): content_live reads and writes DocRoom frames with it.
+rimelight_content = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = "0.3"
+sha2 = "0.10"
+base64 = "0.22"
+
+# Web target (SA.6): fetch for the HTTP transport, localStorage and sessionStorage, and the page location for the
+# same-tab sign-in redirect. getrandom's JS source needs `wasm_js` here and the cfg in `.cargo/config.toml`.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-net = { version = "0.6", default-features = false, features = ["http"] }
+gloo-storage = "0.3"
+# Pinned like apps/web (the wasm-bindgen CLI must match this exact version).
+wasm-bindgen = "=0.2.130"
+web-sys = { version = "0.3", features = ["Window", "Location", "History"] }
+# Binary request bodies (the avatar upload) go to fetch as a Uint8Array (SP.3a).
+js-sys = "0.3"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+# HTTP. Native only: reqwest.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+# reqwest needs a tokio reactor; `block_on` in lib.rs runs the async client on a small runtime for callers without one.
+tokio = { version = "1", features = ["rt", "net", "time", "sync", "macros"] }
+# Canvas live room WebSocket (CV.4). rustls with no default features, so the aws-lc-rs provider reqwest already enables is the only one.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+# The crypto provider is chosen explicitly (aws-lc-rs) before the WebSocket connects: when another crate in the app also
+# enables rustls' `ring` backend, rustls cannot pick one by itself and panics (seen 2026-11-20 with velopack's ureq).
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+# System browser and OS credential store. Desktop only.
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
+open = "5"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["linux-native-sync-persistent", "crypto-rust"] }
+
+[dev-dependencies]
+pollster = "0.4"
+
+[lints]
+workspace = true

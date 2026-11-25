@@ -1,0 +1,31 @@
+[package]
+name = "rimelight_desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Only space_ui (the Slint app shell, PLAN 7.2) and space_nav (the page manifest for the --route check).
+space_ui = { path = "../../crates/space_ui" }
+space_area_canvas = { path = "../../areas/canvas" }
+space_nav = { path = "../../crates/space_nav" }
+# The sign-in driver (src/session.rs): the Rimelight Space client, its OS credential store and the browser sign-in.
+space_client = { path = "../../crates/space_client" }
+
+# Window events Slint does not handle itself: files dropped from the OS (canvases, CV.7). Desktop targets only: cargo unifies
+# features across the workspace, and the winit feature breaks the Android backend build.
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+slint = { workspace = true, features = ["unstable-winit-030"] }
+# The canvas pop-out window (CV.12): Win32 window calls and the system-wide click-through hotkey (Ctrl+Alt+Shift+M).
+rimelight_platform = { workspace = true }
+global-hotkey = "0.7"
+
+# Self-update (REL.2 and REL.3, decision 0047): the shared updater (Velopack, rimelight-rs crates/rimelight_update) and
+# Space's start-up window. Windows only for now. The `vpk` tool must be the same Velopack version as the shared crate.
+[target.'cfg(windows)'.dependencies]
+rimelight_update = { workspace = true }
+space_update_slint = { path = "../../crates/space_update_slint" }

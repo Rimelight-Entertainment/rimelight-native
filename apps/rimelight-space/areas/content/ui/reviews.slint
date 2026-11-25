@@ -1,0 +1,59 @@
+// Content > Reviews (CMS.6, /home/reviews): every pending version the caller can review, across the scopes. Open, approve, and
+// reject with a reason (the reason becomes a comment on the draft). State is ContentReviewsState.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { ReviewRowItem } from "types.slint";
+
+export global ContentReviewsState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> notice;
+    in-out property <[ReviewRowItem]> rows;
+
+    callback reload();
+    callback open(int);
+    callback approve(int);
+    callback reject(int, string);
+}
+
+export component ContentReviewsPage inherits Rectangle {
+    background: Tokens.surface-base;
+    in property <string> route;
+    callback opened(string);
+    init => { root.opened(root.route); }
+    changed route => { root.opened(root.route); }
+
+    VerticalLayout {
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        Text { text: "Reviews"; font-size: Type.heading.size; color: Tokens.text-primary; }
+        if ContentReviewsState.notice != "": Text { text: ContentReviewsState.notice; color: Tokens.text-muted; }
+        if ContentReviewsState.error != "": Text { text: ContentReviewsState.error; color: Tokens.text-muted; }
+        if ContentReviewsState.state == PageLoadState.empty: Text { text: "Nothing is waiting for your review."; color: Tokens.text-muted; }
+
+        ScrollArea {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: Tokens.space-2;
+                for row[i] in ContentReviewsState.rows: VerticalLayout {
+                    padding: Tokens.space-2;
+                    spacing: Tokens.space-1;
+                    Text { text: row.page-title; font-size: Type.body.size; color: Tokens.text-primary; }
+                    Text { text: "\{row.scope-label} · \{row.updated}"; font-size: Type.caption.size; color: Tokens.text-muted; }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        reason-input := Input { horizontal-stretch: 1; placeholder: "Reason, if you reject"; accessible-name: "Reason"; }
+                        Button { text: "Open"; variant: ButtonVariant.ghost; clicked => { ContentReviewsState.open(i); } }
+                        Button { text: "Approve"; variant: ButtonVariant.primary; clicked => { ContentReviewsState.approve(i); } }
+                        Button { text: "Reject"; variant: ButtonVariant.danger; clicked => { ContentReviewsState.reject(i, reason-input.text); } }
+                    }
+                }
+            }
+        }
+    }
+}

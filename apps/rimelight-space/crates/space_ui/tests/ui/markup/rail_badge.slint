@@ -1,0 +1,24 @@
+// Test markup for tests/ui/rail_badge.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { Rail, RailItem, RailBadge } from "@rimelight_shell/components/rail.slint";
+export { RailItem, RailBadge }
+
+export component RailForm inherits Window {
+    width: 80px;
+    height: 600px;
+
+    in-out property <[RailItem]> items;
+    in-out property <[RailBadge]> badges;
+
+    rail := Rail {
+        items: root.items;
+        badges: root.badges;
+    }
+
+    // The rail's test hooks, for the badge text and accessible label of area `index`.
+    public function test-badge-text(index: int) -> string {
+        return rail.test-badge-text(index);
+    }
+    public function test-area-label(index: int) -> string {
+        return rail.test-area-label(index);
+    }
+}

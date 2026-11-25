@@ -1,0 +1,164 @@
+// Create project dialog. A small Dialog with the Key, Name and Description fields and Cancel / Create project. The markup
+// holds no logic: the shell shows it through `show`, and Rust (src/pages/projects/create_project.rs) checks the values and
+// sends the create when `save` fires. The values are passed with `save`, so Rust does not read the properties back.
+//
+// The dialog is a Dialog (components/dialog.slint), so it traps focus, closes on Escape and covers the window.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+
+export component CreateProjectDialog inherits Rectangle {
+    // The window the dialog covers (its popup is clipped to it).
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    // The form. `in-out` values are read by the shell when Create project is pressed.
+    in-out property <string> project-key;
+    in-out property <string> project-name;
+    in-out property <string> project-description;
+    // The message under the footer (the server's refusal, or a bad field). Set by Rust.
+    in property <string> error;
+    // True while the create is in flight: the fields and buttons are disabled.
+    in property <bool> creating: false;
+    // The shell sets this to open or close the dialog.
+    in property <bool> show: false;
+    // The optional picture: the native picker is offered on desktop only (`picture-supported`). The chosen file's name and a
+    // small preview are set by Rust.
+    in property <bool> picture-supported: false;
+    in property <string> picture-name;
+    in property <image> picture-preview;
+    in property <bool> picture-has-preview: false;
+
+    callback save(string, string, string);
+    callback cancel();
+    callback choose-picture();
+    // The dialog closed (Escape, the close control, or Cancel). The shell sets `show` back to false.
+    callback dismissed();
+
+    changed show => {
+        if (root.show) {
+            dlg.open();
+        } else {
+            dlg.close();
+        }
+    }
+
+    x: 0px;
+    y: 0px;
+    width: 0px;
+    height: 0px;
+
+    dlg := Dialog {
+        title: "Create project";
+        size: DialogSize.md;
+        dismissible: !root.creating;
+        close-label: "Close create project";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        closed => {
+            root.dismissed();
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-4;
+
+            if root.picture-supported : VerticalLayout {
+                spacing: Tokens.space-2;
+
+                Text {
+                    text: "Picture (optional)";
+                    color: Tokens.text-primary;
+                    font-family: Type.body-strong.family;
+                    font-size: Type.body.size;
+                    font-weight: 600;
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    if root.picture-has-preview : Image {
+                        width: 48px;
+                        height: 48px;
+                        y: (parent.height - self.height) / 2;
+                        source: root.picture-preview;
+                        image-fit: contain;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.picture-name != "" ? root.picture-name : "No picture chosen";
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                        overflow: elide;
+                        wrap: no-wrap;
+                        vertical-alignment: center;
+                    }
+                    Button {
+                        text: root.picture-name != "" ? "Change picture" : "Choose picture";
+                        variant: ButtonVariant.secondary;
+                        enabled: !root.creating;
+                        clicked => {
+                            root.choose-picture();
+                        }
+                    }
+                }
+            }
+            Input {
+                text <=> root.project-key;
+                placeholder: "Key, for example RS";
+                accessible-name: "Key";
+                enabled: !root.creating;
+            }
+            Input {
+                text <=> root.project-name;
+                placeholder: "Name";
+                accessible-name: "Name";
+                enabled: !root.creating;
+            }
+            Textarea {
+                text <=> root.project-description;
+                placeholder: "Description (optional)";
+                accessible-name: "Description";
+                rows: 4;
+                max-rows: 8;
+                enabled: !root.creating;
+            }
+
+            if root.error != "" : Text {
+                text: root.error;
+                color: Tokens.status-danger-text-on-surface;
+                wrap: word-wrap;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Tokens.space-2;
+
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.secondary;
+                    enabled: !root.creating;
+                    clicked => {
+                        root.cancel();
+                    }
+                }
+                Button {
+                    text: "Create project";
+                    variant: ButtonVariant.primary;
+                    enabled: !root.creating;
+                    loading: root.creating;
+                    clicked => {
+                        root.save(root.project-key, root.project-name, root.project-description);
+                    }
+                }
+            }
+        }
+    }
+}

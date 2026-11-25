@@ -1,0 +1,98 @@
+// Content area (CMS.6): the structs the pages' globals hold. Rust fills them (wire_content! converts the plain values).
+// The names here are the `$...Item` arguments of wire_content!: ContentTabItem, ListRowItem, DraftRowItem, ChoiceItem,
+// PageHeaderItem, CollectionRowItem, FieldRowItem, MediaCellItem, ReviewRowItem.
+
+export struct ContentTabItem {
+    slug: string,
+    label: string,
+    chip: color,
+    count: int,
+}
+
+// One page in a scope's list or tree. `can-manage` shows the visibility, move and delete actions; `can-edit` shows Edit.
+export struct ListRowItem {
+    id: string,
+    title: string,
+    slug: string,
+    collection: string,
+    chip: color,
+    status: string,
+    updated: string,
+    visibility: string,
+    public: bool,
+    can-manage: bool,
+    can-edit: bool,
+}
+
+export struct DraftRowItem {
+    draft-id: string,
+    page-id: string,
+    page-title: string,
+    status: string,
+    in-review: bool,
+    version-id: string,
+    mine: bool,
+    updated: string,
+}
+
+// A choice in a picker: the stored value and its label.
+export struct ChoiceItem {
+    value: string,
+    label: string,
+}
+
+export struct PageHeaderItem {
+    title: string,
+    collection: string,
+    scope-label: string,
+    visibility: string,
+    status: string,
+    can-edit: bool,
+    can-manage: bool,
+    has-draft: bool,
+}
+
+export struct CollectionRowItem {
+    slug: string,
+    label: string,
+    icon: string,
+    chip: color,
+    mode: string,
+}
+
+export struct FieldRowItem {
+    name: string,
+    kind: string,
+    label: string,
+    required: bool,
+    options: string,
+}
+
+export struct MediaCellItem {
+    id: string,
+    name: string,
+    url: string,
+    alt: string,
+    size: string,
+    image: bool,
+}
+
+export struct ReviewRowItem {
+    version-id: string,
+    draft-id: string,
+    page-title: string,
+    scope-label: string,
+    author-id: string,
+    updated: string,
+}
+
+// One property of the page (a field of its collection) in the page panel. `kind` is the CMS field type: text, textarea,
+// number, boolean, select, date, url, tags, richtext, json, media, reference. `value` is the value as text (JSON for
+// json, comma-separated for tags). `options` are a select field's choices.
+export struct PropertyItem {
+    key: string,
+    label: string,
+    kind: string,
+    value: string,
+    options: [ChoiceItem],
+}

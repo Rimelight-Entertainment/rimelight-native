@@ -1,0 +1,532 @@
+// Profile (SP.3c). One person's profile at `/company/employees/{id}`, and the signed-in person's own profile (the avatar
+// menu's Profile row). The data comes from crates/areas/company/src/profile.rs, which sets the window's `profile-*` properties.
+//
+// Own profile only: Edit (self-editable fields) and Change photo (desktop only; the button is hidden elsewhere). Org fields
+// (title, team, department, manager, start date) are read-only everywhere and say "Managed by your admin" on your own profile.
+//
+// The page reports `opened` from its `init` and when its route changes. Personal fields are drawn only when the view says the
+// server returned them.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Textarea } from "@rimelight_ui/components/textarea.slint";
+import { Field } from "@rimelight_ui/components/field.slint";
+import { Tag } from "@rimelight_ui/components/tag.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { DescriptionList } from "@rimelight_ui/components/description-list.slint";
+import { Section } from "@rimelight_ui/components/section.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+
+// A person in the reporting line or the direct reports. Every one is a link to that person's profile.
+export struct PersonLink {
+    id: string,
+    name: string,
+    title: string,
+}
+
+// Everything the profile shows. Empty strings mean "not set". `name` is the preferred name when set, else the display name.
+// The personal fields are meaningful only when `has-personal` is true (the server returned them).
+export struct ProfileView {
+    id: string,
+    name: string,
+    initials: string,
+    avatar: image,
+    preferred-name: string,
+    pronouns: string,
+    title: string,
+    team: string,
+    department: string,
+    email: string,
+    work-phone: string,
+    location: string,
+    timezone: string,
+    // The zone's name and its current local time ("Europe/London (Currently 14:05)"), or the name alone when unknown.
+    timezone-label: string,
+    start-date: string,
+    manager-id: string,
+    manager-name: string,
+    bio: string,
+    skills: [string],
+    skills-text: string,
+    has-personal: bool,
+    personal-phone: string,
+    personal-email: string,
+    address: string,
+    birthday: string,
+    emergency-contact: string,
+    // The reporting line, root first (the direct manager is the last one).
+    chain: [PersonLink],
+    reports: [PersonLink],
+}
+
+// The self-editable fields as the form holds them. Skills are one comma-separated line. An empty value clears the field.
+export struct ProfileDraft {
+    preferred-name: string,
+    pronouns: string,
+    bio: string,
+    work-phone: string,
+    timezone: string,
+    location: string,
+    skills: string,
+    personal-phone: string,
+    personal-email: string,
+    address: string,
+    birthday: string,
+    emergency-contact: string,
+}
+
+export component ProfilePage inherits Rectangle {
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    // The route this page shows. The window sets it to the tab's route.
+    in property <string> route;
+    in property <ProfileView> view;
+    // True when the profile is the signed-in person's own.
+    in property <bool> own: false;
+    in property <bool> editing: false;
+    in property <bool> saving: false;
+    in property <string> save-error;
+    // False on web and Android: the Change photo button is hidden there.
+    in property <bool> photo-supported: false;
+    in property <bool> photo-busy: false;
+    in property <string> photo-error;
+
+    callback opened(string);
+    callback retry();
+    callback start-edit();
+    callback cancel-edit();
+    callback save(ProfileDraft);
+    callback open-person(string);
+    callback change-photo();
+
+    // The form's drafts. They are copied from the view when editing starts, so Cancel (which leaves editing) restores them.
+    property <string> d-preferred-name;
+    property <string> d-pronouns;
+    property <string> d-bio;
+    property <string> d-work-phone;
+    property <string> d-timezone;
+    property <string> d-location;
+    property <string> d-skills;
+    property <string> d-personal-phone;
+    property <string> d-personal-email;
+    property <string> d-address;
+    property <string> d-birthday;
+    property <string> d-emergency-contact;
+
+    // The fields the edit form has. Title, team, department, manager and start date are not here: an admin sets them.
+    out property <[string]> edit-labels: [
+        "Preferred name", "Pronouns", "Bio", "Work phone", "Timezone", "Location", "Skills",
+        "Personal phone", "Personal email", "Address", "Birthday", "Emergency contact",
+    ];
+    out property <bool> edit-button-shown: root.own && !root.editing && root.state == PageLoadState.loaded;
+    out property <bool> photo-button-shown: root.own && root.photo-supported && root.state == PageLoadState.loaded;
+
+    background: transparent;
+    init => {
+        root.opened(root.route);
+    }
+    changed route => {
+        root.opened(root.route);
+    }
+    changed editing => {
+        if root.editing {
+            root.d-preferred-name = root.view.preferred-name;
+            root.d-pronouns = root.view.pronouns;
+            root.d-bio = root.view.bio;
+            root.d-work-phone = root.view.work-phone;
+            root.d-timezone = root.view.timezone;
+            root.d-location = root.view.location;
+            root.d-skills = root.view.skills-text;
+            root.d-personal-phone = root.view.personal-phone;
+            root.d-personal-email = root.view.personal-email;
+            root.d-address = root.view.address;
+            root.d-birthday = root.view.birthday;
+            root.d-emergency-contact = root.view.emergency-contact;
+        }
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+
+    if root.state != PageLoadState.loaded : PageState {
+        state: root.state;
+        icon: Icons.user-round;
+        empty-title: "No profile";
+        empty-description: "This person is not in the directory.";
+        error-description: "The profile could not be loaded.";
+        error-details: root.error;
+        retry => {
+            root.retry();
+        }
+    }
+
+    if root.state == PageLoadState.loaded : ScrollArea {
+        vertical-stretch: 1;
+        accessible-name: "Profile";
+
+        VerticalLayout {
+            padding: Tokens.space-4;
+            spacing: Tokens.space-4;
+            alignment: start;
+
+            // Header: the photo, the name, pronouns, title, team and the manager link.
+            HorizontalLayout {
+                spacing: Tokens.space-4;
+                alignment: start;
+
+                Avatar {
+                    name: root.view.name;
+                    initials: root.view.initials;
+                    source: root.view.avatar;
+                    size: AvatarSize.lg;
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: Tokens.space-1;
+
+                    Text {
+                        text: root.view.name;
+                        color: Tokens.text-primary;
+                        overflow: elide;
+                        font-family: Type.heading.family;
+                        font-size: Type.heading.size;
+                        font-weight: Type.heading.weight;
+                    }
+                    if root.view.pronouns != "" : Text {
+                        text: root.view.pronouns;
+                        color: Tokens.text-muted;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    if root.view.title != "" : Text {
+                        text: root.view.title;
+                        color: Tokens.text-primary;
+                        overflow: elide;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    if root.view.team != "" || root.view.department != "" : Text {
+                        text: root.view.team != "" && root.view.department != ""
+                            ? root.view.team + " · " + root.view.department
+                            : root.view.team + root.view.department;
+                        color: Tokens.text-muted;
+                        overflow: elide;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                    if root.view.manager-id != "" : Button {
+                        text: "Manager: " + root.view.manager-name;
+                        accessible-name: "Open manager " + root.view.manager-name;
+                        variant: ButtonVariant.link;
+                        size: ButtonSize.sm;
+                        clicked => {
+                            root.open-person(root.view.manager-id);
+                        }
+                    }
+                }
+            }
+
+            // Own profile actions. Change photo is shown only where the desktop picker exists.
+            HorizontalLayout {
+                spacing: Tokens.space-2;
+                alignment: start;
+
+                if root.edit-button-shown : Button {
+                    text: "Edit";
+                    accessible-name: "Edit profile";
+                    leading-icon: Icons.pen-tool;
+                    variant: ButtonVariant.secondary;
+                    clicked => {
+                        root.start-edit();
+                    }
+                }
+                if root.photo-button-shown : Button {
+                    text: "Change photo";
+                    accessible-name: "Change photo";
+                    leading-icon: Icons.user-round;
+                    variant: ButtonVariant.secondary;
+                    enabled: !root.photo-busy;
+                    loading: root.photo-busy;
+                    clicked => {
+                        root.change-photo();
+                    }
+                }
+            }
+            if root.own && !root.photo-supported : Text {
+                text: "Photo changes are available in the desktop app.";
+                color: Tokens.text-muted;
+                wrap: word-wrap;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+            if root.photo-error != "" : Banner {
+                tone: BannerTone.danger;
+                title: "Photo not changed";
+                description: root.photo-error;
+            }
+
+            // Edit form: self-editable fields only.
+            if root.editing : Section {
+                title: "Edit profile";
+                description: "You can change these fields. Title, team, department, manager and start date are managed by your admin.";
+
+                Field {
+                    label: "Preferred name";
+                    Input {
+                        text <=> root.d-preferred-name;
+                        accessible-name: "Preferred name";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Pronouns";
+                    Input {
+                        text <=> root.d-pronouns;
+                        accessible-name: "Pronouns";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Bio";
+                    Textarea {
+                        text <=> root.d-bio;
+                        accessible-name: "Bio";
+                        rows: 4;
+                        line-count: 4;
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Work phone";
+                    Input {
+                        text <=> root.d-work-phone;
+                        accessible-name: "Work phone";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Timezone";
+                    help: "For example Europe/Lisbon.";
+                    Input {
+                        text <=> root.d-timezone;
+                        accessible-name: "Timezone";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Location";
+                    Input {
+                        text <=> root.d-location;
+                        accessible-name: "Location";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Skills";
+                    help: "Separate skills with commas.";
+                    Input {
+                        text <=> root.d-skills;
+                        accessible-name: "Skills";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Personal phone";
+                    Input {
+                        text <=> root.d-personal-phone;
+                        accessible-name: "Personal phone";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Personal email";
+                    Input {
+                        text <=> root.d-personal-email;
+                        accessible-name: "Personal email";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Address";
+                    Input {
+                        text <=> root.d-address;
+                        accessible-name: "Address";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Birthday";
+                    help: "YYYY-MM-DD.";
+                    Input {
+                        text <=> root.d-birthday;
+                        accessible-name: "Birthday";
+                        enabled: !root.saving;
+                    }
+                }
+                Field {
+                    label: "Emergency contact";
+                    Input {
+                        text <=> root.d-emergency-contact;
+                        accessible-name: "Emergency contact";
+                        enabled: !root.saving;
+                    }
+                }
+
+                if root.save-error != "" : Banner {
+                    tone: BannerTone.danger;
+                    title: "Could not save";
+                    description: root.save-error;
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    Button {
+                        text: "Save";
+                        accessible-name: "Save profile";
+                        variant: ButtonVariant.primary;
+                        enabled: !root.saving;
+                        loading: root.saving;
+                        clicked => {
+                            root.save({
+                                preferred-name: root.d-preferred-name,
+                                pronouns: root.d-pronouns,
+                                bio: root.d-bio,
+                                work-phone: root.d-work-phone,
+                                timezone: root.d-timezone,
+                                location: root.d-location,
+                                skills: root.d-skills,
+                                personal-phone: root.d-personal-phone,
+                                personal-email: root.d-personal-email,
+                                address: root.d-address,
+                                birthday: root.d-birthday,
+                                emergency-contact: root.d-emergency-contact,
+                            });
+                        }
+                    }
+                    Button {
+                        text: "Cancel";
+                        accessible-name: "Cancel editing";
+                        variant: ButtonVariant.secondary;
+                        enabled: !root.saving;
+                        clicked => {
+                            root.cancel-edit();
+                        }
+                    }
+                }
+            }
+
+            // Work: the organization fields (read-only here, with the reporting line and the direct reports) and the work contact.
+            Section {
+                title: "Work";
+                description: root.own ? "Managed by your admin." : "";
+                DescriptionList {
+                    columns: 2;
+                    items: [
+                        { term:"Title", value:root.view.title != "" ? root.view.title : "Not set" },
+                        { term:"Team", value:root.view.team != "" ? root.view.team : "Not set" },
+                        { term:"Department", value:root.view.department != "" ? root.view.department : "Not set" },
+                        { term:"Start date", value:root.view.start-date != "" ? root.view.start-date : "Not set" },
+                        { term:"Email", value:root.view.email != "" ? root.view.email : "Not set" },
+                        { term:"Work phone", value:root.view.work-phone != "" ? root.view.work-phone : "Not set" },
+                        { term:"Location", value:root.view.location != "" ? root.view.location : "Not set" },
+                        { term:"Timezone", value:root.view.timezone-label != "" ? root.view.timezone-label : "Not set" },
+                    ];
+                }
+                Text {
+                    text: "Reporting line";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                if root.view.chain.length == 0 : Text {
+                    text: "No manager.";
+                    color: Tokens.text-primary;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                for person in root.view.chain : Button {
+                    text: person.name + (person.title != "" ? " · " + person.title : "");
+                    accessible-name: "Open " + person.name;
+                    variant: ButtonVariant.link;
+                    size: ButtonSize.sm;
+                    clicked => {
+                        root.open-person(person.id);
+                    }
+                }
+                Text {
+                    text: "Direct reports";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                if root.view.reports.length == 0 : Text {
+                    text: "No direct reports.";
+                    color: Tokens.text-primary;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                for person in root.view.reports : Button {
+                    text: person.name + (person.title != "" ? " · " + person.title : "");
+                    accessible-name: "Open " + person.name;
+                    variant: ButtonVariant.link;
+                    size: ButtonSize.sm;
+                    clicked => {
+                        root.open-person(person.id);
+                    }
+                }
+            }
+
+            // Personal: shown only when the server returned the personal fields, and not while editing.
+            if !root.editing && root.view.has-personal : Section {
+                title: "Personal";
+                description: "Shown only to you, your manager chain, and HR or admins.";
+                DescriptionList {
+                    columns: 2;
+                    items: [
+                        { term:"Personal phone", value:root.view.personal-phone != "" ? root.view.personal-phone : "Not set" },
+                        { term:"Personal email", value:root.view.personal-email != "" ? root.view.personal-email : "Not set" },
+                        { term:"Address", value:root.view.address != "" ? root.view.address : "Not set" },
+                        { term:"Birthday", value:root.view.birthday != "" ? root.view.birthday : "Not set" },
+                        { term:"Emergency contact", value:root.view.emergency-contact != "" ? root.view.emergency-contact : "Not set" },
+                    ];
+                }
+            }
+
+            if !root.editing : Section {
+                title: "About";
+                Text {
+                    text: root.view.bio != "" ? root.view.bio : "No bio yet.";
+                    color: Tokens.text-primary;
+                    wrap: word-wrap;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                if root.view.skills.length > 0 : HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+                    for skill in root.view.skills : Tag {
+                        label: skill;
+                    }
+                }
+            }
+
+        }
+    }
+    }
+}

@@ -1,0 +1,22 @@
+// Test markup for tests/ui/shell_chrome.rs, compiled once by crates/space_ui_test_slint (decision 0037, BT.4).
+import { AccountMenu, UserPresence } from "@rimelight_shell/components/account-menu.slint";
+export { UserPresence }
+
+export component ProfileForm inherits Window {
+    width: 280px;
+    height: 340px;
+
+    in-out property <UserPresence> presence: UserPresence.online;
+    menu := AccountMenu {
+        presence <=> root.presence;
+    }
+
+    // A click on the presence row `value` (the menu's test hook does what the row's handler does).
+    public function pick-presence(value: UserPresence) {
+        menu.test-pick-presence(value);
+    }
+
+    out property <[string]> test-presence-labels: menu.test-presence-labels;
+    out property <[string]> test-action-labels: menu.test-action-labels;
+    out property <length> content-height: menu.content-height;
+}

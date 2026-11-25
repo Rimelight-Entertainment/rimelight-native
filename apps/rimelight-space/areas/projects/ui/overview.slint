@@ -1,0 +1,388 @@
+// Projects > Overview: the summary of one project at `/p/:key`. A project card, the issue counts by state and by priority
+// (open against closed), the recent issues (a row opens the issue), the current sprint and the areas with their colours.
+// The data comes from src/pages/projects/overview.rs, which sets the window's `overview-*` properties.
+//
+// Layout. The cards sit in a GridLayout that fills the page width: two columns from 700 px, one column below (phone width).
+// Wide: the project card and the issues card on the top row; the counts, sprint and areas down the left column; the recent
+// issues down the right column. The grid's cells stretch (horizontal-stretch 1, no `alignment: start`, which would stop
+// the cells from growing into the free width).
+//
+// The page reports `opened` from its `init` and when its route changes.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Card } from "@rimelight_ui/components/card.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { IssueRow } from "@space_area_projects/issues.slint";
+
+// One line of a count list. `fraction` is the share of the total, 0 to 1, for the bar.
+export struct OverviewCountRow {
+    label: string,
+    count: string,
+    fraction: float,
+}
+
+// One area: its name, its colour and the number of issues that carry it.
+export struct OverviewAreaRow {
+    name: string,
+    colour: color,
+    count: string,
+}
+
+// A list of counts, each with a bar of its share.
+component CountBars inherits VerticalLayout {
+    in property <[OverviewCountRow]> rows;
+    spacing: Tokens.space-2;
+
+    for row in root.rows : VerticalLayout {
+        spacing: Tokens.space-1;
+
+        HorizontalLayout {
+            Text {
+                horizontal-stretch: 1;
+                text: row.label;
+                color: Tokens.text-primary;
+                overflow: elide;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: Type.body.weight;
+            }
+            Text {
+                text: row.count;
+                color: Tokens.text-muted;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+            }
+        }
+        Rectangle {
+            height: 6px;
+            border-radius: 3px;
+            background: Tokens.surface-sunken;
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width * row.fraction;
+                height: parent.height;
+                border-radius: 3px;
+                background: Tokens.accent-fill;
+            }
+        }
+    }
+}
+
+// One recent issue: its key, summary, state and the time since it changed. The row opens the issue.
+component RecentIssue inherits TouchArea {
+    in property <IssueRow> issue;
+    callback picked(string);
+
+    accessible-role: button;
+    accessible-label: root.issue.key + " " + root.issue.summary;
+    clicked => {
+        root.picked(root.issue.key);
+    }
+
+    HorizontalLayout {
+        padding-top: Tokens.space-2;
+        padding-bottom: Tokens.space-2;
+        spacing: Tokens.space-3;
+
+        Text {
+            width: 88px;
+            text: root.issue.key;
+            color: Tokens.text-muted;
+            overflow: elide;
+            font-family: Type.code.family;
+            font-size: Type.code.size;
+            font-weight: Type.code.weight;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.issue.summary;
+            color: Tokens.text-primary;
+            overflow: elide;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+        Text {
+            text: root.issue.state;
+            color: Tokens.text-muted;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+        Text {
+            width: 96px;
+            text: root.issue.updated;
+            color: Tokens.text-muted;
+            horizontal-alignment: right;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            font-weight: Type.caption.weight;
+        }
+    }
+}
+
+export component OverviewPage inherits Rectangle {
+    // The route of the page (`/p/:key`). The page reports `opened` for it.
+    in property <string> route;
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    // The project card.
+    in property <string> project-name;
+    in property <string> project-key;
+    in property <string> description;
+    in property <string> owner;
+    in property <string> members;
+    // The issue counts. `truncated` is set when the project has more issues than the counts read.
+    in property <string> total;
+    in property <string> open;
+    in property <string> closed;
+    in property <bool> truncated;
+    in property <[OverviewCountRow]> states;
+    in property <[OverviewCountRow]> priorities;
+    // The most recently updated issues.
+    in property <[IssueRow]> recent;
+    // The current sprint. Without one, the card says so.
+    in property <bool> sprint-present;
+    in property <string> sprint-name;
+    in property <string> sprint-dates;
+    in property <string> sprint-goal;
+    in property <string> sprint-counts;
+    // The areas of the issues, with their colours.
+    in property <[OverviewAreaRow]> areas;
+
+    callback opened(string);
+    callback retry();
+    callback open-issue(string);
+
+    // One column below 700 px (phone width), two columns above. Set from the page's own width, as the Issue page does.
+    property <bool> narrow: root.width < 700px;
+
+    background: transparent;
+    init => {
+        root.opened(root.route);
+    }
+    changed route => {
+        root.opened(root.route);
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.layout-dashboard;
+            empty-title: "No project";
+            empty-description: "This project has no overview yet.";
+            error-description: "The project could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        if root.state == PageLoadState.loaded : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Project overview";
+
+            VerticalLayout {
+                padding: Tokens.space-4;
+                spacing: Tokens.space-3;
+
+                GridLayout {
+                    width: parent.width;
+                    spacing: Tokens.space-3;
+
+                    // The project card: name, key, description, lead and members. Top left.
+                    Card {
+                        row: 0;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        title: root.project-name;
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+                            Text {
+                                text: "Key " + root.project-key + "  ·  Lead " + root.owner + "  ·  " + root.members;
+                                color: Tokens.text-muted;
+                                wrap: word-wrap;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            if root.description != "" : Text {
+                                text: root.description;
+                                color: Tokens.text-primary;
+                                wrap: word-wrap;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                        }
+                    }
+
+                    // The issue totals: all, open and closed. Top right (second row when narrow).
+                    Card {
+                        row: root.narrow ? 1 : 0;
+                        col: root.narrow ? 0 : 1;
+                        horizontal-stretch: 1;
+                        title: "Issues";
+                        VerticalLayout {
+                            spacing: Tokens.space-1;
+                            Text {
+                                text: root.total;
+                                color: Tokens.text-primary;
+                                font-family: Type.title.family;
+                                font-size: Type.title.size;
+                                font-weight: Type.title.weight;
+                            }
+                            Text {
+                                text: root.open + " open  ·  " + root.closed + " closed";
+                                color: Tokens.text-muted;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            if root.truncated : Text {
+                                text: "Counts cover the first issues only.";
+                                color: Tokens.text-faint;
+                                wrap: word-wrap;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                        }
+                    }
+
+                    // Left column below the top row: counts by state and priority, the sprint and the areas.
+                    Card {
+                        row: root.narrow ? 2 : 1;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        title: "By state";
+                        CountBars {
+                            rows: root.states;
+                        }
+                    }
+                    Card {
+                        row: root.narrow ? 3 : 2;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        title: "By priority";
+                        CountBars {
+                            rows: root.priorities;
+                        }
+                    }
+                    Card {
+                        row: root.narrow ? 4 : 3;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        title: "Current sprint";
+                        VerticalLayout {
+                            spacing: Tokens.space-1;
+                            if !root.sprint-present : Text {
+                                text: "No sprint is active.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            if root.sprint-present : Text {
+                                text: root.sprint-name;
+                                color: Tokens.text-primary;
+                                font-family: Type.body-strong.family;
+                                font-size: Type.body-strong.size;
+                                font-weight: Type.body-strong.weight;
+                            }
+                            if root.sprint-present : Text {
+                                text: root.sprint-dates + "  ·  " + root.sprint-counts;
+                                color: Tokens.text-muted;
+                                wrap: word-wrap;
+                                font-family: Type.caption.family;
+                                font-size: Type.caption.size;
+                                font-weight: Type.caption.weight;
+                            }
+                            if root.sprint-present && root.sprint-goal != "" : Text {
+                                text: root.sprint-goal;
+                                color: Tokens.text-primary;
+                                wrap: word-wrap;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                        }
+                    }
+                    Card {
+                        row: root.narrow ? 5 : 4;
+                        col: 0;
+                        horizontal-stretch: 1;
+                        title: "Areas";
+                        VerticalLayout {
+                            spacing: Tokens.space-2;
+                            if root.areas.length == 0 : Text {
+                                text: "No areas yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            for area in root.areas : HorizontalLayout {
+                                spacing: Tokens.space-2;
+                                Rectangle {
+                                    width: 10px;
+                                    height: 10px;
+                                    border-radius: 5px;
+                                    background: area.colour;
+                                }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: area.name;
+                                    color: Tokens.text-primary;
+                                    overflow: elide;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                }
+                                Text {
+                                    text: area.count;
+                                    color: Tokens.text-muted;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                            }
+                        }
+                    }
+
+                    // Recent issues: the right column, beside the left column's cards (last when narrow).
+                    Card {
+                        row: root.narrow ? 6 : 1;
+                        col: root.narrow ? 0 : 1;
+                        rowspan: root.narrow ? 1 : 4;
+                        horizontal-stretch: 1;
+                        title: "Recent issues";
+                        VerticalLayout {
+                            spacing: Tokens.space-1;
+                            if root.recent.length == 0 : Text {
+                                text: "No issues yet.";
+                                color: Tokens.text-muted;
+                                font-family: Type.body.family;
+                                font-size: Type.body.size;
+                                font-weight: Type.body.weight;
+                            }
+                            for issue in root.recent : RecentIssue {
+                                issue: issue;
+                                picked(key) => {
+                                    root.open-issue(key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,18 @@
+[package]
+name = "space_area_admin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space admin area: Admin > Users, Organisation, Roles and Types & tags. Plain logic here; the window glue is wire_admin!."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+space_page_kit = { path = "../../crates/space_page_kit" }
+# The shared toast queue (rimelight-rs rimelight_ui_kit), used by the save and delete messages.
+rimelight_ui_kit = { workspace = true }

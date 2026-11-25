@@ -1,0 +1,28 @@
+[package]
+name = "space_ui_test_slint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Generated Slint code for the `ui` test binary of space_ui (decision 0037, BT.4). The markup lives in
+# `crates/space_ui/tests/ui/markup/`; compiling it here means editing a test .rs file does not re-run the Slint
+# compiler. Same lint set as space_ui_slint: unsafe is denied and allowed on the generated modules only.
+[lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+slint = { workspace = true }
+
+[build-dependencies]
+slint-build = { workspace = true }
+# build.rs maps the `rimelight_design` and `rimelight_ui` library paths to the shared markup.
+rimelight_design = { workspace = true }
+rimelight_ui = { workspace = true }
+rimelight_shell = { workspace = true }
+# The Company area markup for the company test markup (library path `space_area_company`).
+space_area_company = { path = "../../areas/company" }

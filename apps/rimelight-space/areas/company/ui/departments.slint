@@ -1,0 +1,239 @@
+// Company > Departments (SP.3d). The department tree with each head and member count, and the selected department's head and
+// teams below it. The data comes from crates/areas/company/src/departments.rs, which sets the window's `dept-*` properties. The page
+// reports `opened` from its `init`, so the tree loads whenever its route becomes active.
+//
+// A row's arrow opens and closes it; selecting the row (anywhere else on it) shows the department below. A team opens its
+// detail page and the head opens their profile.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
+import { TeamRow } from "teams.slint";
+
+// The selected department: its head (empty id when none) and its teams. An empty `id` means nothing is selected.
+export struct DeptView {
+    id: string,
+    name: string,
+    head-id: string,
+    head-name: string,
+    head-initials: string,
+    head-avatar: image,
+    members: int,
+    teams: [TeamRow],
+    // Whether the department has child departments, and whether they are listed.
+    expandable: bool,
+    expanded: bool,
+}
+
+// The departments table's view model: its columns, its rows, and the department id of each row (in the same order as the rows).
+export global DeptsTable {
+    in-out property <[TableColumn]> columns;
+    in-out property <[TableRow]> rows;
+    in-out property <[string]> ids;
+}
+
+export component DepartmentsPage inherits Rectangle {
+    accessible-role: groupbox;
+    accessible-label: "Page body";
+    in property <PageLoadState> state: PageLoadState.loading;
+    in property <string> error;
+    in property <DeptView> view;
+
+    callback opened();
+    callback retry();
+    callback toggle(string);
+    callback select(string);
+    callback open-team(string);
+    callback open-person(string);
+    // The selected department's content (CMS.6): the window opens /company/departments/<id>/docs.
+    callback open-content(string);
+
+    background: transparent;
+    init => {
+        root.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if root.state != PageLoadState.loaded : PageState {
+            state: root.state;
+            icon: Icons.building-2;
+            empty-title: "No departments yet";
+            empty-description: "Departments appear here once they are set up.";
+            error-description: "Departments could not be loaded.";
+            error-details: root.error;
+            retry => {
+                root.retry();
+            }
+        }
+
+        // The departments as a table. A name is indented by its depth; "+" marks a closed department with children, "-" an open
+        // one. Expand or Collapse for the selected department is below the table.
+        if root.state == PageLoadState.loaded : Table {
+            vertical-stretch: 2;
+            accessible-name: "Departments";
+            columns: DeptsTable.columns;
+            rows: DeptsTable.rows;
+            picked(index, shift, ctrl) => {
+                root.select(DeptsTable.ids[index]);
+            }
+        }
+
+        // The selected department. Nothing is shown until a row is selected.
+        if root.state == PageLoadState.loaded && root.view.id == "" : Text {
+            text: "Select a department to see its head and teams.";
+            color: Tokens.text-muted;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+
+        if root.state == PageLoadState.loaded && root.view.id != "" : ScrollArea {
+            vertical-stretch: 1;
+            accessible-name: "Selected department";
+
+            VerticalLayout {
+                spacing: Tokens.space-3;
+                alignment: start;
+
+                Text {
+                    text: root.view.name;
+                    color: Tokens.text-primary;
+                    overflow: elide;
+                    font-family: Type.subheading.family;
+                    font-size: Type.subheading.size;
+                    font-weight: Type.subheading.weight;
+                }
+                Button {
+                    text: "Content";
+                    variant: ButtonVariant.secondary;
+                    clicked => { root.open-content(root.view.id); }
+                }
+                Text {
+                    text: "\{root.view.members} people";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+
+                Text {
+                    text: "Head";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                if root.view.head-id != "" : Rectangle {
+                    height: 40px;
+                    width: 260px;
+                    border-radius: Tokens.radius-r6;
+                    background: head-touch.has-hover ? Tokens.surface-raised : transparent;
+
+                    head-touch := TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Open " + root.view.head-name;
+                        clicked => {
+                            root.open-person(root.view.head-id);
+                        }
+                    }
+                    HorizontalLayout {
+                        padding-left: Tokens.space-2;
+                        spacing: Tokens.space-2;
+                        alignment: start;
+
+                        Avatar {
+                            name: root.view.head-name;
+                            initials: root.view.head-initials;
+                            source: root.view.head-avatar;
+                            size: AvatarSize.sm;
+                        }
+                        Text {
+                            text: root.view.head-name;
+                            color: Tokens.text-primary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                    }
+                }
+                if root.view.expandable : Button {
+                    text: root.view.expanded ? "Collapse" : "Expand";
+                    variant: ButtonVariant.secondary;
+                    clicked => {
+                        root.toggle(root.view.id);
+                    }
+                }
+                if root.view.head-id == "" : Text {
+                    text: "No head set";
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+
+                Text {
+                    text: "Teams";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                if root.view.teams.length == 0 : Text {
+                    text: "No teams in this department yet.";
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+                for team in root.view.teams : Rectangle {
+                    height: 48px;
+                    border-radius: Tokens.radius-r6;
+                    background: team-touch.has-hover ? Tokens.surface-raised : transparent;
+
+                    team-touch := TouchArea {
+                        accessible-role: button;
+                        accessible-label: team.name;
+                        clicked => {
+                            root.open-team(team.id);
+                        }
+                    }
+                    HorizontalLayout {
+                        padding-left: Tokens.space-3;
+                        padding-right: Tokens.space-3;
+                        spacing: Tokens.space-3;
+
+                        Text {
+                            text: team.name;
+                            color: Tokens.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            overflow: elide;
+                            font-family: Type.body-strong.family;
+                            font-size: Type.body-strong.size;
+                            font-weight: Type.body-strong.weight;
+                        }
+                        Text {
+                            text: "\{team.members} members";
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

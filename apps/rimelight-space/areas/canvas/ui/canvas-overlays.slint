@@ -1,0 +1,789 @@
+// Canvas overlays (CV.7 to CV.13). Each component reads CanvasState and is placed by the canvas page. The layers without input
+// (grid, peers, crop) draw only; the avatars, hierarchy, slideshow and dialogs take their own input and call CanvasState.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Dialog } from "@rimelight_ui/components/dialog.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { CanvasState } from "canvas-types.slint";
+
+// Grid (View setting). Lines: a 1px line at each grid position, at half strength. Dots: a 2px dot at each crossing; skipped
+// when there would be more than 4000 dots. Positions are SCREEN px, computed by Rust.
+export component CanvasGridLayer inherits Rectangle {
+    background: transparent;
+
+    if CanvasState.grid-mode == "lines" : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        for gx in CanvasState.grid-xs : Rectangle {
+            x: gx * 1px;
+            y: 0px;
+            width: 1px;
+            height: parent.height;
+            background: Tokens.border-subtle.with-alpha(0.5);
+        }
+        for gy in CanvasState.grid-ys : Rectangle {
+            x: 0px;
+            y: gy * 1px;
+            width: parent.width;
+            height: 1px;
+            background: Tokens.border-subtle.with-alpha(0.5);
+        }
+    }
+
+    if CanvasState.grid-mode == "dots" && CanvasState.grid-xs.length * CanvasState.grid-ys.length <= 4000 : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        for gx in CanvasState.grid-xs : Rectangle {
+            x: gx * 1px;
+            y: 0px;
+            width: 0px;
+            height: parent.height;
+
+            for gy in CanvasState.grid-ys : Rectangle {
+                x: -1px;
+                y: gy * 1px - 1px;
+                width: 2px;
+                height: 2px;
+                border-radius: 1px;
+                background: Tokens.text-faint;
+            }
+        }
+    }
+}
+
+// Presence (CV.10): each peer's selection outline and cursor (an arrow with a name tag), in their colour. Screen px.
+export component CanvasPeersLayer inherits Rectangle {
+    background: transparent;
+
+    for b in CanvasState.peer-boxes : Rectangle {
+        x: b.x * 1px;
+        y: b.y * 1px;
+        width: b.w * 1px;
+        height: b.h * 1px;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        transform-rotation: b.rotation * 1deg;
+        background: transparent;
+        border-width: 2px;
+        border-color: b.color;
+    }
+
+    // One zero-size holder per peer at the canvas origin carries the `if` (Slint has no `for ... : if ...`).
+    for p in CanvasState.peers : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+
+        if p.has-cursor : Rectangle {
+            x: p.cursor-x * 1px;
+            y: p.cursor-y * 1px;
+            width: 12px;
+            height: 18px;
+            background: transparent;
+
+            Path {
+                x: 0px;
+                y: 0px;
+                width: 12px;
+                height: 18px;
+                viewbox-x: 0;
+                viewbox-y: 0;
+                viewbox-width: 12;
+                viewbox-height: 18;
+                commands: "M 0 0 L 0 16 L 4 12.5 L 7 18 L 9.5 17 L 6.5 11.5 L 11.5 11.5 Z";
+                fill: p.color;
+                stroke: #ffffff;
+                stroke-width: 1px;
+            }
+
+            Rectangle {
+                x: 12px;
+                y: 14px;
+                height: 18px;
+                width: name-label.preferred-width + 10px;
+                border-radius: 4px;
+                background: p.color;
+
+                name-label := Text {
+                    x: 5px;
+                    y: (parent.height - self.height) / 2;
+                    text: p.name;
+                    color: #ffffff;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+            }
+        }
+    }
+}
+
+// Avatars (CV.10): one 28px circle per peer with their initials, at the top right of the canvas. A ring marks the person
+// being followed. A click follows that person; a click on the one being followed stops (follow "").
+export component CanvasAvatars inherits Rectangle {
+    height: 28px;
+    width: row.preferred-width;
+    background: transparent;
+
+    row := HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        height: parent.height;
+        width: parent.width;
+        spacing: Tokens.space-1;
+        alignment: start;
+
+        for p in CanvasState.peers : Rectangle {
+            width: 28px;
+            height: 28px;
+            border-radius: 14px;
+            background: p.color;
+            border-width: p.following ? 2px : 0px;
+            border-color: Tokens.accent-default;
+
+            Text {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                text: p.initials;
+                color: #ffffff;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                font-weight: Type.caption.weight;
+            }
+
+            TouchArea {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: pointer;
+                clicked => {
+                    CanvasState.follow(p.following ? "" : p.conn-id);
+                }
+            }
+        }
+    }
+}
+
+// Crop (CV.7): while crop mode is on, the whole picture is dimmed outside the crop window, the window has an outline and 8
+// handles. The container is the whole picture's rect, rotated about its centre; its children use its own top left.
+// Drawn only: the page handles the drag of the handles.
+export component CanvasCropLayer inherits Rectangle {
+    background: transparent;
+
+    if CanvasState.crop-active : Rectangle {
+        property <length> cx: (CanvasState.crop-x - CanvasState.crop-full-x) * 1px;
+        property <length> cy: (CanvasState.crop-y - CanvasState.crop-full-y) * 1px;
+        property <length> cw: CanvasState.crop-w * 1px;
+        property <length> ch: CanvasState.crop-h * 1px;
+
+        x: CanvasState.crop-full-x * 1px;
+        y: CanvasState.crop-full-y * 1px;
+        width: CanvasState.crop-full-w * 1px;
+        height: CanvasState.crop-full-h * 1px;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        transform-rotation: CanvasState.crop-rotation * 1deg;
+        background: transparent;
+
+        // Four bands of dimming around the crop window.
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: max(0px, parent.cy);
+            background: #000000.with-alpha(0.5);
+        }
+        Rectangle {
+            x: 0px;
+            y: max(0px, parent.cy + parent.ch);
+            width: parent.width;
+            height: max(0px, parent.height - parent.cy - parent.ch);
+            background: #000000.with-alpha(0.5);
+        }
+        Rectangle {
+            x: 0px;
+            y: parent.cy;
+            width: max(0px, parent.cx);
+            height: parent.ch;
+            background: #000000.with-alpha(0.5);
+        }
+        Rectangle {
+            x: parent.cx + parent.cw;
+            y: parent.cy;
+            width: max(0px, parent.width - parent.cx - parent.cw);
+            height: parent.ch;
+            background: #000000.with-alpha(0.5);
+        }
+
+        // The crop window outline.
+        Rectangle {
+            x: parent.cx;
+            y: parent.cy;
+            width: parent.cw;
+            height: parent.ch;
+            background: transparent;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+
+        // The 8 handles: corners and edge midpoints of the crop window.
+        Rectangle {
+            x: parent.cx - 4px;
+            y: parent.cy - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx + parent.cw / 2 - 4px;
+            y: parent.cy - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx + parent.cw - 4px;
+            y: parent.cy - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx + parent.cw - 4px;
+            y: parent.cy + parent.ch / 2 - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx + parent.cw - 4px;
+            y: parent.cy + parent.ch - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx + parent.cw / 2 - 4px;
+            y: parent.cy + parent.ch - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx - 4px;
+            y: parent.cy + parent.ch - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+        Rectangle {
+            x: parent.cx - 4px;
+            y: parent.cy + parent.ch / 2 - 4px;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: Tokens.accent-default;
+        }
+    }
+}
+
+// Hierarchy (Ctrl+J): a 280px panel on the right listing the items, frames with their children indented. A click selects
+// (Shift adds); a double-click zooms to the item (hierarchy-open-item). Rows keep their elements while the list changes.
+export component CanvasHierarchyPanel inherits Rectangle {
+    width: 280px;
+    background: Tokens.surface-overlay;
+    border-width: 1px;
+    border-color: Tokens.border-subtle;
+    border-radius: Tokens.radius-surface;
+    drop-shadow-color: Tokens.shadow-overlay;
+    drop-shadow-offset-y: Tokens.shadow-overlay-offset-y;
+    drop-shadow-blur: Tokens.shadow-overlay-blur;
+
+    VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-2;
+        spacing: Tokens.space-2;
+
+        // The title takes the free width, so the close button sits at the right edge.
+        HorizontalLayout {
+            spacing: Tokens.space-2;
+
+            Text {
+                horizontal-stretch: 1;
+                text: "Hierarchy";
+                color: Tokens.text-primary;
+                vertical-alignment: center;
+                font-family: Type.heading.family;
+                font-size: Type.heading.size;
+                font-weight: Type.heading.weight;
+            }
+            IconButton {
+                label: "Close hierarchy";
+                tooltip: "Close";
+                icon: Icons.x;
+                variant: ButtonVariant.ghost;
+                clicked => {
+                    CanvasState.hierarchy-close();
+                }
+            }
+        }
+
+        ScrollArea {
+            vertical-stretch: 1;
+            horizontal-stretch: 1;
+            accessible-name: "Items";
+
+            for row in CanvasState.hierarchy-rows : Rectangle {
+                width: parent.width;
+                height: Tokens.size-tree-row-height;
+                background: row.selected ? Tokens.button-secondary-bg : transparent;
+                border-radius: Tokens.radius-r4;
+
+                HorizontalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding-left: Tokens.space-2 + (row.depth * 16.0) * 1px;
+                    padding-right: Tokens.space-2;
+                    spacing: Tokens.space-2;
+                    alignment: start;
+
+                    Image {
+                        width: Tokens.icon-small;
+                        height: Tokens.icon-small;
+                        colorize: Tokens.text-muted;
+                        source: row.kind == "Video" ? Icons.video
+                            : (row.kind == "Image" ? Icons.image
+                            : (row.kind == "Text" ? Icons.type
+                            : (row.kind == "Stroke" ? Icons.pen-tool
+                            : (row.kind == "Frame" ? Icons.presentation : Icons.layers))));
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: row.label;
+                        color: Tokens.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-family: Type.body.family;
+                        font-size: Type.body.size;
+                        font-weight: Type.body.weight;
+                    }
+                    if row.locked : Image {
+                        width: Tokens.icon-small;
+                        height: Tokens.icon-small;
+                        colorize: Tokens.text-muted;
+                        source: Icons.lock;
+                    }
+                }
+
+                TouchArea {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    mouse-cursor: pointer;
+                    pointer-event(e) => {
+                        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                            CanvasState.hierarchy-pick(row.id, e.modifiers.shift);
+                        }
+                    }
+                    double-clicked => {
+                        CanvasState.hierarchy-open-item(row.id);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Slideshow (Alt+S): a full overlay, black at 92 %, the picture fitted with its caption under it. Left and Right step,
+// Space plays or pauses, Escape closes. The overlay takes focus when it opens.
+export component CanvasSlideshow inherits Rectangle {
+    background: #000000.with-alpha(0.92);
+
+    // Swallows the pointer so the canvas below gets no clicks.
+    TouchArea {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+    }
+
+    Image {
+        x: 48px;
+        y: 40px;
+        width: parent.width - 96px;
+        height: parent.height - 120px;
+        source: CanvasState.slideshow-image;
+        image-fit: contain;
+    }
+
+    Text {
+        x: 48px;
+        y: parent.height - 80px;
+        width: parent.width - 96px;
+        height: 24px;
+        text: CanvasState.slideshow-caption;
+        color: #ffffff;
+        horizontal-alignment: center;
+        overflow: elide;
+        font-family: Type.body.family;
+        font-size: Type.body.size;
+    }
+
+    FocusScope {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+
+        init => {
+            self.focus();
+        }
+        key-pressed(e) => {
+            if e.text == Key.LeftArrow {
+                CanvasState.slideshow-step(-1);
+                return accept;
+            }
+            if e.text == Key.RightArrow {
+                CanvasState.slideshow-step(1);
+                return accept;
+            }
+            if e.text == Key.Space {
+                CanvasState.slideshow-toggle();
+                return accept;
+            }
+            if e.text == Key.Escape {
+                CanvasState.slideshow-close();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    HorizontalLayout {
+        x: 0px;
+        y: parent.height - 48px;
+        width: parent.width;
+        height: 40px;
+        alignment: center;
+        spacing: Tokens.space-2;
+
+        IconButton {
+            label: "Previous image";
+            tooltip: "Previous (Left)";
+            icon: Icons.chevron-left;
+            variant: ButtonVariant.ghost;
+            clicked => {
+                CanvasState.slideshow-step(-1);
+            }
+        }
+        Button {
+            text: CanvasState.slideshow-playing ? "Pause" : "Play";
+            accessible-name: CanvasState.slideshow-playing ? "Pause slideshow" : "Play slideshow";
+            variant: ButtonVariant.ghost;
+            clicked => {
+                CanvasState.slideshow-toggle();
+            }
+        }
+        IconButton {
+            label: "Next image";
+            tooltip: "Next (Right)";
+            icon: Icons.chevron-right;
+            variant: ButtonVariant.ghost;
+            clicked => {
+                CanvasState.slideshow-step(1);
+            }
+        }
+        IconButton {
+            label: "Close slideshow";
+            tooltip: "Close (Escape)";
+            icon: Icons.x;
+            variant: ButtonVariant.ghost;
+            clicked => {
+                CanvasState.slideshow-close();
+            }
+        }
+    }
+}
+
+// Manage images (Ctrl+Shift+J): a dialog listing the canvas's images. `shown` opens and closes it (the page sets it from
+// CanvasState.assets-open). Delete unused is disabled while assets-busy. Closing it calls assets-close.
+export component CanvasAssetsDialog inherits Rectangle {
+    in property <bool> shown;
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    background: transparent;
+    width: 0px;
+    height: 0px;
+
+    init => {
+        if root.shown {
+            dlg.open();
+        }
+    }
+    changed shown => {
+        if root.shown {
+            dlg.open();
+        } else {
+            dlg.close();
+        }
+    }
+
+    dlg := Dialog {
+        title: "Images";
+        description: "The images on this canvas. An image nobody uses can be deleted.";
+        close-label: "Close images";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        closed => {
+            CanvasState.assets-close();
+        }
+
+        ScrollArea {
+            height: 320px;
+            horizontal-stretch: 1;
+            accessible-name: "Images";
+
+            for row in CanvasState.asset-rows : Rectangle {
+                width: parent.width;
+                height: 64px;
+
+                HorizontalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding: Tokens.space-1;
+                    spacing: Tokens.space-3;
+                    alignment: start;
+
+                    Rectangle {
+                        width: 48px;
+                        height: 48px;
+                        clip: true;
+                        background: Tokens.surface-raised;
+                        border-radius: Tokens.radius-r4;
+
+                        if row.has-thumb : Image {
+                            x: 0px;
+                            y: 0px;
+                            width: parent.width;
+                            height: parent.height;
+                            source: row.thumb;
+                            image-fit: contain;
+                        }
+                    }
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: Tokens.space-1;
+
+                        Text {
+                            text: row.name;
+                            color: Tokens.text-primary;
+                            overflow: elide;
+                            font-family: Type.body.family;
+                            font-size: Type.body.size;
+                            font-weight: Type.body.weight;
+                        }
+                        Text {
+                            text: row.pixels-text + "  " + row.size-text;
+                            color: Tokens.text-muted;
+                            overflow: elide;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                    }
+                    Text {
+                        text: row.uses > 0 ? "Used " + row.uses + "×" : "Unused";
+                        color: row.uses > 0 ? Tokens.text-muted : Tokens.status-warning;
+                        vertical-alignment: center;
+                        font-family: Type.caption.family;
+                        font-size: Type.caption.size;
+                        font-weight: Type.caption.weight;
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            spacing: Tokens.space-2;
+
+            Button {
+                text: "Delete unused images";
+                variant: ButtonVariant.secondary;
+                enabled: !CanvasState.assets-busy;
+                clicked => {
+                    CanvasState.assets-delete-unused();
+                }
+            }
+            Button {
+                text: "Close";
+                variant: ButtonVariant.primary;
+                clicked => {
+                    CanvasState.assets-close();
+                }
+            }
+        }
+    }
+}
+
+// Always on top of... (CV.12, Windows only): a dialog listing the open windows. A click picks one (window-picked with its
+// handle); Cancel or Escape closes it (windows-close). `shown` opens and closes it.
+export component CanvasWindowPicker inherits Rectangle {
+    in property <bool> shown;
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    background: transparent;
+    width: 0px;
+    height: 0px;
+
+    init => {
+        if root.shown {
+            dlg.open();
+        }
+    }
+    changed shown => {
+        if root.shown {
+            dlg.open();
+        } else {
+            dlg.close();
+        }
+    }
+
+    dlg := Dialog {
+        title: "Always on top of";
+        description: "The pop-out window stays above the window you pick.";
+        close-label: "Close window list";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        closed => {
+            CanvasState.windows-close();
+        }
+
+        ScrollArea {
+            height: 320px;
+            horizontal-stretch: 1;
+            accessible-name: "Open windows";
+
+            for w in CanvasState.window-items : Rectangle {
+                width: parent.width;
+                height: Tokens.size-control-md;
+                border-radius: Tokens.radius-r4;
+                background: pick-ta.has-hover ? Tokens.button-ghost-bg-hover : transparent;
+
+                Text {
+                    x: Tokens.space-2;
+                    y: 0px;
+                    width: parent.width - 2 * Tokens.space-2;
+                    height: parent.height;
+                    text: w.title;
+                    color: Tokens.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                }
+
+                pick-ta := TouchArea {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    mouse-cursor: pointer;
+                    clicked => {
+                        CanvasState.window-picked(w.handle);
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+
+            Button {
+                text: "Cancel";
+                variant: ButtonVariant.secondary;
+                clicked => {
+                    CanvasState.windows-close();
+                }
+            }
+        }
+    }
+}
+
+// Shown in the main window while the canvas is open in its own window (CV.12).
+export component CanvasPoppedOut inherits Rectangle {
+    background: Tokens.surface-sunken;
+
+    VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+        alignment: center;
+
+        Text {
+            text: "This canvas is open in its own window.";
+            color: Tokens.text-muted;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            font-weight: Type.body.weight;
+        }
+        HorizontalLayout {
+            alignment: center;
+
+            Button {
+                text: "Bring back";
+                variant: ButtonVariant.primary;
+                clicked => {
+                    CanvasState.bring-back();
+                }
+            }
+        }
+    }
+}

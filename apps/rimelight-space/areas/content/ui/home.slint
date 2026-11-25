@@ -1,0 +1,563 @@
+// Content > scope home (CMS.6): the scope's pages with collection tabs, search, New page, the row menu and the Drafts tab.
+// The data comes from crates/areas/content/src/home.rs through the ContentHomeState global. The page reports `opened` from
+// its `init`, so its lists load whenever its route becomes active.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Tabs } from "@rimelight_ui/components/content-tabs.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { ContentTabItem, ListRowItem, DraftRowItem, ChoiceItem } from "types.slint";
+
+// The scope home's state and callbacks. `reload` is set by Rust after a change; `navigate-requested` is in the app shell.
+export global ContentHomeState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> scope;
+    in-out property <[ContentTabItem]> tabs;
+    in-out property <int> active-tab: 0;
+    in-out property <[ListRowItem]> rows;
+    in-out property <[DraftRowItem]> drafts;
+    in-out property <string> notice;
+    in-out property <bool> new-open: false;
+    in-out property <[ChoiceItem]> new-collections;
+    in-out property <[ChoiceItem]> new-templates;
+    in-out property <string> new-error;
+    in-out property <string> move-page;
+    in-out property <[string]> move-labels;
+    in-out property <bool> show-drafts: false;
+    // The collection picked in the New page dialog (its value), set by the collection buttons.
+    in-out property <string> new-picked;
+
+    callback reload();
+    callback retry();
+    callback tab(string);
+    callback search(string);
+    callback open-new();
+    callback new-collection(string);
+    callback new-create(string, string, string, string);
+    callback new-cancel();
+    callback row-open(string);
+    callback row-edit(string);
+    callback row-move-open(string);
+    callback row-move(string, int);
+    callback row-visibility(string, bool);
+    callback row-delete(string);
+    callback drafts-opened();
+    callback draft-open(string, string);
+}
+
+// One chip in a choice group (collection filter, collection or template choice in the New page dialog).
+component Chip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <color> dot: transparent;
+    in property <string> count;
+    callback clicked();
+    height: 30px;
+    width: chip-row.preferred-width;
+    border-radius: Tokens.radius-pill;
+    border-width: 1px;
+    border-color: root.active ? Tokens.accent-default : Tokens.border-subtle;
+    background: root.active ? Tokens.palette-primary-soft : touch.has-hover ? Tokens.surface-hover : Tokens.surface-raised;
+    accessible-role: button;
+    accessible-label: root.label;
+    chip-row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        if root.dot != transparent : Rectangle {
+            y: (parent.height - 8px) / 2;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: root.dot;
+        }
+        Text {
+            text: root.label;
+            vertical-alignment: center;
+            font-family: Type.label.family;
+            font-size: Type.label.size;
+            font-weight: root.active ? 600 : 500;
+            color: Tokens.text-primary;
+        }
+        if root.count != "" : Text {
+            text: root.count;
+            vertical-alignment: center;
+            font-family: Type.caption.family;
+            font-size: Type.caption.size;
+            color: Tokens.text-muted;
+        }
+    }
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component StatusPill inherits Rectangle {
+    in property <string> status;
+    property <color> ink: root.status == "published" ? Tokens.palette-success-text
+        : root.status == "in review" || root.status == "scheduled" ? Tokens.palette-warning-text
+        : Tokens.text-muted;
+    property <color> fill: root.status == "published" ? Tokens.palette-success-soft
+        : root.status == "in review" || root.status == "scheduled" ? Tokens.palette-warning-soft
+        : Tokens.surface-sunken;
+    height: 22px;
+    width: label.preferred-width + 16px;
+    border-radius: Tokens.radius-pill;
+    background: root.fill;
+    label := Text {
+        text: root.status;
+        font-family: Type.caption.family;
+        font-size: Type.caption.size;
+        font-weight: 600;
+        color: root.ink;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// Column widths of the page table (the title takes the rest).
+global Columns {
+    out property <length> collection: 150px;
+    out property <length> status: 110px;
+    out property <length> visibility: 90px;
+    out property <length> updated: 110px;
+    out property <length> actions: 140px;
+}
+
+// One page in the table: colour dot, title and address, collection, status, visibility, updated, and the actions on hover.
+component PageRowView inherits Rectangle {
+    in property <ListRowItem> entry;
+    callback open();
+    callback edit();
+    callback move-open();
+    callback visibility(bool);
+    callback delete();
+
+    height: 56px;
+    background: row-touch.has-hover ? Tokens.surface-hover : transparent;
+
+    row-touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.open(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 8px;
+        spacing: 12px;
+
+        Rectangle {
+            width: 10px;
+            Rectangle {
+                y: (parent.height - 10px) / 2;
+                width: 10px;
+                height: 10px;
+                border-radius: 5px;
+                background: root.entry.chip;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.entry.title != "" ? root.entry.title : "Untitled";
+                overflow: elide;
+                font-family: Type.body-strong.family;
+                font-size: Type.body-strong.size;
+                font-weight: Type.body-strong.weight;
+                color: Tokens.text-primary;
+            }
+            Text {
+                text: "/" + root.entry.slug;
+                overflow: elide;
+                font-family: Type.caption.family;
+                font-size: Type.caption.size;
+                color: Tokens.text-muted;
+            }
+        }
+        Text {
+            width: Columns.collection;
+            text: root.entry.collection;
+            overflow: elide;
+            vertical-alignment: center;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            color: Tokens.text-muted;
+        }
+        Rectangle {
+            width: Columns.status;
+            StatusPill {
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                status: root.entry.status;
+            }
+        }
+        Text {
+            width: Columns.visibility;
+            text: root.entry.visibility;
+            vertical-alignment: center;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            color: root.entry.public ? Tokens.text-primary : Tokens.text-muted;
+        }
+        Text {
+            width: Columns.updated;
+            text: root.entry.updated;
+            vertical-alignment: center;
+            font-family: Type.body.family;
+            font-size: Type.body.size;
+            color: Tokens.text-muted;
+        }
+        HorizontalLayout {
+            width: Columns.actions;
+            alignment: end;
+            spacing: 2px;
+            opacity: row-touch.has-hover ? 1 : 0;
+            if root.entry.can-edit : IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: Icons.pencil;
+                label: "Edit";
+                tooltip: "Edit";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.edit(); }
+            }
+            if root.entry.can-manage : IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: Icons.folder-open;
+                label: "Move";
+                tooltip: "Move to another place";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.move-open(); }
+            }
+            if root.entry.can-manage : IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: root.entry.public ? Icons.eye-off : Icons.eye;
+                label: root.entry.public ? "Make internal" : "Make public";
+                tooltip: root.entry.public ? "Make internal" : "Make public";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.visibility(!root.entry.public); }
+            }
+            if root.entry.can-manage : IconButton {
+                y: (parent.height - self.height) / 2;
+                icon: Icons.trash;
+                label: "Delete";
+                tooltip: "Delete";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.sm;
+                clicked => { root.delete(); }
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Tokens.border-subtle;
+    }
+}
+
+// A modal card that sizes to its content, over a scrim.
+component Modal inherits Rectangle {
+    in property <string> title;
+    in property <length> card-width: 440px;
+    callback dismissed();
+    background: Tokens.scrim;
+    TouchArea {
+        clicked => { root.dismissed(); }
+    }
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: max(40px, (parent.height - self.height) / 3);
+        width: root.card-width;
+        height: body.preferred-height;
+        background: Tokens.surface-raised;
+        border-radius: Tokens.radius-surface;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #0003;
+        TouchArea { }
+        body := VerticalLayout {
+            padding: 20px;
+            spacing: 16px;
+            Text {
+                text: root.title;
+                font-family: Type.heading.family;
+                font-size: Type.subheading.size;
+                font-weight: 700;
+                color: Tokens.text-primary;
+            }
+            @children
+        }
+    }
+}
+
+// The scope home page.
+export component ContentHomePage inherits Rectangle {
+    background: Tokens.surface-base;
+    in property <string> route;
+    callback opened(string);
+    init => { root.opened(root.route); }
+    changed route => { root.opened(root.route); }
+
+    property <string> new-template;
+
+    VerticalLayout {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 8px;
+        padding-bottom: 16px;
+        spacing: 12px;
+
+        // Pages / Drafts, search, New page.
+        HorizontalLayout {
+            spacing: 12px;
+            Tabs {
+                y: (parent.height - self.height) / 2;
+                tabs: [{ label: "Pages" }, { label: "Drafts" }];
+                active: ContentHomeState.show-drafts ? 1 : 0;
+                accessible-name: "Pages or drafts";
+                activated(index) => {
+                    ContentHomeState.show-drafts = index == 1;
+                    if (index == 1) {
+                        ContentHomeState.drafts-opened();
+                    }
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            if !ContentHomeState.show-drafts : SearchField {
+                width: 280px;
+                placeholder: "Search pages";
+                changed(text) => { ContentHomeState.search(text); }
+            }
+            Button {
+                text: "New page";
+                variant: ButtonVariant.primary;
+                clicked => {
+                    root.new-template = "";
+                    ContentHomeState.open-new();
+                }
+            }
+        }
+
+        if ContentHomeState.notice != "" : Text { text: ContentHomeState.notice; color: Tokens.text-muted; font-size: Type.caption.size; }
+
+        // Collection filter.
+        if !ContentHomeState.show-drafts : HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for tab[i] in ContentHomeState.tabs : Chip {
+                label: tab.label;
+                count: "" + tab.count;
+                dot: i == 0 ? transparent : tab.chip;
+                active: i == ContentHomeState.active-tab;
+                clicked => { ContentHomeState.tab(tab.slug); }
+            }
+        }
+
+        if ContentHomeState.error != "" && !ContentHomeState.show-drafts : Text { text: ContentHomeState.error; color: Tokens.text-muted; }
+
+        // The page table.
+        if !ContentHomeState.show-drafts : Rectangle {
+            vertical-stretch: 1;
+            background: Tokens.surface-raised;
+            border-radius: Tokens.radius-surface;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            clip: true;
+
+            VerticalLayout {
+                // Header.
+                Rectangle {
+                    height: 36px;
+                    background: Tokens.surface-sunken;
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 8px;
+                        spacing: 12px;
+                        Rectangle { width: 10px; }
+                        Text { horizontal-stretch: 1; text: "Page"; vertical-alignment: center; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+                        Text { width: Columns.collection; text: "Type"; vertical-alignment: center; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+                        Text { width: Columns.status; text: "Status"; vertical-alignment: center; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+                        Text { width: Columns.visibility; text: "Visibility"; vertical-alignment: center; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+                        Text { width: Columns.updated; text: "Updated"; vertical-alignment: center; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+                        Rectangle { width: Columns.actions; }
+                    }
+                    Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-subtle; }
+                }
+                if ContentHomeState.rows.length == 0 && ContentHomeState.state == PageLoadState.loaded : Text {
+                    height: 80px;
+                    text: "No pages here yet.";
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: Tokens.text-muted;
+                }
+                ScrollArea {
+                    vertical-stretch: 1;
+                    accessible-name: "Pages";
+                    for row in ContentHomeState.rows : PageRowView {
+                        entry: row;
+                        open => { ContentHomeState.row-open(row.id); }
+                        edit => { ContentHomeState.row-edit(row.id); }
+                        move-open => { ContentHomeState.row-move-open(row.id); }
+                        visibility(on) => { ContentHomeState.row-visibility(row.id, on); }
+                        delete => { ContentHomeState.row-delete(row.id); }
+                    }
+                }
+            }
+        }
+
+        // The Drafts tab: my drafts and the drafts I was invited to.
+        if ContentHomeState.show-drafts : Rectangle {
+            vertical-stretch: 1;
+            background: Tokens.surface-raised;
+            border-radius: Tokens.radius-surface;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+            clip: true;
+            ScrollArea {
+                accessible-name: "Drafts";
+                if ContentHomeState.drafts.length == 0 : Text {
+                    height: 80px;
+                    text: "No drafts.";
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: Tokens.text-muted;
+                }
+                for draft in ContentHomeState.drafts : Rectangle {
+                    height: 52px;
+                    background: draft-touch.has-hover ? Tokens.surface-hover : transparent;
+                    draft-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { ContentHomeState.draft-open(draft.page-id, draft.draft-id); }
+                    }
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 12px;
+                        Text {
+                            horizontal-stretch: 1;
+                            text: draft.page-title;
+                            overflow: elide;
+                            vertical-alignment: center;
+                            font-family: Type.body-strong.family;
+                            font-size: Type.body-strong.size;
+                            font-weight: Type.body-strong.weight;
+                            color: Tokens.text-primary;
+                        }
+                        Text { text: draft.mine ? "Mine" : "Invited"; vertical-alignment: center; color: Tokens.text-muted; }
+                        StatusPill { y: (parent.height - self.height) / 2; status: draft.in-review ? "in review" : "draft"; }
+                        Text { width: Columns.updated; text: draft.updated; vertical-alignment: center; color: Tokens.text-muted; }
+                    }
+                    Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-subtle; }
+                }
+            }
+        }
+    }
+
+    // Move dialog: the places the app offers (Company, projects, teams, departments).
+    if ContentHomeState.move-page != "" : Modal {
+        title: "Move to another place";
+        card-width: 380px;
+        dismissed => { ContentHomeState.move-page = ""; }
+        VerticalLayout {
+            spacing: 2px;
+            if ContentHomeState.move-labels.length == 0 : Text { text: "Loading places…"; color: Tokens.text-muted; }
+            for label[i] in ContentHomeState.move-labels : Rectangle {
+                height: 34px;
+                border-radius: Tokens.radius-control;
+                background: move-touch.has-hover ? Tokens.surface-hover : transparent;
+                Text { x: 10px; text: label; vertical-alignment: center; color: Tokens.text-primary; }
+                move-touch := TouchArea {
+                    clicked => {
+                        ContentHomeState.row-move(ContentHomeState.move-page, i);
+                        ContentHomeState.move-page = "";
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: end;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { ContentHomeState.move-page = ""; } }
+        }
+    }
+
+    // New page dialog: collection, template, title and address (from the title when left empty).
+    if ContentHomeState.new-open : Modal {
+        title: "New page";
+        dismissed => { ContentHomeState.new-cancel(); }
+
+        VerticalLayout {
+            spacing: 8px;
+            Text { text: "Type"; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                for c in ContentHomeState.new-collections : Chip {
+                    label: c.label;
+                    active: c.value == ContentHomeState.new-picked;
+                    clicked => {
+                        ContentHomeState.new-picked = c.value;
+                        root.new-template = "";
+                        ContentHomeState.new-collection(c.value);
+                    }
+                }
+            }
+        }
+
+        if ContentHomeState.new-templates.length > 0 : VerticalLayout {
+            spacing: 8px;
+            Text { text: "Start from"; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                Chip {
+                    label: "Blank page";
+                    active: root.new-template == "";
+                    clicked => { root.new-template = ""; }
+                }
+                for t in ContentHomeState.new-templates : Chip {
+                    label: t.label;
+                    active: t.value == root.new-template;
+                    clicked => { root.new-template = t.value; }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 8px;
+            Text { text: "Title"; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+            new-title := Input { placeholder: "Page title"; accessible-name: "Title"; }
+        }
+        VerticalLayout {
+            spacing: 8px;
+            Text { text: "Address"; font-family: Type.label.family; font-size: Type.label.size; font-weight: 600; color: Tokens.text-muted; }
+            new-slug := Input { placeholder: "Made from the title when left empty"; accessible-name: "Address"; }
+        }
+
+        if ContentHomeState.new-error != "" : Text { text: ContentHomeState.new-error; color: Tokens.palette-error-text; wrap: word-wrap; }
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+            Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { ContentHomeState.new-cancel(); } }
+            Button {
+                text: "Create page";
+                variant: ButtonVariant.primary;
+                clicked => {
+                    ContentHomeState.new-create(ContentHomeState.new-picked, new-title.text, new-slug.text, root.new-template);
+                }
+            }
+        }
+    }
+}

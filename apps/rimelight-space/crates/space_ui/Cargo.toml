@@ -1,0 +1,105 @@
+[package]
+name = "space_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Lints are spelled out, not inherited: Cargo cannot override one inherited lint. Keep this list equal to
+# [workspace.lints] in the root Cargo.toml, except unsafe_code. Slint generates unsafe vtable code (decision 0007, S1),
+# which the workspace `forbid` rejects even under `allow`, so this crate uses `deny` and allows it on the generated
+# module only (src/slint_ui/mod.rs).
+[lints.rust]
+future_incompatible = { level = "deny", priority = -1 }
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+image = { workspace = true, features = ["jpeg", "webp", "gif"] }
+# Canvas picture decoding and thumbnails (CV.7), shared (rimelight-rs); pure Rust, every target.
+rimelight_picture = { workspace = true }
+# Canvas export (CV.13): CPU rendering of the canvas to PNG, text with the bundled Noto Sans, and backup zips. Pure Rust
+# feature sets so the wasm32 and Android builds keep compiling.
+imageproc = { version = "0.25", default-features = false }
+ab_glyph = "0.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+jiff = "0.2"
+serde_json = "1"
+space_nav = { path = "../space_nav" }
+# raw-window-handle-06: the content editor's native web views attach to the window handle (CMS.5).
+slint = { workspace = true, features = ["raw-window-handle-06"] }
+i-slint-backend-testing = { workspace = true, optional = true, features = ["renderer-software"] }
+space_ui_slint = { path = "../space_ui_slint" }
+# Design tokens (Rust constants). The Slint side is compiled by space_ui_slint, which also reads `UI_DIR`.
+rimelight_design = { workspace = true }
+# The shared component library (rimelight-rs): its bundled fonts (`rimelight_ui::fonts`) and `UI_DIR`.
+rimelight_ui = { workspace = true }
+rimelight_ui_kit = { workspace = true }
+# The shared shell models (ST2.5b, rimelight-rs crates/rimelight_shell): tabs, history, tiles, drop zones, workspaces.
+rimelight_shell = { workspace = true }
+
+# The sign-in driver (SA.4 desktop, SA.6 web, src/slint_ui/session_driver.rs).
+space_client = { path = "../space_client" }
+space_proto = { path = "../space_proto" }
+# Page rules shared by the area crates (ST5.2): the data pattern, person and picker rules, and the glue macros.
+space_page_kit = { path = "../space_page_kit" }
+# The Company area (ST5.2): plain logic here, its markup through space_ui_slint, its glue through wire_company!.
+space_area_company = { path = "../../areas/company" }
+space_area_management = { path = "../../areas/management" }
+space_area_admin = { path = "../../areas/admin" }
+space_area_projects = { path = "../../areas/projects" }
+space_area_canvas = { path = "../../areas/canvas" }
+space_area_home = { path = "../../areas/home" }
+# The Content area (CMS.6): plain logic here, its markup through space_ui_slint, its glue through wire_content!.
+space_area_content = { path = "../../areas/content" }
+# The shared block editor (CMS.5): its markup is compiled by space_ui_slint; its glue is wire_block_editor! in glue.rs.
+rimelight_editor = { workspace = true }
+# The content capture states (shell_capture) build an editor document from a sample page.
+rimelight_content = { workspace = true }
+# The native web views the app owns for web-only blocks (rimelight-rs rimelight_platform, slint_ui/webviews.rs).
+rimelight_platform = { workspace = true }
+# Canvas logic (CV.6): geometry, item model, hit testing, undo, arrange.
+space_canvas = { path = "../space_canvas" }
+
+# The web sign-in runs its client futures on the page (session_driver::spawn_task).
+# The attachment download (issue.rs save_attachment) saves a Blob through a temporary anchor on the page.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlBodyElement", "Node", "Blob", "BlobPropertyBag", "Url"] }
+
+# The profile photo picker (SP.3c). Native desktop only: web and Android have no native file dialog here.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.15"
+
+# Canvas paste (CV.7): images and copied files from the OS clipboard.
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
+arboard = "3.7"
+# Canvas video (CV-V): probe, poster frame, the player and the SHA-256 of the upload. Shared (rimelight-rs).
+rimelight_media = { workspace = true }
+sha2 = "0.10"
+# Canvas picture disk cache (CV.7) and Open source (opens a link in the browser).
+dirs = "6"
+open = "5"
+
+
+
+[features]
+# Headless captures (S2): Slint testing backend with the software renderer, no window on the desktop.
+headless = ["dep:i-slint-backend-testing"]
+
+[dev-dependencies]
+ttf-parser = "0.25.1"
+space_ui_test_slint = { path = "../space_ui_test_slint" }
+i-slint-backend-testing = { workspace = true, features = ["renderer-software"] }
+image = { workspace = true }
+pollster = "0.4"
+
+[[test]]
+name = "ui"
+path = "tests/ui/main.rs"
+harness = false

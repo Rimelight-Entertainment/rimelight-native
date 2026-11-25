@@ -1,0 +1,28 @@
+[package]
+name = "space_area_projects"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rimelight Space projects area: Project overview, Issues, Issue, New issue, New sprint and Create project. Plain logic here; the window glue is wire_projects!."
+
+[lints]
+workspace = true
+
+[dependencies]
+slint = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+serde_json = "1"
+space_client = { path = "../../crates/space_client" }
+space_proto = { path = "../../crates/space_proto" }
+space_page_kit = { path = "../../crates/space_page_kit" }
+
+# The native file dialogs (the project picture, and the attachments of a new issue): desktop only.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]
+rfd = "0.15"
+
+# The attachment download in the browser (issue.rs download_in_browser): a Blob behind a temporary object URL.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlBodyElement", "Node", "Blob", "BlobPropertyBag", "Url"] }

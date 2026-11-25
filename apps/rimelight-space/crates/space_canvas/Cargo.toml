@@ -1,0 +1,16 @@
+[package]
+name = "space_canvas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Canvas logic with no UI (CV.5, decision 0045): geometry and camera, the item model and its props, z order ranks,
+# hit testing, snapping, undo, and the PureRef-style arrange operations. Unit tested; no Slint, no I/O.
+[dependencies]
+space_proto = { path = "../space_proto" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "space_gallery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The shared component gallery (rimelight-rs apps/gallery): the window, the harness and the story registry. Space's
+# stories are its app stories (crates/space_ui/ui/stories).
+rimelight_gallery = { workspace = true }
+# The whole-app capture (`--story shell/<state>`): `slint_ui::shell_capture` builds Space's shell (headless).
+space_ui = { path = "../../crates/space_ui", features = ["headless"] }

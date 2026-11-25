@@ -1,0 +1,3052 @@
+// App shell (S9.4, SF.4): the window apps/desktop opens. Rail and sidebar (from space_nav), a top bar, the page area
+// (a placeholder per route, or a shell screen: About, Report Issue or Settings), the command palette (Ctrl+K), the toast stack and the status bar at the
+// bottom. The Rust side (src/slint_ui/app_shell.rs) fills every model and answers every callback; this markup only draws
+// and reports input.
+//
+// Tab row (desktop): the top-level row above the top bar. Left to right: the sidebar collapse button, Back, Forward, the
+// workspace tabs and the "+" button. The three controls sit on a surface-raised block, like the top bar.
+// Top bar (SF.4, IA owner direction 1): a surface-raised strip across the content column. Right, left to right: the search input (opens the command palette), the
+// notifications button, and the avatar. The avatar opens the profile menu (presence picker, Profile, About, Report Issue, Settings, Sign out); the
+// presence is local UI state held here. Every top bar control is centred vertically in the bar.
+//
+// Draw order. The top bar is drawn after the page area, so its tooltips and popovers draw over the tab strip and the page.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Rail, RailItem, RailBadge } from "@rimelight_shell/components/rail.slint";
+import { Sidebar, SidebarItem, ProjectChoice, SidebarSize } from "@rimelight_shell/components/sidebar.slint";
+import { CommandPalette, PaletteRow } from "@rimelight_shell/components/command-palette.slint";
+import { StatusBar, JobItem } from "@rimelight_shell/components/status-bar.slint";
+import { TabBar } from "@rimelight_shell/components/tab-bar.slint";
+import { MoreDrawer } from "@rimelight_shell/components/more-drawer.slint";
+import { ToastStack, ToastEntry } from "@rimelight_ui/components/toast.slint";
+import { ClipboardWriter } from "@rimelight_ui/components/clipboard-writer.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { TabStrip, TabItem } from "@rimelight_ui/components/tabs.slint";
+import { ContextMenu, MenuItem } from "@rimelight_ui/components/menu.slint";
+import { Breadcrumbs } from "@rimelight_ui/components/breadcrumbs.slint";
+import { AboutScreen } from "@rimelight_shell/about.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Avatar, AvatarSize } from "@rimelight_ui/components/avatar.slint";
+import { Popover } from "@rimelight_ui/components/popover.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { AccountMenu, PresenceMark, UserPresence } from "@rimelight_shell/components/account-menu.slint";
+import { Tooltip, TooltipBounds, TooltipHub, TooltipPlacement, TooltipOverlay } from "@rimelight_ui/components/tooltip.slint";
+import { QuickAction, QuickCategory } from "@rimelight_shell/components/quick-action.slint";
+import { InputFocus } from "@rimelight_ui/components/input-focus.slint";
+import { ConnectionState } from "@rimelight_shell/components/connection-state.slint";
+import { Spinner, SpinnerSize } from "@rimelight_ui/components/spinner.slint";
+import { SignInScreen, SessionPhase } from "@rimelight_shell/components/sign-in-screen.slint";
+import { ShortcutsDialog, ShortcutSection } from "@rimelight_shell/components/shortcuts-dialog.slint";
+import { Dialog } from "@rimelight_ui/components/dialog.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Sheet, SheetPlacement, SheetSize } from "@rimelight_ui/components/sheet.slint";
+import { ScrollView } from "std-widgets.slint";
+import { PageLoadState } from "@rimelight_ui/components/page-state.slint";
+import { EmployeesPage, EmployeeRow } from "@space_area_company/employees.slint";
+import { HomePage } from "@space_area_home/home.slint";
+import { IssuesPage, IssueRow } from "@space_area_projects/issues.slint";
+import { BoardLane } from "@rimelight_shell/templates/board-page.slint";
+import { OverviewPage, OverviewCountRow, OverviewAreaRow } from "@space_area_projects/overview.slint";
+import { NewIssueDialog } from "@space_area_projects/new-issue.slint";
+import { NewSprintDialog } from "@space_area_projects/new-sprint.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { MultiOption } from "@rimelight_ui/components/multiselect.slint";
+import { CreateProjectDialog } from "@space_area_projects/create-project.slint";
+import { IssueDetailPage, IssueDetailView, IssueRef, LinkRow, CommentRow, WorkRow, AttachmentRow } from "@space_area_projects/issue.slint";
+import { SelectOption } from "@rimelight_ui/components/select.slint";
+import { ProfilePage, ProfileView, ProfileDraft } from "@space_area_company/profile.slint";
+import { TeamsPage, OrgRow } from "@space_area_company/teams.slint";
+import { TeamPage, TeamView } from "@space_area_company/team.slint";
+import { DepartmentsPage, DeptView } from "@space_area_company/departments.slint";
+import { LocationsPage } from "@space_area_company/locations.slint";
+import { CanvasPage } from "@space_area_canvas/canvas.slint";
+import { CanvasListPage } from "@space_area_canvas/canvas-list.slint";
+import { AdminUsersPage } from "@space_area_admin/users.slint";
+import { AdminOrganisationPage } from "@space_area_admin/organisation.slint";
+import { AdminRolesPage } from "@space_area_admin/roles.slint";
+import { AdminTypesTagsPage } from "@space_area_admin/types-tags.slint";
+import { ProjectSettingsPage } from "@space_area_management/settings.slint";
+import { ProjectMembersPage } from "@space_area_management/members.slint";
+import { ContentHomePage } from "@space_area_content/home.slint";
+import { ContentPageView } from "@space_area_content/page.slint";
+import { ContentCollectionsPage } from "@space_area_content/collections.slint";
+import { ContentMediaPage } from "@space_area_content/media.slint";
+import { ContentReviewsPage } from "@space_area_content/reviews.slint";
+import { BlockEditor } from "@rimelight_editor/block-editor.slint";
+
+// A tile group (planned feature B, tiles; `PLAN.md section 6.6` "Tile groups"): its rectangle in the page area, its own
+// page tab strip (`tabs`, `active`, `pinned-count`) and the icon of its active page. Rust fills the list with
+// `TileLayout::layout_rects` (src/slint_ui/tiles.rs). `focused` is true for the focused group.
+export struct TileGroup {
+    id: int,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    focused: bool,
+    icon: image,
+    tabs: [TabItem],
+    active: int,
+    pinned-count: int,
+    // The group's own page header (its active page): the title, the crumbs, and the header's controls.
+    title: string,
+    route: string,
+    crumbs: [string],
+    can-share: bool,
+    inspector-available: bool,
+}
+
+// A bar between the two children of a split. `vertical-bar` is true for a side-by-side split (the bar runs down).
+export struct TileHandle {
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    vertical-bar: bool,
+}
+
+// One row of the workspace sheet (planned feature B3b): the name (a tap switches), a pin mark for a pinned workspace, a check
+// on the active one, an X that closes it (not drawn for a pinned workspace), and a "more" button that opens the workspace
+// menu (D12: Rename, Pin, Duplicate, Close; the sheet's own menu, see `workspace-sheet-menu-requested`).
+component WorkspaceSwitchRow inherits Rectangle {
+    in property <string> label;
+    in property <string> name;
+    in property <bool> pinned;
+    in property <bool> active;
+    callback activated();
+    callback closed();
+    // The "more" button's left edge and bottom edge, in window coordinates (the menu opens below it).
+    callback more-requested(float, float);
+
+    height: Tokens.size-control-lg;
+    border-radius: Tokens.radius-r4;
+    background: active ? Tokens.surface-raised : transparent;
+
+    HorizontalLayout {
+        padding-left: Tokens.space-3;
+        padding-right: Tokens.space-1;
+        spacing: Tokens.space-2;
+        alignment: stretch;
+
+        Rectangle {
+            horizontal-stretch: 1;
+
+            Text {
+                x: 0px;
+                width: parent.width;
+                height: parent.height;
+                text: root.name;
+                color: Tokens.text-primary;
+                font-family: Type.body.family;
+                font-size: Type.body.size;
+                font-weight: root.active ? Type.heading.weight : Type.body.weight;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            // Drawn last, so the whole name area is the tap target.
+            TouchArea {
+                x: 0px;
+                width: parent.width;
+                height: parent.height;
+                accessible-role: button;
+                accessible-label: root.label;
+                clicked => { root.activated(); }
+            }
+        }
+
+        if root.pinned : Image {
+            width: Icons.small-size;
+            height: Icons.small-size;
+            y: (parent.height - self.height) / 2;
+            source: Icons.pin;
+            colorize: Tokens.text-muted;
+        }
+
+        if root.active : Image {
+            width: Icons.small-size;
+            height: Icons.small-size;
+            y: (parent.height - self.height) / 2;
+            source: Icons.check;
+            colorize: Tokens.text-primary;
+        }
+
+        more := IconButton {
+            icon: Icons.ellipsis;
+            label: "More actions for \{root.label}";
+            tooltip: "More";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.more-requested(more.absolute-position.x / 1px, (more.absolute-position.y + more.height) / 1px); }
+        }
+
+        if !root.pinned : IconButton {
+            icon: Icons.x;
+            label: "Close \{root.label}";
+            tooltip: "Close";
+            variant: ButtonVariant.ghost;
+            size: ButtonSize.sm;
+            clicked => { root.closed(); }
+        }
+    }
+}
+
+export component AppShell inherits Window {
+    title: "Rimelight Space";
+    preferred-width: 1280px;
+    preferred-height: 800px;
+    min-width: 320px;
+    min-height: 480px;
+    background: Tokens.surface-base;
+    // Ctrl+K is read by `keys` when no control has focus. Focus moves to the palette while it is open.
+    forward-focus: keys;
+
+    // Rail and sidebar. `shell-area` is the active area (rail index); `sidebar-selected` the highlighted sidebar row.
+    in property <[RailItem]> rail-items;
+    // Work-queue badges (OQ3), one per area in rail order. Empty by default, so no area shows a badge.
+    in property <[RailBadge]> rail-badges;
+    in-out property <int> shell-area: 0;
+    in property <[SidebarItem]> sidebar-rows;
+    in property <string> sidebar-title;
+    in property <image> sidebar-icon;
+    // The project switcher (tail C3): on the Projects area the sidebar header is the switcher, over `project-choices` (the list
+    // the shell narrows by the filter), with `project-key` the current project.
+    in property <bool> sidebar-switcher: false;
+    in property <[ProjectChoice]> project-choices;
+    in property <string> project-key;
+    // The current project's picture (empty when it has none), drawn in the switcher's trigger.
+    in property <image> project-image;
+    in property <bool> project-has-image: false;
+    // The current project's initials, drawn in the switcher's trigger when it has no picture.
+    in property <string> project-initials;
+    callback project-filter-changed(string);
+    callback project-picked(string);
+    callback project-create-requested();
+    in-out property <int> sidebar-selected: -1;
+    // Desktop only: true when the user has collapsed the sidebar. The tab row's collapse button then reads "Show sidebar".
+    in-out property <bool> sidebar-collapsed: false;
+
+    // Phone layout (PLAN 6.2): below the breakpoint the rail, sidebar and status bar give way to the bottom tab bar
+    // (`tab-items`, the last one is More) and a drawer that lists the active area's sidebar rows.
+    // Set from width changes (not bound to it), so the layouts that read `phone` do not form a binding loop with the window size.
+    out property <bool> phone: false;
+    init => {
+        root.phone = root.width < Tokens.size-phone-breakpoint;
+        TooltipBounds.width = root.width;
+        TooltipBounds.height = root.height;
+    }
+    changed width => {
+        root.phone = root.width < Tokens.size-phone-breakpoint;
+        TooltipBounds.width = root.width;
+    }
+    changed height => { TooltipBounds.height = root.height; }
+    in property <[RailItem]> tab-items;
+    in-out property <int> tab-selected: -1;
+    in-out property <bool> drawer-open: false;
+    // Phone More drawer (OQ24, OQ29): true while the More panel shows instead of the active area's tree.
+    in-out property <bool> more-view: false;
+    in property <[RailItem]> more-areas;
+
+    // The page placeholder: title, route, description and the area icon.
+    in property <string> page-title;
+    in property <string> page-route;
+    in property <image> page-icon;
+    in property <string> empty-title: "Wireframe coming in a later step";
+    in property <string> empty-description: "This page is a placeholder. The real content and data come with its phase.";
+
+    // Company > Employees (SP.3b): its data, set by crates/areas/company/src/employees.rs. Its events come back as the callbacks below.
+    in-out property <PageLoadState> employees-state: PageLoadState.loading;
+    in-out property <string> employees-error;
+    in-out property <bool> employees-has-more;
+    in-out property <bool> employees-loading-more;
+    callback employees-opened();
+    callback employees-search(string);
+    callback employees-open(string);
+    callback employees-load-more();
+    callback employees-retry();
+
+    // Projects > Issues (S1.3): the issue list of one project, set by src/pages/projects/issues.rs. Its events come back as the
+    // callbacks below. The query text is two-way with the page's query bar.
+    in-out property <PageLoadState> issues-state: PageLoadState.loading;
+    in-out property <string> issues-error;
+    in-out property <[IssueRow]> issues-rows;
+    in-out property <bool> issues-has-more;
+    in-out property <bool> issues-loading-more;
+    in-out property <string> issues-query;
+    in-out property <[bool]> issues-chip-on;
+    in-out property <string> issues-sort-field;
+    in-out property <bool> issues-sort-desc;
+    in-out property <string> issues-query-message;
+    in-out property <string> issues-query-before;
+    in-out property <string> issues-query-span;
+    in-out property <string> issues-query-after;
+    in-out property <bool> issues-can-create;
+    // True for a tab route that is a project's issue list (`/p/:key/issues`). Answered by Rust.
+    pure callback is-issues-route(string) -> bool;
+    callback issues-opened(string);
+    callback issues-retry();
+    callback issues-search(string);
+    callback issues-submit(string);
+    callback issues-chip(int);
+    callback issues-sort(string);
+    callback issues-load-more();
+    callback issues-open-issue(string);
+    // Opens a route in the page tab (the issue opened from a row or a create).
+    callback issues-open(string);
+    // The issues page's view (0 table, 1 board), and the board's columns, names and move error (set by issues.rs).
+    in-out property <int> issues-view-mode: 0;
+    in-out property <[BoardLane]> issues-board;
+    in-out property <string> issues-board-error;
+    callback issues-board-move(string, int);
+    // The board column under a pointer x (the drop target of a card drag), answered by Rust: see issues.rs.
+    callback issues-column-at(float, float, float, int) -> int;
+    callback issues-view-changed(int);
+    // Projects > Overview (/p/:key): the project summary (ui/pages/projects/overview.slint), set by src/pages/projects/overview.rs.
+    in-out property <PageLoadState> overview-state: PageLoadState.loading;
+    in-out property <string> overview-error;
+    in-out property <string> overview-project-name;
+    in-out property <string> overview-project-key;
+    in-out property <string> overview-description;
+    in-out property <string> overview-owner;
+    in-out property <string> overview-members;
+    in-out property <string> overview-total;
+    in-out property <string> overview-open;
+    in-out property <string> overview-closed;
+    in-out property <bool> overview-truncated;
+    in-out property <[OverviewCountRow]> overview-states;
+    in-out property <[OverviewCountRow]> overview-priorities;
+    in-out property <[IssueRow]> overview-recent;
+    in-out property <bool> overview-sprint-present;
+    in-out property <string> overview-sprint-name;
+    in-out property <string> overview-sprint-dates;
+    in-out property <string> overview-sprint-goal;
+    in-out property <string> overview-sprint-counts;
+    in-out property <[OverviewAreaRow]> overview-areas;
+    pure callback is-overview-route(string) -> bool;
+    callback overview-opened(string);
+    callback overview-retry();
+    callback overview-open-issue(string);
+    // New issue dialog (S1.5c, ui/pages/projects/new-issue.slint). Opened by the issues page's New issue button and by the
+    // quick action's New issue entry: `new-issue-requested` is answered by src/pages/projects/new_issue.rs (it fills the
+    // form, then asks for the dialog with `new-issue-show`). The form values are two-way with the dialog's fields.
+    // Create project dialog (pages/projects/create-project.slint), opened by the switcher's Create New Project row.
+    // src/slint_ui/app_shell.rs fills and shows it; its Save runs the create and closes it on success.
+    in-out property <bool> create-project-show: false;
+    in-out property <string> create-project-key;
+    in-out property <string> create-project-name;
+    in-out property <string> create-project-description;
+    in-out property <string> create-project-error;
+    in-out property <bool> create-project-creating: false;
+    in property <bool> create-project-picture-supported: false;
+    in property <string> create-project-picture-name;
+    in property <image> create-project-picture-preview;
+    in property <bool> create-project-picture-has-preview: false;
+    callback create-project-save(string, string, string);
+    callback create-project-cancel();
+    callback create-project-choose-picture();
+    callback new-issue-requested();
+    callback new-issue-show();
+    callback new-issue-close();
+    in-out property <[SelectOption]> new-issue-project-options;
+    in-out property <string> new-issue-project;
+    in-out property <string> new-issue-summary;
+    in-out property <string> new-issue-description;
+    in-out property <[SelectOption]> new-issue-type-options;
+    in-out property <string> new-issue-type: "Task";
+    in-out property <[SelectOption]> new-issue-state-options;
+    in-out property <string> new-issue-state;
+    in-out property <[SelectOption]> new-issue-priority-options;
+    in-out property <string> new-issue-priority: "Normal";
+    in-out property <[SelectOption]> new-issue-assignee-options;
+    in-out property <string> new-issue-assignee;
+    in-out property <[SelectOption]> new-issue-sprint-options;
+    in-out property <string> new-issue-sprint;
+    in-out property <string> new-issue-due-date;
+    in-out property <string> new-issue-tags;
+    in-out property <[MultiOption]> new-issue-area-options;
+    in-out property <string> new-issue-area-summary;
+    in-out property <string> new-issue-area-query;
+    in-out property <[CalendarDay]> new-issue-due-days;
+    in-out property <[string]> new-issue-weekday-labels;
+    in-out property <string> new-issue-due-title;
+    callback new-issue-due-picked(int);
+    callback new-issue-due-month-step(int);
+    callback new-issue-area-toggled(string);
+    // New sprint (src/pages/projects/new_sprint.rs): the dialog's form, its date grids, and its callbacks.
+    in-out property <string> new-sprint-name;
+    in-out property <string> new-sprint-goal;
+    in-out property <string> new-sprint-start-date;
+    in-out property <string> new-sprint-end-date;
+    in-out property <[CalendarDay]> new-sprint-start-days;
+    in-out property <[CalendarDay]> new-sprint-end-days;
+    in-out property <string> new-sprint-start-title;
+    in-out property <string> new-sprint-end-title;
+    in-out property <[string]> new-sprint-weekday-labels;
+    in-out property <bool> new-sprint-creating;
+    in-out property <string> new-sprint-error;
+    callback new-sprint-requested();
+    callback new-sprint-show();
+    callback new-sprint-close();
+    callback new-sprint-create();
+    callback new-sprint-start-picked(int);
+    callback new-sprint-start-step(int);
+    callback new-sprint-end-picked(int);
+    callback new-sprint-end-step(int);
+    in-out property <[string]> new-issue-files;
+    in-out property <bool> new-issue-can-create;
+    in-out property <bool> new-issue-creating;
+    in-out property <string> new-issue-error;
+    in property <bool> new-issue-edit-mode;
+    in-out property <string> new-issue-estimate;
+    out property <bool> new-issue-is-open: new-issue.is-open;
+    callback new-issue-project-picked(string);
+    callback new-issue-summary-edited();
+    callback new-issue-attach();
+    callback new-issue-remove-file(int);
+    callback new-issue-create();
+    // Projects > Issue (S1.3, part 3): one issue at `/p/:key/issues/:id`, set by src/pages/projects/issue.rs. Its events come back
+    // as the callbacks below.
+    in-out property <PageLoadState> issue-state: PageLoadState.loading;
+    in-out property <string> issue-error;
+    in-out property <IssueDetailView> issue-view;
+    in-out property <bool> issue-saving;
+    in-out property <string> issue-action-error;
+    in-out property <[IssueRef]> issue-subtasks;
+    in-out property <[LinkRow]> issue-links;
+    in-out property <[CommentRow]> issue-comments;
+    in-out property <[string]> issue-activity;
+    in-out property <bool> issue-can-edit;
+    in-out property <bool> issue-can-moderate;
+    in-out property <bool> issue-can-delete;
+    in-out property <bool> issue-confirm-delete;
+    in-out property <string> issue-comment-edit-draft;
+    in-out property <[WorkRow]> issue-work;
+    in-out property <[AttachmentRow]> issue-attachments;
+    // True for a tab route that is an issue (`/p/:key/issues/:id`). Answered by Rust.
+    pure callback is-issue-route(string) -> bool;
+    // Canvas routes (CV.6): `/home/canvases/{id}` and `/p/{KEY}/canvases/{id}` is a canvas; the list is `/home/canvases` and
+    // `/p/{KEY}/canvases`. Answered by Rust. canvas-open-route navigates the focused tab to a canvas route (Rust calls it).
+    pure callback is-canvas-route(string) -> bool;
+    pure callback is-canvas-list-route(string) -> bool;
+    callback canvas-open-route(string);
+    // Closes the focused page tab (Rust calls it for the canvas menu's Close canvas item).
+    callback canvas-close-tab();
+    callback issue-opened(string);
+    callback issue-retry();
+    callback issue-back();
+    callback issue-open-issue(string);
+    callback issue-edit-open();
+    callback issue-subtask-add(string);
+    callback issue-link-add(string, string);
+    callback issue-link-remove(string);
+    callback issue-comment-add(string);
+    callback issue-comment-edit-start(string);
+    callback issue-comment-edit-cancel();
+    callback issue-comment-edit-save(string, string);
+    callback issue-comment-delete(string);
+    callback issue-delete-ask();
+    callback issue-delete-cancel();
+    callback issue-delete-confirm();
+    callback issue-vote(bool);
+    callback issue-star(bool);
+    callback issue-prev();
+    callback issue-next();
+    callback issue-copy-key(string);
+    callback issue-work-add(string, string, string);
+    callback issue-work-delete(string);
+    callback issue-attach();
+    callback issue-attachment-delete(string);
+    callback issue-attachment-download(int);
+    // The project switcher's list is loaded again (the session driver, and the first sign-in). Set by src/slint_ui/projects.rs.
+    callback projects-refresh();
+
+    // Profile (SP.3c): one profile at a time, set by crates/areas/company/src/profile.rs. The page's events come back as the callbacks.
+    in-out property <PageLoadState> profile-state: PageLoadState.loading;
+    in-out property <string> profile-error;
+    in-out property <ProfileView> profile-view;
+    in-out property <bool> profile-own;
+    in-out property <bool> profile-editing;
+    in-out property <bool> profile-saving;
+    in-out property <string> profile-save-error;
+    in-out property <bool> profile-photo-supported;
+    in-out property <bool> profile-photo-busy;
+    in-out property <string> profile-photo-error;
+    // True for a tab route that is a profile (`/company/employees/{id}`). Answered by Rust.
+    pure callback is-profile-route(string) -> bool;
+    callback profile-opened(string);
+    callback profile-retry();
+    callback profile-start-edit();
+    callback profile-cancel-edit();
+    callback profile-save(ProfileDraft);
+    callback profile-open-person(string);
+    callback profile-change-photo();
+
+    // Company > Teams (SP.3d): the team list and the org chart, set by crates/areas/company/src/teams.rs. Its events come back as the callbacks.
+    in-out property <PageLoadState> teams-state: PageLoadState.loading;
+    in-out property <string> teams-error;
+    in-out property <[OrgRow]> teams-org-rows;
+    in-out property <string> teams-find-note;
+    callback teams-opened();
+    callback teams-retry();
+    callback teams-toggle(string);
+    callback teams-find(string);
+    callback teams-open-team(string);
+    callback teams-open-person(string);
+
+    // Company > Teams > one team (SP.3d): set by crates/areas/company/src/team.rs. Its route is `/company/teams/{id}`.
+    in-out property <PageLoadState> team-state: PageLoadState.loading;
+    in-out property <string> team-error;
+    in-out property <TeamView> team-view;
+    in-out property <[EmployeeRow]> team-members;
+    // True for a tab route that is a team (`/company/teams/{id}`). Answered by Rust.
+    // Content (CMS.6): the content page kind of a route ("home", "page", "collections", "media", "reviews", or "" for none),
+    // answered by Rust. The page reports `content-opened` with its route when it opens or the route changes.
+    pure callback content-kind(string) -> string;
+    callback content-opened(string);
+    callback navigate-requested(string);
+    pure callback is-team-route(string) -> bool;
+    callback team-opened(string);
+    callback team-retry();
+    callback team-open-person(string);
+
+    // Company > Departments (SP.3d): the department tree and the selected department, set by crates/areas/company/src/departments.rs.
+    in-out property <PageLoadState> dept-state: PageLoadState.loading;
+    in-out property <string> dept-error;
+    in-out property <DeptView> dept-view;
+    callback dept-opened();
+    callback dept-retry();
+    callback dept-toggle(string);
+    callback dept-select(string);
+    callback dept-open-team(string);
+    callback dept-open-person(string);
+
+    // Shell screens that replace the page while open: About, Report Issue and Settings. Rust sets one at a time.
+    in property <bool> about-open: false;
+    in property <bool> feedback-open: false;
+    in property <bool> report-open: false;
+    in property <bool> settings-open: false;
+    out property <bool> overlay-open: root.about-open || root.feedback-open || root.report-open || root.settings-open;
+    in property <string> app-version: "0.1.0";
+
+    // Top bar height: a control, with a gap above and below.
+    property <length> topbar-height: Tokens.size-control-md + Tokens.space-2 * 2;
+    // Width of the profile menu panel. The panel is right-aligned under the avatar.
+    property <length> profile-width: 264px;
+
+    // The signed-in person. Placeholders until sign-in exists.
+    in property <string> user-name: "You";
+    in property <string> user-initials: "Y";
+    // The signed-in person's id (SP.3c): the avatar menu's Profile row opens /company/employees/{user-id}.
+    in-out property <string> user-id;
+    in property <string> user-email: "you@rimelight";
+    // Sign-in (SA.4). The phase the window shows: the sign-in screen covers the shell unless it is signed-in. Signed-in is the
+    // default, so a window built without the desktop session (tests, phone, web) keeps the shell. The desktop app sets the
+    // phase, the error line and the connection. `sign-in-placed` is the test state of the screen.
+    in property <SessionPhase> session-phase: SessionPhase.signed-in;
+    in property <string> sign-in-error: "";
+    callback sign-in-clicked();
+    callback sign-in-cancelled();
+    // Retry on the "Can't reach Rimelight Space" screen (SA.8): the host checks the server again.
+    callback sign-in-retry-clicked();
+    out property <bool> sign-in-placed: root.session-phase != SessionPhase.signed-in;
+    // The sign-in screen's test state: which part it draws, and the status line it shows.
+    out property <bool> sign-in-button-shown: sign-in.button-shown;
+    out property <bool> sign-in-waiting-shown: sign-in.waiting-shown;
+    out property <bool> sign-in-loading-shown: sign-in.loading-shown;
+    out property <bool> sign-in-unreachable-shown: sign-in.unreachable-shown;
+    out property <bool> sign-in-error-shown: sign-in.error-shown;
+    out property <string> sign-in-status-text: sign-in.status-text;
+    // Presence, shown on the avatar and set from the profile menu. Local UI state only.
+    in-out property <UserPresence> presence: UserPresence.online;
+
+    // Page header and open pages (SF.4). `page-crumbs` is Area, Section, Page (the last is the current page); Rust fills it.
+    // Page header and tile groups (T2a). The page header is global and shows the focused group's page. `tile-groups` are
+    // the groups of the active workspace (each with its own page tab strip), and `tile-handles` the bars between them.
+    // `open-tabs`, `open-active` and `open-pinned-count` mirror the focused group's strip.
+    in property <[string]> page-crumbs;
+    in property <[TileGroup]> tile-groups;
+    in property <[TileHandle]> tile-handles;
+    // The tab drag ghost (T2b): the chip with the dragged tab's label, drawn over the page area at the pointer (page area px).
+    // `tile-ghost-refused` shows the not-allowed state.
+    // The drop preview (T2b) lives in root properties, not in the group rows: a pointer move during a drag must not touch the
+    // `tile-groups` model, or the repeater would reset the strip under the pointer. `drag-group` is the group the preview is
+    // over (-1 none); `drag-zone` 0 none, 1 left, 2 right, 3 top, 4 bottom, 5 centre; `drag-mark` the strip insertion slot
+    // (-1 none); `drag-refused` whether the drop is refused.
+    in property <int> drag-group: -1;
+    in property <int> drag-zone: 0;
+    in property <int> drag-mark: -1;
+    in property <bool> drag-refused: false;
+    in property <bool> tile-ghost-visible: false;
+    in property <string> tile-ghost-label;
+    in property <float> tile-ghost-x;
+    in property <float> tile-ghost-y;
+    in property <bool> tile-ghost-refused: false;
+    // Keyboard focus on a tab strip (gaps D3). `strip-focus-owner` is -1 for the workspace strip, the group's id for a page-tab
+    // strip, and -2 when no strip has the focus. `strip-focus-tab` is the focused tab (-1 for none).
+    out property <int> strip-focus-owner: -2;
+    out property <int> strip-focus-tab: -1;
+    // The pinned-tab tooltip (gaps D4): the text shown, or empty. The owner of the strip that shows it is `tip-owner`.
+    property <int> tip-owner: -2;
+    property <bool> tip-shown: false;
+    property <string> tip-text;
+    property <length> tip-x;
+    property <length> tip-y;
+    property <length> tip-w;
+    property <length> tip-h;
+    out property <string> pinned-tip-text: root.tip-shown ? root.tip-text : "";
+
+    // A strip's pinned tooltip changed (`owner`: -1 the workspace strip, else the group id). A hide only clears the tooltip the
+    // same strip showed.
+    function set-tip(owner: int, shown: bool, text: string, x: float, y: float, w: float, h: float) {
+        if (shown) {
+            root.tip-owner = owner;
+            root.tip-text = text;
+            root.tip-x = x * 1px;
+            root.tip-y = y * 1px;
+            root.tip-w = w * 1px;
+            root.tip-h = h * 1px;
+            root.tip-shown = true;
+        } else if (root.tip-owner == owner) {
+            root.tip-shown = false;
+        }
+    }
+
+    // The strip whose menu is open (-1 the workspace strip, the group id for a page-tab strip, -2 none). It takes the keyboard focus
+    // back when the menu closes (`refocus-tick` changes on each close; see TabStrip.refocus).
+    property <int> strip-to-refocus: -2;
+    property <int> refocus-tick: 0;
+
+    // A strip's keyboard focus changed. A page-tab strip's focus also focuses its group (so Back, Forward and the sidebar act on it).
+    function strip-focus-changed(owner: int, focused: bool, index: int) {
+        if (focused) {
+            root.strip-focus-owner = owner;
+            root.strip-focus-tab = index;
+            if (owner >= 0) {
+                root.tile-group-focused(owner);
+            }
+        } else if (root.strip-focus-owner == owner) {
+            root.strip-focus-owner = -2;
+            root.strip-focus-tab = -1;
+        }
+    }
+
+    in property <[TabItem]> open-tabs;
+    in-out property <int> open-active: 0;
+    // The pinned tabs are the first `open-pinned-count` tabs (Rust keeps them first).
+    in property <int> open-pinned-count: 0;
+    // The tab menu (right click on a page tab, IA section 6). Rust fills `open-tab-menu` for the tab right-clicked, and
+    // `tab-menu-target` is that tab. `tab-menu-open` is true while the menu is shown.
+    in property <[MenuItem]> open-tab-menu;
+    out property <bool> tab-menu-open: tab-menu.menu-open;
+    // True while the quick action button shows its tooltip (read by tests).
+    out property <bool> quick-tooltip-shown: quick-button.tooltip-shown;
+    out property <bool> workspace-menu-open: workspace-menu.menu-open;
+    property <int> tab-menu-target: -1;
+
+    // Workspaces (planned feature B2, desktop only). `workspace-tabs` is the strip, one tab per workspace, drawn in its own row
+    // above the top bar (owner answer P3). `workspace-active` is -1 when none is open. With no workspace open, the page area
+    // shows the empty state and the sidebar is hidden (`no-workspace`). A phone has no strip (`workspace-height` is zero).
+    in property <[TabItem]> workspace-tabs;
+    in property <int> workspace-active: -1;
+    in property <int> workspace-pinned-count: 0;
+    // The insertion slot of a workspace drag over the strip (-1 for none).
+    in property <int> workspace-drop-mark: -1;
+    in property <bool> workspace-can-add: true;
+    // True when the closed stack is not empty (the sheet's "Reopen closed" footer).
+    in property <bool> workspace-can-reopen: false;
+    out property <bool> no-workspace: root.workspace-tabs.length == 0;
+    // The strip is shown on desktop. The web hides it (`show-workspace-strip` false: browser tabs do the job, IA P5), and the
+    // phone has none: the switcher sheet does the job there (`workspace-sheet`). The tab row stays on desktop (the collapse,
+    // Back and Forward buttons live in it); only the strip and the "+" button are hidden on the web.
+    in property <bool> show-workspace-strip: true;
+    out property <length> workspace-height: root.phone ? 0px : SidebarSize.header-height;
+    // Where the page area starts: under the strip, the top bar and the divider.
+    out property <length> page-top: root.workspace-height + root.topbar-height + 1px;
+    // The switcher button in the top bar: always on a phone; on the web (strip hidden) only when more than one workspace is open.
+    out property <bool> show-switcher: root.phone || (!root.show-workspace-strip && root.workspace-tabs.length > 1);
+    // The workspace switcher sheet (bottom sheet): open state for tests and the top bar button.
+    out property <bool> workspace-sheet-open: workspace-sheet.is-open;
+    // The workspace tab menu (right click on a workspace), filled by Rust for the workspace right-clicked.
+    in property <[MenuItem]> open-workspace-menu;
+    property <int> workspace-menu-target: -1;
+    // The rename dialog: the workspace index and its current name (Rust opens it with `open-workspace-rename`).
+    property <int> rename-index: -1;
+    property <string> rename-text;
+
+    // Status bar, left side (OQ18): the running timer (shown only while `timer-running`) and the background jobs (empty is
+    // idle, so no indicator). Mock data: the shell sets these; no clock or job system runs yet.
+    in property <bool> timer-running: false;
+    in property <string> timer-text: "";
+    in property <[JobItem]> jobs: [];
+    callback jobs-clicked();
+    // Status bar: the theme button. Rust cycles the mode on click; `theme-icon` and `theme-label` show the current one.
+    in property <string> theme-label;
+    in property <image> theme-icon;
+    // Status bar: the Language menu. `language-index` is the checked locale (0 English, 1 Português); Rust sets it when a
+    // pick is made. Switching the Slint translation is not wired yet, so a pick only records the choice.
+    in-out property <int> language-index: 0;
+    // Status bar, bottom right: the zoom slider (-50 to 150, neutral 100; Rust applies it) and the clock text (set by Rust
+    // every second, empty hides it).
+    in-out property <float> zoom-percent: 100;
+    in property <string> clock-text: "";
+    callback zoom-changed(float);
+    // The zoom the token layer uses. Every length token scales, so each change re-lays out the whole window. A drag sets
+    // `zoom-percent` on every step, so Rust sets this at most every 50 ms (see `zoom-changed` in app_shell.rs). Keys set
+    // it at once.
+    in-out property <float> zoom-applied: 100;
+    changed zoom-applied => {
+        Tokens.zoom-percent = round(root.zoom-applied);
+    }
+
+    // Command palette (Ctrl+K). Rust fills and filters the rows; the palette only draws and reports keys.
+    in property <bool> palette-open: false;
+    in property <[PaletteRow]> palette-rows;
+    in property <int> palette-highlight: -1;
+    in-out property <string> palette-query;
+
+    // Toasts, newest first. Rust owns the queue and its countdown (rimelight-rs `crates/rimelight_ui_kit/src/toast.rs`).
+    in property <[ToastEntry]> toasts;
+
+    // Connection (OQ26, SA.9): the state Rust sets from the periodic health check. While signed in and offline, the
+    // full-window "Connection lost" overlay blocks the whole app (see the overlay at the end of this component).
+    in property <ConnectionState> connection: ConnectionState.connected;
+
+    callback rail-activated(int);
+    callback sidebar-activated(int);
+    // A collapsible sidebar row (section, pinned or group) was clicked. Rust flips its state and rebuilds the rows (SF.4).
+    callback sidebar-toggled(int);
+    callback tab-activated(int);
+    callback more-area-activated(int);
+    callback crumb-activated(int);
+    // Tile groups (T2a). A press on a tab of group `group` (its id) activates or closes tab `index` of that group. A
+    // click in a group focuses it. A right press on a tab (window coordinates x, y) fills the tab menu for that group.
+    callback tile-tab-activated(int, int);
+    callback tile-tab-closed(int, int);
+    callback tile-group-focused(int);
+    callback tile-tab-context-requested(int, int, float, float);
+    // A drag of handle `index` to the pointer (x, y) in page area coordinates.
+    callback tile-handle-dragged(int, float, float);
+    // The page area's size (width, height) in pixels, on init and on every resize.
+    callback tile-area-resized(float, float);
+    // A tab drag in a group's strip (T2b): the source group, the tab index and the pointer in page area px. Moves and the
+    // release. Escape cancels a drag (`tile-drag-escaped`).
+    callback tile-drag-moved(int, int, float, float);
+    callback tile-drag-dropped(int, int, float, float);
+    callback tile-drag-escaped();
+    // A workspace drag in the strip: the tab index and the pointer in strip px.
+    callback workspace-drag-moved(int, float, float);
+    callback workspace-drag-dropped(int, float, float);
+    // A tab menu pick: the tab it was opened on and the item id (see src/slint_ui/app_shell.rs).
+    callback open-tab-menu-picked(int, string);
+    // Ctrl+Alt+Shift+T (Cmd+Option+Shift+T on macOS): reopen the last closed page tab.
+    callback reopen-tab-requested();
+    // Workspaces (B2): a click on a workspace tab, its X or middle button, its right press (x, y in window coordinates), a
+    // workspace menu pick (the workspace it was opened on and the item id), and the rename dialog's Save.
+    callback workspace-activated(int);
+    callback workspace-closed(int);
+    callback workspace-context-requested(int, float, float);
+    callback workspace-menu-picked(int, string);
+    // The sheet row's "more" button (D12): Rust fills the compact menu for that workspace, then the menu opens.
+    callback workspace-sheet-menu-requested(int, float, float);
+    callback workspace-renamed(int, string);
+    // "+", the empty state's button and Ctrl+Alt+T: a workspace on Home. Ctrl+Alt+W closes the active one, Ctrl+Alt+Shift+W
+    // reopens the last closed one, and Ctrl+Alt+1 to 9 switch to that workspace (the digit is the text of the callback).
+    callback new-workspace-requested();
+    callback close-workspace-requested();
+    callback reopen-workspace-requested();
+    callback switch-workspace-requested(string);
+    callback open-home-clicked();
+    callback theme-clicked();
+    callback language-picked(int);
+    callback about-clicked();
+    callback submit-feedback-clicked();
+    callback report-issue-clicked();
+    callback settings-clicked();
+    callback notifications-clicked();
+    callback profile-clicked();
+    callback sign-out-clicked();
+    callback record-clicked();
+    callback fullscreen-clicked();
+    callback palette-requested();
+    callback palette-query-changed(string);
+    callback palette-move(int);
+    callback palette-picked(int);
+    callback palette-closed();
+    callback toast-action(int);
+    callback toast-close(int);
+    callback toast-exit(int);
+    callback toast-paused(int, bool);
+
+    // Quick action (SF.4 mock): the menu sections and their item count, fed from Rust (src/slint_ui/app_shell.rs).
+    in property <[QuickCategory]> quick-categories;
+    in property <int> quick-item-count: 0;
+    callback quick-item-picked(string);
+    // Back and forward in the active page tab's history (IA section 6; planned feature A). The top bar buttons and the
+    // shortcuts call the two callbacks; Rust sets the flags from the active tab's history.
+    in property <bool> can-back: false;
+    in property <bool> can-forward: false;
+    callback back-requested();
+    callback forward-requested();
+    // Page header actions (IA section 6; tail C1). The primary action's label is empty when the page has none (every page
+    // today), and then no button is drawn. Share and the overflow menu are context menus whose rows Rust fills per page.
+    in property <string> primary-action-label;
+    callback primary-action-requested();
+    in property <[MenuItem]> share-items;
+    callback share-menu-picked(string);
+    // The text the last Copy link wrote to the clipboard (the desktop and Android path; the web writes through the browser).
+    out property <string> last-copied;
+    in property <[MenuItem]> page-menu-items;
+    callback page-menu-picked(string);
+    // The inspector toggle (IA sections 6 and 7, OQ22, OQ23). Enabled only on Detail, Split and Board pages. The dock is not
+    // built yet, so the toggle only records its state.
+    in property <bool> inspector-available: false;
+    in-out property <bool> inspector-open: false;
+    // The Android system Back key (planned feature A3). Returns true when Rust took it as a step back in the active tab; false
+    // lets the key reach the system, which finishes the activity (the Slint Android backend does that for an unaccepted key).
+    callback system-back() -> bool;
+    // A sidebar row was asked to open in a new tab (Ctrl+click, Cmd+click or a middle-button click). A plain click is
+    // `sidebar-activated`, which replaces the active tab's route.
+    callback sidebar-opened-in-new-tab(int);
+    // True on macOS: the menu shortcut uses Cmd+Option+N there, Ctrl+Alt+N elsewhere (set from Rust).
+    in property <bool> mac-keys: false;
+    // True while a text field (Input, Textarea, NumberInput) has keyboard focus (components/input-focus.slint).
+    in-out property <bool> input-focused: InputFocus.focused-count > 0;
+    // Raised by Ctrl+Alt+N (Cmd+Option+N on macOS); the quick action opens its menu on each change (OQ17).
+    property <int> quick-menu-request: 0;
+    // Modifier keys held down, set from the key events of the modifier keys themselves (capture-key-pressed and
+    // capture-key-released on `keys`). Slint reports the modifier flags of an event too, but on Windows it clears Ctrl and
+    // Alt for a character made with AltGr, so the held keys are the reliable source for the shortcuts that use them.
+    property <bool> ctrl-held: false;
+    property <bool> alt-held: false;
+    property <bool> meta-held: false;
+
+    // Opens the shortcuts dialog (IA section 9). The status bar Shortcuts button and "?" call it; Rust can call it too
+    // (`invoke_open_shortcuts`). It does nothing on a phone (OQ29, no status bar there) or while the palette is open.
+    // Copy link writes through this zero-size writer (components/clipboard-writer.slint). Rust calls `copy-link`.
+    clipboard := ClipboardWriter {}
+
+    public function copy-link(link: string) {
+        root.last-copied = link;
+        clipboard.copy-text(link);
+    }
+
+    public function open-shortcuts() {
+        if (!root.phone && !root.palette-open) {
+            shortcuts.open();
+        }
+    }
+
+    // Android Back (planned feature A3; gaps D7, owner decision): closes the topmost open overlay that Slint owns, through its own
+    // close path, and returns true. Order, topmost first: the context menus (page tab, Share, page overflow, workspace), the
+    // popovers (profile, quick action, project switcher, status bar jobs and Language), the dialogs (rename, shortcuts), the
+    // command palette, the workspace sheet, and the phone drawer (from an area opened from More, Back returns to the More list
+    // first; then the drawer closes). Returns false when none is open: Rust then closes a shell screen (About, Report Issue,
+    // Settings) and steps the active tab's history. Escape is not changed: it still works through each overlay's own keys.
+    public function close-topmost-overlay() -> bool {
+        if (root.tab-menu-open) {
+            tab-menu.close();
+            return true;
+        }
+        if (share-menu.menu-open) {
+            share-menu.close();
+            return true;
+        }
+        if (page-menu.menu-open) {
+            page-menu.close();
+            return true;
+        }
+        if (workspace-menu.menu-open) {
+            workspace-menu.close();
+            return true;
+        }
+        if (profile.is-open) {
+            profile.close();
+            return true;
+        }
+        if (quick-button.close-menu()) {
+            return true;
+        }
+        if (desk-sidebar.close-switcher()) {
+            return true;
+        }
+        if (phone-sidebar.close-switcher()) {
+            return true;
+        }
+        if (status-bar.close-popovers()) {
+            return true;
+        }
+        if (rename-dialog.is-open) {
+            rename-dialog.close();
+            return true;
+        }
+        if (shortcuts.is-open) {
+            shortcuts.close();
+            return true;
+        }
+        if (root.palette-open) {
+            root.palette-closed();
+            return true;
+        }
+        if (workspace-sheet.is-open) {
+            workspace-sheet.close();
+            return true;
+        }
+        if (root.phone && root.drawer-open) {
+            if (root.more-view) {
+                root.drawer-open = false;
+            } else {
+                root.more-view = true;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // Opens the rename dialog for workspace `index`, with its current name (empty when the name is automatic). Rust calls it
+    // from the workspace menu's Rename row.
+    public function open-workspace-rename(index: int, name: string) {
+        // The workspace sheet may be open (its row menu's Rename): it closes first, so the dialog is not under it.
+        workspace-sheet.close();
+        root.rename-index = index;
+        root.rename-text = name;
+        rename-dialog.open();
+    }
+
+    // Test state (the UI tests read these instead of looking up elements). Each one is the condition the element uses.
+    out property <bool> rail-shown: !root.phone;
+    out property <bool> tab-bar-shown: root.phone;
+    out property <bool> back-arrow-shown: root.phone && root.can-back;
+    out property <bool> share-menu-open: share-menu.menu-open;
+    out property <bool> page-menu-open: page-menu.menu-open;
+    out property <bool> profile-open: profile.is-open;
+    // The profile menu's shown name, for the tests (it is read from the injected user name).
+    // The initials the top bar's avatar draws (the user's, from the injected user).
+    out property <string> avatar-initials: top-avatar.initials;
+    // SA.9: the connection-lost overlay is shown (signed in and offline). Read by the tests.
+    out property <bool> connection-lost-shown: root.session-phase == SessionPhase.signed-in && root.connection == ConnectionState.offline;
+    // The collapse button's label reads "Show sidebar": the sidebar is collapsed on desktop.
+    out property <bool> show-sidebar-shown: root.sidebar-collapsed && !root.phone;
+    // The workspace strip's "+" button is drawn (the strip is on desktop only).
+    out property <bool> workspace-add-shown: !root.phone && root.show-workspace-strip;
+    // The quick action button is drawn, and its menu is open (its items are in the tree then).
+    out property <bool> quick-button-shown: quick-button.visible;
+    // Presence hooks (real drawn state, forwarded from the owning element or the element that holds it).
+    // Decision 0034 (c): state the connection and departments tests read instead of an element lookup.
+    out property <bool> test-lost-overlay-drawn: lost-overlay.visible && lost-overlay.width > 0;
+    in-out property <length> test-dept-body-height;
+    out property <bool> test-has-notifications: notify-btn.visible;
+    out property <bool> test-has-avatar: avatar-btn.visible;
+    out property <bool> test-has-collapse: collapse-btn.visible;
+    // The More drawer exists only on a phone (`if root.phone`), and its Record row is always drawn; the status bar is
+    // drawn on the desktop only.
+    out property <bool> test-has-record: root.phone || (status-bar.visible && status-bar.test-has-record);
+    out property <bool> test-has-fullscreen: status-bar.visible && status-bar.test-has-fullscreen;
+    out property <bool> test-has-shortcuts: status-bar.visible && status-bar.test-has-shortcuts;
+    out property <bool> quick-menu-open: quick-button.menu-open;
+    // Test geometry (window px): the quick action button, the "New workspace" button, and the tile area that holds the page
+    // tab strips (a group's strip sits at the tile area origin plus the group's x and y).
+    out property <length> test-quick-x: quick-button.test-x;
+    out property <length> test-quick-y: quick-button.test-y;
+    out property <length> test-quick-w: quick-button.test-w;
+    out property <length> test-quick-h: quick-button.test-h;
+    // Geometry copied out of the conditional elements below (tile-area, ws-strip) by their `changed` handlers: an id
+    // inside an `if` cannot be read from the root. The "+" row is not inside an `if` (it is hidden with `visible`), so its
+    // hooks read the button live.
+    // The "+" button's live geometry (window px), read by the tests.
+    out property <length> test-plus-x: ws-plus.absolute-position.x;
+    out property <length> test-plus-w: ws-plus.width;
+    in-out property <length> test-tile-x;
+    in-out property <length> test-tile-y;
+    in-out property <length> test-strip-x;
+    in-out property <length> test-strip-y;
+    in-out property <length> test-strip-h;
+    // The top bar's live geometry (window px). The bar is not inside an `if`, so it is read directly.
+    out property <length> test-topbar-x: topbar.absolute-position.x;
+    out property <length> test-topbar-y: topbar.absolute-position.y;
+    out property <length> test-topbar-width: topbar.width;
+    out property <length> test-topbar-height: topbar.height;
+    // The desktop project switcher's list is open.
+    out property <bool> project-switcher-open: desk-sidebar.switcher-open;
+    // The status bar's jobs popover and Language popover are open.
+    out property <bool> status-jobs-open: status-bar.jobs-open;
+    out property <bool> status-language-open: status-bar.language-open;
+
+    // Test hooks (the UI tests call them as `invoke_test_*`). Each one does what the element it stands for does on a click.
+    public function test-open-share-menu() {
+        share-menu.open-at(0px, 0px);
+    }
+
+    public function test-open-page-menu() {
+        page-menu.open-at(0px, 0px);
+    }
+
+    public function test-open-profile() {
+        profile.trigger-clicked();
+    }
+
+    public function test-open-workspace-sheet() {
+        workspace-sheet.open();
+    }
+
+    // A right press on workspace tab `index` (as the workspace strip's context-requested handler does). The menu's position is
+    // not checked, so it opens at the origin.
+    public function test-open-workspace-menu(index: int) {
+        root.workspace-context-requested(index, 0.0, 0.0);
+        root.strip-to-refocus = -1;
+        root.workspace-menu-target = index;
+        workspace-menu.open-at(0px, 0px);
+    }
+
+    // The pointer over the first (pinned) workspace tab: its tooltip is shown with the tab's slot, as the strip reports a hover.
+    // The workspace strip (inside a conditional, so its id is not reachable here) reports the tab 0 tooltip through its own
+    // `tip-changed` when this tick changes; the report uses the strip's geometry, as its hover handler does.
+    in-out property <int> test-hover-tick: 0;
+    public function test-hover-pinned-workspace() {
+        root.test-hover-tick += 1;
+    }
+
+    // A sheet row's label: switches to that workspace and closes the sheet.
+    public function test-pick-sheet-row(index: int) {
+        root.workspace-activated(index);
+        workspace-sheet.close();
+    }
+
+    // The sheet's "New workspace" button: adds one and closes the sheet.
+    public function test-sheet-new-workspace() {
+        root.new-workspace-requested();
+        workspace-sheet.close();
+    }
+
+    // A sheet row's "more" button: Rust fills the compact menu for the row, then the shared workspace menu opens.
+    public function test-open-sheet-row-menu(index: int) {
+        root.workspace-sheet-menu-requested(index, 0, 0);
+        root.workspace-menu-target = index;
+        workspace-menu.open-at(0px, 0px);
+    }
+
+    public function test-close-shortcuts() {
+        shortcuts.close();
+    }
+
+    // A row pick in the phone drawer: the drawer closes, then the row fires (as the drawer's activated handler does).
+    public function test-pick-drawer-row(index: int) {
+        root.sidebar-activated(index);
+        root.drawer-open = false;
+    }
+
+    // A footer pick in the phone More drawer (0 About, 1 Report Issue, 2 Settings): the drawer closes, then the callback
+    // fires (as the More drawer's footer handlers do).
+    public function test-pick-more-footer(index: int) {
+        root.drawer-open = false;
+        if (index == 0) {
+            root.about-clicked();
+        } else if (index == 1) {
+            root.report-issue-clicked();
+        } else {
+            root.settings-clicked();
+        }
+    }
+
+    // The drawer's Back to More row: the More panel shows again and the drawer stays open (as the sidebar's back handler does).
+    public function test-back-to-more() {
+        root.more-view = true;
+    }
+
+    // A right press on page tab `index` of tile group `group`: the strip's context request, then the tab menu opens (as the
+    // strip's context-requested handler does). The menu's position is not checked, so it opens at the origin.
+    public function test-open-tab-menu(group: int, index: int) {
+        root.tile-tab-context-requested(group, index, 0.0, 0.0);
+        root.strip-to-refocus = group;
+        root.tab-menu-target = index;
+        tab-menu.open-at(0px, 0px);
+    }
+
+    // The tab row's collapse button (as its clicked handler does): collapse, then show.
+    public function test-collapse-sidebar() {
+        root.sidebar-collapsed = true;
+    }
+
+    public function test-show-sidebar() {
+        root.sidebar-collapsed = false;
+    }
+
+    // The quick action button's tap, and the pick of menu item `id` (as the button's and the items' handlers do).
+    public function test-tap-quick-action() {
+        quick-button.test-tap();
+    }
+
+    // Test geometry for page tabs. `row` is the index in `tile-groups`, `index` the tab in that group. Each returns window px.
+    // The group's strip sits at the tile area origin plus the group's x and y; its tabs follow the TabStrip slot rule (pinned
+    // tabs first, `size-control-height` wide, the others four times that), as src/slint_ui and components/tabs.slint lay them.
+    public function test-page-tab-x(row: int, index: int) -> length {
+        return root.test-tile-x + root.tile-groups[row].x * 1px
+            + (index < root.tile-groups[row].pinned-count
+                ? index * Tokens.size-control-md
+                : root.tile-groups[row].pinned-count * Tokens.size-control-md
+                    + (index - root.tile-groups[row].pinned-count) * Tokens.size-control-md * 4);
+    }
+
+    public function test-page-tab-w(row: int, index: int) -> length {
+        return root.tile-groups[row].tabs[index].pinned ? Tokens.size-control-md : Tokens.size-control-md * 4;
+    }
+
+    public function test-page-strip-y(row: int) -> length {
+        return root.test-tile-y + root.tile-groups[row].y * 1px;
+    }
+
+    // The height of a page tab strip (its tabs' height), as the TabStrip default.
+    public function test-page-strip-h() -> length {
+        return Tokens.size-control-md;
+    }
+
+    // Test geometry for workspace tabs: the strip's tab `index` (window px), its top and its height.
+    public function test-ws-tab-x(index: int) -> length {
+        // The strip's slot rule (components/tabs.slint, slot-x): pinned tabs first, one control height wide, the others four.
+        return root.test-strip-x + (index < root.workspace-pinned-count
+            ? index * Tokens.size-control-md
+            : root.workspace-pinned-count * Tokens.size-control-md
+                + (index - root.workspace-pinned-count) * Tokens.size-control-md * 4);
+    }
+
+    public function test-ws-tab-w(index: int) -> length {
+        return root.workspace-tabs[index].pinned ? Tokens.size-control-md : Tokens.size-control-md * 4;
+    }
+
+    public function test-ws-y() -> length {
+        return root.test-strip-y;
+    }
+
+    public function test-ws-h() -> length {
+        return root.test-strip-h;
+    }
+
+    public function test-pick-quick-item(id: string) {
+        quick-button.test-pick-item(id);
+    }
+
+    // The desktop project switcher's name click (opens its project list).
+    public function test-open-project-switcher() {
+        desk-sidebar.test-open-switcher();
+    }
+
+    // The status bar's jobs indicator click, and its Language button click (as the bar's handlers do).
+    public function test-click-jobs() {
+        status-bar.click-jobs();
+    }
+
+    public function test-click-language() {
+        status-bar.test-click-language();
+    }
+
+    changed palette-open => {
+        if (root.palette-open) {
+            palette.focus-me();
+        } else {
+            keys.focus();
+        }
+    }
+
+    // Window keyboard entry point. Ctrl+K is taken in the capture phase, which Slint visits from the window down to the
+    // focused control, so it opens the palette even when a control inside the shell has keyboard focus.
+    keys := FocusScope {
+        width: 100%;
+        height: 100%;
+        capture-key-pressed(event) => {
+            // While the sign-in screen covers the shell (SA.4, decision 0016), no shell shortcut runs: Ctrl+K, the quick action
+            // and the zoom keys stay off until the session is signed in. The key is not taken.
+            if (root.session-phase != SessionPhase.signed-in) {
+                return reject;
+            }
+            // SA.9: while the connection-lost overlay blocks the app, every key is taken here, so no shortcut runs underneath.
+            if (root.connection-lost-shown) {
+                return accept;
+            }
+            // Every key press dismisses the tooltips (TooltipHub). The key that moves focus is seen first, so the control that
+            // takes the focus shows its tooltip afterwards.
+            TooltipHub.key-down();
+            // Escape cancels a tab drag (T2b). Rust does nothing when no drag is running, and the key goes on as before.
+            if (event.text == Key.Escape) {
+                root.tile-drag-escaped();
+            }
+            // Modifier keys arrive as key events too. Track which ones are held (see the properties above).
+            if (event.text == Key.Control || event.text == Key.ControlR) {
+                root.ctrl-held = true;
+                return reject;
+            }
+            if (event.text == Key.Alt || event.text == Key.AltGr) {
+                root.alt-held = true;
+                return reject;
+            }
+            if (event.text == Key.Meta || event.text == Key.MetaR) {
+                root.meta-held = true;
+                return reject;
+            }
+            // Ctrl+plus and Ctrl+minus change the interface zoom by 10 percent, within the slider's 50 to 150 range.
+            if (event.modifiers.control && (event.text == "+" || event.text == "=")) {
+                root.zoom-percent = min(150, root.zoom-percent + 10);
+                root.zoom-applied = root.zoom-percent;
+                root.zoom-changed(root.zoom-percent);
+                return accept;
+            }
+            if (event.modifiers.control && event.text == "-") {
+                root.zoom-percent = max(50, root.zoom-percent - 10);
+                root.zoom-applied = root.zoom-percent;
+                root.zoom-changed(root.zoom-percent);
+                return accept;
+            }
+            // Ctrl+K (any layout). The text is the letter, or the Ctrl+K control character when the layout sends that. On
+            // macOS Cmd+K is the same shortcut, the one the shortcuts list shows there.
+            if ((event.modifiers.control || (root.mac-keys && event.modifiers.meta))
+                && (event.text == "k" || event.text == "K" || event.text == "\u{000b}")) {
+                root.palette-requested();
+                return accept;
+            }
+            // Quick action menu (OQ17): Ctrl+Alt+N, or Cmd+Option+N on macOS. On Windows, Slint clears the Ctrl and Alt flags
+            // when Ctrl+Alt makes a non-letter character (the AltGr rule), so the flags of the event cannot be used there. The
+            // held keys are tracked above instead. Under US-International, AltGr+N types "ñ" (AltGr+Shift+N "Ñ") and Ctrl+N
+            // sends the control character. macOS Option+N is a dead key that types "˜". A phone with a focused field has no
+            // button, so the shortcut does nothing there either.
+            if (root.alt-held
+                && (root.mac-keys ? root.meta-held : root.ctrl-held)
+                && (event.text == "n" || event.text == "N" || event.text == "ñ" || event.text == "Ñ"
+                    || event.text == "\u{000e}" || event.text == "˜")) {
+                if (!(root.phone && root.input-focused)) {
+                    root.quick-menu-request += 1;
+                }
+                return accept;
+            }
+            // Reopen the last closed page tab: Ctrl+Alt+Shift+T (Cmd+Option+Shift+T on macOS). The held Ctrl and Alt keys are
+            // tracked above, as for Ctrl+Alt+N, and Shift comes from the event. The text matches the letter, its layout variants
+            // and the Ctrl+T control character. Plain Ctrl+Alt+T (no Shift) does not match.
+            if (!root.palette-open
+                && root.alt-held
+                && (root.mac-keys ? root.meta-held : root.ctrl-held)
+                && event.modifiers.shift
+                && (event.text == "t" || event.text == "T" || event.text == "ŧ" || event.text == "Ŧ" || event.text == "\u{0014}")) {
+                root.reopen-tab-requested();
+                return accept;
+            }
+            // Workspaces (planned feature B2), with the same held Ctrl and Alt keys and the same letter variants. Ctrl+Alt+T
+            // (no Shift) is a new workspace; Ctrl+Alt+Shift+T was matched above, so Shift separates the two. Ctrl+Alt+W closes
+            // the active workspace and Ctrl+Alt+Shift+W reopens the last closed one. Ctrl+Alt+1 to 9 switch to that workspace.
+            // Not while the palette is open.
+            if (!root.palette-open && root.alt-held && (root.mac-keys ? root.meta-held : root.ctrl-held)) {
+                if (!event.modifiers.shift
+                    && (event.text == "t" || event.text == "T" || event.text == "ŧ" || event.text == "Ŧ" || event.text == "\u{0014}")) {
+                    root.new-workspace-requested();
+                    return accept;
+                }
+                if (!event.modifiers.shift && (event.text == "w" || event.text == "W" || event.text == "\u{0017}")) {
+                    root.close-workspace-requested();
+                    return accept;
+                }
+                if (event.modifiers.shift && (event.text == "w" || event.text == "W" || event.text == "\u{0017}")) {
+                    root.reopen-workspace-requested();
+                    return accept;
+                }
+                if (event.text == "1" || event.text == "2" || event.text == "3" || event.text == "4" || event.text == "5"
+                    || event.text == "6" || event.text == "7" || event.text == "8" || event.text == "9") {
+                    root.switch-workspace-requested(event.text);
+                    return accept;
+                }
+            }
+            // Android system Back (planned feature A3; gaps D7): the topmost open overlay closes first (close-topmost-overlay), then
+            // Rust closes a shell screen or steps the active tab's history (system-back). With neither, reject, so the system finishes
+            // the activity. Key.Back is what the Slint Android backend sends for the Back key.
+            if (event.text == Key.Back) {
+                if (root.close-topmost-overlay()) {
+                    return accept;
+                }
+                if (root.system-back()) {
+                    return accept;
+                }
+                return reject;
+            }
+            // Back and forward in the active page tab's history (IA section 9; planned feature A), not while the palette is open.
+            // Alt+Left and Alt+Right on every platform (Option+Left and Option+Right on macOS, where Alt is Option). Ctrl+[ and
+            // Ctrl+] on Windows and Linux, Cmd+[ and Cmd+] on macOS. Ctrl+Escape is not a shortcut: on Windows Ctrl+[ arrives as
+            // the Escape control character, the same event as Ctrl+Escape, so it cannot be told apart and Ctrl+[ does not go
+            // back there (Alt+Left does). Plain Escape reaches the dialogs and menus. Ctrl+] arrives as the GS control character.
+            // Ctrl+Alt (AltGr) is left out, so an AltGr bracket on another layout does not navigate.
+            if (!root.palette-open) {
+                if (root.alt-held && event.text == Key.LeftArrow) {
+                    root.back-requested();
+                    return accept;
+                }
+                if (root.alt-held && event.text == Key.RightArrow) {
+                    root.forward-requested();
+                    return accept;
+                }
+                if (root.mac-keys ? (root.meta-held && !root.alt-held) : (root.ctrl-held && !root.alt-held)) {
+                    if (event.text == "[") {
+                        root.back-requested();
+                        return accept;
+                    }
+                    if (event.text == "]" || (!root.mac-keys && event.text == "\u{001d}")) {
+                        root.forward-requested();
+                        return accept;
+                    }
+                }
+            }
+            // "?" opens the shortcuts list (IA section 9). Only with no modifier, no text field focused (so typing "?" still
+            // types) and no palette open.
+            if (event.text == "?" && !root.ctrl-held && !root.alt-held && !root.meta-held
+                && !root.input-focused && !root.palette-open && !root.phone) {
+                root.open-shortcuts();
+                return accept;
+            }
+            return reject;
+        }
+
+        capture-key-released(event) => {
+            if (event.text == Key.Control || event.text == Key.ControlR) {
+                root.ctrl-held = false;
+            } else if (event.text == Key.Alt || event.text == Key.AltGr) {
+                root.alt-held = false;
+            } else if (event.text == Key.Meta || event.text == Key.MetaR) {
+                root.meta-held = false;
+            }
+            return reject;
+        }
+
+        // The page tab menu (IA section 6). Zero-sized, at the window's top left: the popup opens at the pointer, which is in
+        // window coordinates. It sits inside `keys`, so the capture-phase keys still reach `keys` while the menu's target
+        // holds the focus. Its items are filled by Rust (`open-tab-menu`).
+        tab-menu := ContextMenu {
+            x: 0px;
+            y: 0px;
+            width: 0px;
+            height: 0px;
+            accessible-name: "Page tab";
+            menu-width: 240px;
+            items: root.open-tab-menu;
+            selected(id) => { root.open-tab-menu-picked(root.tab-menu-target, id); }
+            closed => { root.refocus-tick += 1; }
+        }
+
+        // The Share menu and the page overflow menu (IA section 6). Zero-sized at the window's top left, opened at a button's
+        // bottom left by its click. Their rows are filled by Rust for each page.
+        share-menu := ContextMenu {
+            x: 0px;
+            y: 0px;
+            width: 0px;
+            height: 0px;
+            accessible-name: "Share";
+            menu-width: 260px;
+            items: root.share-items;
+            selected(id) => { root.share-menu-picked(id); }
+        }
+
+        page-menu := ContextMenu {
+            x: 0px;
+            y: 0px;
+            width: 0px;
+            height: 0px;
+            accessible-name: "More page actions";
+            menu-width: 240px;
+            items: root.page-menu-items;
+            selected(id) => { root.page-menu-picked(id); }
+        }
+
+        // The workspace menu (planned feature B2): the same menu as the page tabs, with a Rename row. Filled by Rust.
+        workspace-menu := ContextMenu {
+            x: 0px;
+            y: 0px;
+            width: 0px;
+            height: 0px;
+            accessible-name: "Workspace";
+            menu-width: 240px;
+            items: root.open-workspace-menu;
+            selected(id) => { root.workspace-menu-picked(root.workspace-menu-target, id); }
+            closed => { root.refocus-tick += 1; }
+        }
+
+        // Mouse buttons 4 and 5 (Back and Forward; Slint reports them as PointerEventButton.back and .forward). This layer is
+        // drawn under the shell, so a control that takes the press (a button, a sidebar row) keeps it and it does not navigate.
+        mouse-history := TouchArea {
+            scroll-event(event) => {
+                TooltipHub.dismiss();
+                return reject;
+            }
+            width: 100%;
+            height: 100%;
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) {
+                    TooltipHub.pointer-down();
+                }
+                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.back) {
+                    root.back-requested();
+                } else if (event.kind == PointerEventKind.up && event.button == PointerEventButton.forward) {
+                    root.forward-requested();
+                }
+            }
+        }
+
+        VerticalLayout {
+            width: 100%;
+            height: 100%;
+            // Keep the content clear of the system bars (Android status bar and gesture bar). The backend reports the
+            // insets in `Window.safe-area-insets`; they are 0 on desktop.
+            padding-top: root.safe-area-insets.top;
+            padding-bottom: root.safe-area-insets.bottom;
+            padding-left: root.safe-area-insets.left;
+            padding-right: root.safe-area-insets.right;
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+
+                if !root.phone : Rail {
+                    items: root.rail-items;
+                    badges: root.rail-badges;
+                    selected <=> root.shell-area;
+                    activated(index) => { root.rail-activated(index); }
+                }
+
+                // The desktop sidebar's slot: zero width when the sidebar is hidden (phone, collapsed, no workspace). The Sidebar is
+                // always present, so the shell can close its project switcher (Back, gaps D7); Slint cannot address an element
+                // declared under an `if`.
+                Rectangle {
+                    width: (!root.phone && !root.sidebar-collapsed && !root.no-workspace) ? Tokens.size-sidebar-width : 0px;
+                desk-sidebar := Sidebar {
+                    visible: !root.phone && !root.sidebar-collapsed && !root.no-workspace;
+                    // The collapse button is in the tab row now, not in the sidebar header.
+                    show-collapse: false;
+                    width: 100%;
+                    height: 100%;
+                    switcher: root.sidebar-switcher;
+                    projects: root.project-choices;
+                    project-key: root.project-key;
+                    project-image: root.project-image;
+                    project-has-image: root.project-has-image;
+                    project-initials: root.project-initials;
+                    project-filter-changed(text) => { root.project-filter-changed(text); }
+                    project-picked(key) => { root.project-picked(key); }
+                    project-create-requested => { root.project-create-requested(); }
+                    title: root.sidebar-title;
+                    icon: root.sidebar-icon;
+                    items: root.sidebar-rows;
+                    selected <=> root.sidebar-selected;
+                    activated(index) => { root.sidebar-activated(index); }
+                    opened-in-new-tab(index) => { root.sidebar-opened-in-new-tab(index); }
+                    toggled(index) => { root.sidebar-toggled(index); }
+                }
+                }
+
+                // The column: the page area, a divider, then the top bar. The top bar is last, so it draws over the page area
+                // and its tooltips and popovers are not covered by the tab strip or the page.
+                Rectangle {
+                    horizontal-stretch: 1;
+
+                    // Workspace strip (planned feature B2, desktop only): its own row above the top bar (owner answer P3). The
+                    // page-tab strip's component, one tab per workspace, and the "+" button, disabled at the cap of 10.
+                    HorizontalLayout {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: root.workspace-height;
+                        visible: !root.phone;
+
+                        // Sidebar collapse, Back and Forward, at the left end of the tab row. The block takes the top bar's
+                        // surface, so the ghost buttons sit on a background as they did in the top bar. The button stays in
+                        // place when the sidebar opens or closes; only its label and icon state follow the sidebar.
+                        Rectangle {
+                            width: root.workspace-height * 3;
+                            height: root.workspace-height;
+                            background: Tokens.surface-raised;
+
+                            HorizontalLayout {
+                                width: 100%;
+                                height: 100%;
+                                alignment: start;
+
+                                collapse-btn := IconButton {
+                                    width: root.workspace-height;
+                                    height: root.workspace-height;
+                                    icon: Icons.panel-left;
+                                    label: root.sidebar-collapsed ? "Show sidebar" : "Collapse sidebar";
+                                    tooltip: root.sidebar-collapsed ? "Show sidebar" : "Collapse sidebar";
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.md;
+                                    square-corners: true;
+                                    clicked => { root.sidebar-collapsed = !root.sidebar-collapsed; }
+                                }
+
+                                // Back and forward through the active page tab's history.
+                                IconButton {
+                                    width: root.workspace-height;
+                                    height: root.workspace-height;
+                                    icon: Icons.arrow-left;
+                                    label: "Back";
+                                    tooltip: "Back";
+                                    tooltip-shortcut: root.mac-keys ? ["Cmd", "["] : ["Alt", "Left"];
+                                    enabled: root.can-back;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.md;
+                                    square-corners: true;
+                                    clicked => { root.back-requested(); }
+                                }
+
+                                IconButton {
+                                    width: root.workspace-height;
+                                    height: root.workspace-height;
+                                    icon: Icons.arrow-right;
+                                    label: "Forward";
+                                    tooltip: "Forward";
+                                    tooltip-shortcut: root.mac-keys ? ["Cmd", "]"] : ["Alt", "Right"];
+                                    enabled: root.can-forward;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.md;
+                                    square-corners: true;
+                                    clicked => { root.forward-requested(); }
+                                }
+                            }
+                        }
+
+                        ws-strip := TabStrip {
+                            visible: root.show-workspace-strip;
+                            changed absolute-position => {
+                                root.test-strip-x = self.absolute-position.x;
+                                root.test-strip-y = self.absolute-position.y;
+                            }
+                            changed height => { root.test-strip-h = self.height; }
+                            test-hover-tick: root.test-hover-tick;
+                            // As wide as its tabs, so the "+" button sits right after the last tab; it shrinks when they overflow.
+                            horizontal-stretch: 0;
+                            min-width: 0px;
+                            preferred-width: self.content-width;
+                            // The selected-tab treatment of the page-tab strip (raised tab, accent foot line), on the base
+                            // surface, so the strip reads apart from the page-tab strip below it.
+                            strip-background: Tokens.surface-base;
+                            accent-underline: true;
+                            // The sidebar context-header height, so the workspace row lines up with the sidebar header.
+                            strip-height: SidebarSize.header-height;
+                            tabs: root.workspace-tabs;
+                            pinned-count: root.workspace-pinned-count;
+                            active: root.workspace-active;
+                            drop-mark: root.workspace-drop-mark;
+                            accessible-name: "Workspaces";
+                            refocus: root.strip-to-refocus == -1;
+                            refocus-tick: root.refocus-tick;
+                            leave-requested => { keys.focus(); }
+                            focus-changed(focused, index) => { root.strip-focus-changed(-1, focused, index); }
+                            tip-changed(shown, text, x, y, w, h) => { root.set-tip(-1, shown, text, x, y, w, h); }
+                            activated(index) => { root.workspace-activated(index); }
+                            closed(index) => { root.workspace-closed(index); }
+                            drag-moved(index, x, y) => { root.workspace-drag-moved(index, x, y); }
+                            drag-dropped(index, x, y) => { root.workspace-drag-dropped(index, x, y); }
+                            context-requested(index, x, y) => {
+                                // Rust fills the menu for this workspace first, then the menu opens at the pointer.
+                                root.workspace-context-requested(index, x, y);
+                                root.strip-to-refocus = -1;
+                                root.workspace-menu-target = index;
+                                workspace-menu.open-at(x * 1px, y * 1px);
+                            }
+                        }
+
+                        ws-plus := IconButton {
+                            visible: root.show-workspace-strip;
+                            width: root.workspace-height;
+                            height: root.workspace-height;
+                            icon: Icons.plus;
+                            label: "New workspace";
+                            tooltip: "New workspace";
+                            tooltip-shortcut: root.mac-keys ? ["Cmd", "Option", "T"] : ["Ctrl", "Alt", "T"];
+                            enabled: root.workspace-can-add;
+                            variant: ButtonVariant.ghost;
+                            size: ButtonSize.md;
+                            square-corners: true;
+                            clicked => { root.new-workspace-requested(); }
+                        }
+
+                        // Takes the rest of the row, so the strip and the "+" button stay at the left.
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    // Page area. The toast stack sits over its bottom right corner.
+                    content := Rectangle {
+                        x: 0px;
+                        y: root.page-top;
+                        width: parent.width;
+                        height: parent.height - root.page-top;
+                        background: Tokens.surface-base;
+                        // Unconditional, so it always copies: the tile area sits at this origin (no empty state is shown then).
+                        changed absolute-position => {
+                            root.test-tile-x = self.absolute-position.x;
+                            root.test-tile-y = self.absolute-position.y;
+                        }
+
+                        VerticalLayout {
+                            // No workspace open (B2): the empty state offers one. Nothing else is shown in the page area.
+                            if !root.overlay-open && root.no-workspace : EmptyState {
+                                vertical-stretch: 1;
+                                icon: Icons.app-window;
+                                title: "No workspace open";
+                                description: "Open a workspace to start working.";
+                                action-label: "New workspace";
+                                action => { root.new-workspace-requested(); }
+                            }
+
+                            // No open tab: the empty state below stands in for the page header and body.
+                            if !root.overlay-open && !root.no-workspace && root.open-tabs.length == 0 : EmptyState {
+                                vertical-stretch: 1;
+                                icon: Icons.app-window;
+                                title: "No open pages";
+                                description: "Open a page from the rail, the sidebar or Ctrl+K.";
+                                action-label: "Open Dashboard";
+                                action => { root.open-home-clicked(); }
+                            }
+
+                            // Tile groups (T2a; `PLAN.md section 6.6` "Tile groups"). Rust lays the groups out from the
+                            // page area's size: each group is a page tab strip over its active page, and the bars between
+                            // groups resize them. The page area's size goes back to Rust on init and on every resize.
+                            if !root.overlay-open && root.open-tabs.length > 0 : tile-area := Rectangle {
+                                changed absolute-position => {
+                                    root.test-tile-x = self.absolute-position.x;
+                                    root.test-tile-y = self.absolute-position.y;
+                                }
+                                vertical-stretch: 1;
+                                horizontal-stretch: 1;
+                                clip: true;
+                                init => { root.tile-area-resized(self.width / 1px, self.height / 1px); }
+                                changed width => { root.tile-area-resized(self.width / 1px, self.height / 1px); }
+                                changed height => { root.tile-area-resized(self.width / 1px, self.height / 1px); }
+
+                                for group[group-index] in root.tile-groups : group-box := Rectangle {
+                                    x: group.x * 1px;
+                                    y: group.y * 1px;
+                                    width: group.w * 1px;
+                                    height: group.h * 1px;
+                                    clip: true;
+
+                                    // Focus: a click on the group's page focuses it. Declared first, so the strip and the
+                                    // page draw over it and their own clicks do not reach it.
+                                    TouchArea {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        clicked => { root.tile-group-focused(group.id); }
+                                    }
+
+                                    group-strip := TabStrip {
+                                        x: 0px;
+                                        y: 0px;
+                                        width: parent.width;
+                                        tabs: group.tabs;
+                                        pinned-count: group.pinned-count;
+                                        active: group.active;
+                                        drop-mark: root.drag-group == group.id ? root.drag-mark : -1;
+                                        accessible-name: "Page tabs";
+                                        refocus: root.strip-to-refocus == group.id;
+                                        refocus-tick: root.refocus-tick;
+                                        leave-requested => { keys.focus(); }
+                                        focus-changed(focused, index) => { root.strip-focus-changed(group.id, focused, index); }
+                                        tip-changed(shown, text, x, y, w, h) => { root.set-tip(group.id, shown, text, x, y, w, h); }
+                                        activated(index) => { root.tile-tab-activated(group.id, index); }
+                                        closed(index) => { root.tile-tab-closed(group.id, index); }
+                                        // The strip reports in its own px; the group's offset makes them page area px.
+                                        drag-moved(index, x, y) => { root.tile-drag-moved(group.id, index, group.x + x, group.y + y); }
+                                        drag-dropped(index, x, y) => { root.tile-drag-dropped(group.id, index, group.x + x, group.y + y); }
+                                        context-requested(index, x, y) => {
+                                            // Rust focuses this group and fills the menu for the tab first, then the menu opens.
+                                            root.tile-tab-context-requested(group.id, index, x, y);
+                                            root.strip-to-refocus = group.id;
+                                            root.tab-menu-target = index;
+                                            tab-menu.open-at(x * 1px, y * 1px);
+                                        }
+                                    }
+
+                                    // The focused group's strip has a thin accent line along its foot.
+                                    Rectangle {
+                                        x: 0px;
+                                        y: Tokens.size-control-md - 2px;
+                                        width: parent.width;
+                                        height: 2px;
+                                        background: group.focused ? Tokens.accent-default : transparent;
+                                    }
+
+                                    // The group's header and body, under its strip: the header (its own page's breadcrumbs, title, page
+                                    // actions) then the page body. Each header control first focuses this group, then
+                                    // runs the global action, which acts on the focused group.
+                                    VerticalLayout {
+                                        x: 0px;
+                                        y: Tokens.size-control-md;
+                                        width: parent.width;
+                                        height: parent.height - Tokens.size-control-md;
+
+                                        // Page header (IA section 6): breadcrumbs, then the title and the page actions.
+                                        group-header := VerticalLayout {
+                                            width: parent.width;
+                                            padding: Tokens.space-6;
+                                            padding-bottom: Tokens.space-2;
+                                            spacing: Tokens.space-2;
+                                            alignment: start;
+
+                                            // Breadcrumb row: the crumbs on the left, the page actions on the right.
+                                            HorizontalLayout {
+                                                spacing: Tokens.space-2;
+                                                alignment: stretch;
+
+                                                group-crumbs := Breadcrumbs {
+                                                    horizontal-stretch: 1;
+                                                    items: group.crumbs;
+                                                    activated(index) => {
+                                                        root.tile-group-focused(group.id);
+                                                        root.crumb-activated(index);
+                                                    }
+                                                }
+
+                                                // Share (OQ20): its menu opens at the button's bottom left (`share-menu`).
+                                                share-btn := IconButton {
+                                                    icon: Icons.share-2;
+                                                    label: "Share";
+                                                    tooltip: "Share";
+                                                    variant: ButtonVariant.ghost;
+                                                    size: ButtonSize.sm;
+                                                    enabled: group.can-share;
+                                                    clicked => {
+                                                        root.tile-group-focused(group.id);
+                                                        share-menu.open-at(share-btn.absolute-position.x, share-btn.absolute-position.y + share-btn.height);
+                                                    }
+                                                }
+
+                                                // The Inspector toggle is hidden until a real inspector exists: no panel reads
+                                                // inspector-open yet. The property (inspector-open, inspector-available) stays.
+                                                // Overflow menu (IA section 6): the page's other actions, opened at the button's bottom left.
+                                                more-btn := IconButton {
+                                                    icon: Icons.ellipsis;
+                                                    label: "More page actions";
+                                                    tooltip: "More page actions";
+                                                    variant: ButtonVariant.ghost;
+                                                    size: ButtonSize.sm;
+                                                    clicked => {
+                                                        root.tile-group-focused(group.id);
+                                                        page-menu.open-at(more-btn.absolute-position.x, more-btn.absolute-position.y + more-btn.height);
+                                                    }
+                                                }
+                                            }
+
+                                            // Title row: the back arrow, the page icon, the title, and the primary action.
+                                            HorizontalLayout {
+                                                spacing: Tokens.space-2;
+                                                alignment: stretch;
+                                                // One row height for the icon and the title, so both centre on the same line.
+                                                height: max(Icons.medium-size, group-title.preferred-height);
+
+                                                // Phone back arrow (IA section 8): one step back in the focused tab's history.
+                                                if root.phone && root.can-back : IconButton {
+                                                    icon: Icons.arrow-left;
+                                                    label: "Back";
+                                                    tooltip: "Back";
+                                                    variant: ButtonVariant.ghost;
+                                                    size: ButtonSize.sm;
+                                                    clicked => {
+                                                        root.tile-group-focused(group.id);
+                                                        root.back-requested();
+                                                    }
+                                                }
+
+                                                // The page's icon, left of the title.
+                                                Rectangle {
+                                                    width: Icons.medium-size;
+                                                    height: parent.height;
+                                                    Image {
+                                                        width: Icons.medium-size;
+                                                        height: Icons.medium-size;
+                                                        y: (parent.height - self.height) / 2 + 1px;
+                                                        source: group.icon;
+                                                        colorize: Tokens.text-primary;
+                                                    }
+                                                }
+
+                                                group-title := Text {
+                                                    horizontal-stretch: 1;
+                                                    height: parent.height;
+                                                    text: group.title;
+                                                    color: Tokens.text-primary;
+                                                    font-family: Type.heading.family;
+                                                    font-size: Type.heading.size;
+                                                    font-weight: Type.heading.weight;
+                                                    vertical-alignment: center;
+                                                    wrap: word-wrap;
+                                                }
+
+                                                // Primary action (IA section 6, OQ21): the page's create action, drawn only when the page has one.
+                                                if root.primary-action-label != "" : Button {
+                                                    text: root.primary-action-label;
+                                                    variant: ButtonVariant.primary;
+                                                    size: ButtonSize.sm;
+                                                    accessible-name: root.primary-action-label;
+                                                    clicked => {
+                                                        root.tile-group-focused(group.id);
+                                                        root.primary-action-requested();
+                                                    }
+                                                }
+
+                                            }
+                                        }
+
+                                        // The page body of the group: the active page's icon with the placeholder text.
+                                        // The slot takes the layout height less the header (its height is the header height, read from group-header). The page
+                                        // inside it fills the slot.
+                                        page-slot := Rectangle {
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        if !root.is-canvas-route(group.route) && !root.is-canvas-list-route(group.route) && group.route != "/home" && group.route != "/company/employees" && !root.is-overview-route(group.route) && !root.is-issues-route(group.route) && !root.is-issue-route(group.route) && !root.is-profile-route(group.route) && group.route != "/company/teams" && !root.is-team-route(group.route) && group.route != "/company/departments" && group.route != "/company/locations" && group.route != "/admin/users" && group.route != "/admin/organisation" && group.route != "/admin/roles" && group.route != "/admin/types-tags" && !(group.route.starts-with("/p/") && (group.route.ends-with("/settings") || group.route.ends-with("/members"))) && root.content-kind(group.route) == "" : EmptyState {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            icon: group.icon;
+                                            title: root.empty-title;
+                                            description: root.empty-description;
+                                            // A short group keeps the icon and the title only, so the card never overruns the group.
+                                            // The header takes about 180px above the body, so a group under about 380px keeps the short card.
+                                            compact: (group-box.height - Tokens.size-control-md) < 380px;
+                                        }
+
+                                        // Home > Dashboard (S2): the cards that have a backend today. It loads when it appears.
+                                        if group.route == "/home" : HomePage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+
+                                        // Company > Employees (SP.3b): the people list on the real API. It loads when it appears.
+                                        if group.route == "/company/employees" : EmployeesPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            state: root.employees-state;
+                                            error: root.employees-error;
+                                            has-more: root.employees-has-more;
+                                            loading-more: root.employees-loading-more;
+                                            opened => {
+                                                root.employees-opened();
+                                            }
+                                            search(text) => {
+                                                root.employees-search(text);
+                                            }
+                                            open-person(id) => {
+                                                root.employees-open(id);
+                                            }
+                                            load-more => {
+                                                root.employees-load-more();
+                                            }
+                                            retry => {
+                                                root.employees-retry();
+                                            }
+                                        }
+
+                                        // Projects > Overview: /p/:key. The summary loads when its route is shown (opened).
+                                        if root.is-overview-route(group.route) : OverviewPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            state: root.overview-state;
+                                            error: root.overview-error;
+                                            project-name: root.overview-project-name;
+                                            project-key: root.overview-project-key;
+                                            description: root.overview-description;
+                                            owner: root.overview-owner;
+                                            members: root.overview-members;
+                                            total: root.overview-total;
+                                            open: root.overview-open;
+                                            closed: root.overview-closed;
+                                            truncated: root.overview-truncated;
+                                            states: root.overview-states;
+                                            priorities: root.overview-priorities;
+                                            recent: root.overview-recent;
+                                            sprint-present: root.overview-sprint-present;
+                                            sprint-name: root.overview-sprint-name;
+                                            sprint-dates: root.overview-sprint-dates;
+                                            sprint-goal: root.overview-sprint-goal;
+                                            sprint-counts: root.overview-sprint-counts;
+                                            areas: root.overview-areas;
+                                            opened(route) => {
+                                                root.overview-opened(route);
+                                            }
+                                            retry => {
+                                                root.overview-retry();
+                                            }
+                                            open-issue(key) => {
+                                                root.overview-open-issue(key);
+                                            }
+                                        }
+
+                                        // Projects > Issues (S1.3): /p/:key/issues. The list loads when its route is shown (opened).
+                                        if root.is-issues-route(group.route) : IssuesPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            state: root.issues-state;
+                                            error: root.issues-error;
+                                            rows: root.issues-rows;
+                                            has-more: root.issues-has-more;
+                                            loading-more: root.issues-loading-more;
+                                            query <=> root.issues-query;
+                                            chip-on: root.issues-chip-on;
+                                            sort-field: root.issues-sort-field;
+                                            sort-desc: root.issues-sort-desc;
+                                            query-message: root.issues-query-message;
+                                            query-before: root.issues-query-before;
+                                            query-span: root.issues-query-span;
+                                            query-after: root.issues-query-after;
+                                            can-create: root.issues-can-create;
+                                            view-mode <=> root.issues-view-mode;
+                                            board: root.issues-board;
+                                            board-error: root.issues-board-error;
+                                            board-move(key, target) => {
+                                                root.issues-board-move(key, target);
+                                            }
+                                            column-at(x, width, gap, count) => {
+                                                return root.issues-column-at(x, width, gap, count);
+                                            }
+                                            view-changed(view) => {
+                                                root.issues-view-changed(view);
+                                            }
+                                            opened(route) => {
+                                                root.issues-opened(route);
+                                            }
+                                            search(text) => {
+                                                root.issues-search(text);
+                                            }
+                                            submit(text) => {
+                                                root.issues-submit(text);
+                                            }
+                                            chip(index) => {
+                                                root.issues-chip(index);
+                                            }
+                                            sort(field) => {
+                                                root.issues-sort(field);
+                                            }
+                                            load-more => {
+                                                root.issues-load-more();
+                                            }
+                                            retry => {
+                                                root.issues-retry();
+                                            }
+                                            open-issue(key) => {
+                                                root.issues-open-issue(key);
+                                            }
+                                            new-issue => {
+                                                root.new-issue-requested();
+                                            }
+                                            new-sprint => {
+                                                root.new-sprint-requested();
+                                            }
+                                        }
+
+                                        // Projects > Issue (S1.3, part 3): /p/:key/issues/:id. It loads when its route is shown (opened).
+                                        if root.is-issue-route(group.route) : IssueDetailPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            state: root.issue-state;
+                                            error: root.issue-error;
+                                            view: root.issue-view;
+                                            saving: root.issue-saving;
+                                            action-error: root.issue-action-error;
+                                            subtasks: root.issue-subtasks;
+                                            links: root.issue-links;
+                                            comments: root.issue-comments;
+                                            activity: root.issue-activity;
+                                            can-edit: root.issue-can-edit;
+                                            can-moderate: root.issue-can-moderate;
+                                            can-delete: root.issue-can-delete;
+                                            confirm-delete: root.issue-confirm-delete;
+                                            comment-edit-draft <=> root.issue-comment-edit-draft;
+                                            work: root.issue-work;
+                                            attachments: root.issue-attachments;
+                                            vote(on) => {
+                                                root.issue-vote(on);
+                                            }
+                                            star(on) => {
+                                                root.issue-star(on);
+                                            }
+                                            prev => {
+                                                root.issue-prev();
+                                            }
+                                            next => {
+                                                root.issue-next();
+                                            }
+                                            copy-key(key) => {
+                                                root.issue-copy-key(key);
+                                            }
+                                            work-add(minutes, spent-on, note) => {
+                                                root.issue-work-add(minutes, spent-on, note);
+                                            }
+                                            work-delete(id) => {
+                                                root.issue-work-delete(id);
+                                            }
+                                            attach => {
+                                                root.issue-attach();
+                                            }
+                                            attachment-delete(id) => {
+                                                root.issue-attachment-delete(id);
+                                            }
+                                            attachment-download(index) => {
+                                                root.issue-attachment-download(index);
+                                            }
+                                            opened(route) => {
+                                                root.issue-opened(route);
+                                            }
+                                            retry => {
+                                                root.issue-retry();
+                                            }
+                                            back => {
+                                                root.issue-back();
+                                            }
+                                            open-issue(key) => {
+                                                root.issue-open-issue(key);
+                                            }
+                                            edit-open => {
+                                                root.issue-edit-open();
+                                            }
+                                            subtask-add(summary) => {
+                                                root.issue-subtask-add(summary);
+                                            }
+                                            link-add(target, kind) => {
+                                                root.issue-link-add(target, kind);
+                                            }
+                                            link-remove(id) => {
+                                                root.issue-link-remove(id);
+                                            }
+                                            comment-add(body) => {
+                                                root.issue-comment-add(body);
+                                            }
+                                            comment-edit-start(id) => {
+                                                root.issue-comment-edit-start(id);
+                                            }
+                                            comment-edit-cancel => {
+                                                root.issue-comment-edit-cancel();
+                                            }
+                                            comment-edit-save(id, body) => {
+                                                root.issue-comment-edit-save(id, body);
+                                            }
+                                            comment-delete(id) => {
+                                                root.issue-comment-delete(id);
+                                            }
+                                            delete-ask => {
+                                                root.issue-delete-ask();
+                                            }
+                                            delete-cancel => {
+                                                root.issue-delete-cancel();
+                                            }
+                                            delete-confirm => {
+                                                root.issue-delete-confirm();
+                                            }
+                                        }
+
+                                        // Profile (SP.3c): /company/employees/{id}. It loads when its route is shown (opened).
+                                        if root.is-profile-route(group.route) : ProfilePage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            state: root.profile-state;
+                                            error: root.profile-error;
+                                            view: root.profile-view;
+                                            own: root.profile-own;
+                                            editing: root.profile-editing;
+                                            saving: root.profile-saving;
+                                            save-error: root.profile-save-error;
+                                            photo-supported: root.profile-photo-supported;
+                                            photo-busy: root.profile-photo-busy;
+                                            photo-error: root.profile-photo-error;
+                                            opened(route) => {
+                                                root.profile-opened(route);
+                                            }
+                                            retry => {
+                                                root.profile-retry();
+                                            }
+                                            start-edit => {
+                                                root.profile-start-edit();
+                                            }
+                                            cancel-edit => {
+                                                root.profile-cancel-edit();
+                                            }
+                                            save(draft) => {
+                                                root.profile-save(draft);
+                                            }
+                                            open-person(id) => {
+                                                root.profile-open-person(id);
+                                            }
+                                            change-photo => {
+                                                root.profile-change-photo();
+                                            }
+                                        }
+
+                                        // Company > Teams (SP.3d): the team list and the org chart. It loads when it appears.
+                                        if group.route == "/company/teams" : TeamsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            state: root.teams-state;
+                                            error: root.teams-error;
+                                            org-rows: root.teams-org-rows;
+                                            find-note: root.teams-find-note;
+                                            opened => {
+                                                root.teams-opened();
+                                            }
+                                            retry => {
+                                                root.teams-retry();
+                                            }
+                                            open-team(id) => {
+                                                root.teams-open-team(id);
+                                            }
+                                            open-person(id) => {
+                                                root.teams-open-person(id);
+                                            }
+                                            toggle(id) => {
+                                                root.teams-toggle(id);
+                                            }
+                                            find(text) => {
+                                                root.teams-find(text);
+                                            }
+                                        }
+
+                                        // Company > Teams > one team (SP.3d): /company/teams/{id}. It loads when its route is shown.
+                                        if root.is-team-route(group.route) : TeamPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            state: root.team-state;
+                                            error: root.team-error;
+                                            view: root.team-view;
+                                            members: root.team-members;
+                                            opened(route) => {
+                                                root.team-opened(route);
+                                            }
+                                            retry => {
+                                                root.team-retry();
+                                            }
+                                            open-person(id) => {
+                                                root.team-open-person(id);
+                                            }
+                                            open-content => {
+                                                root.navigate-requested(group.route + "/docs");
+                                            }
+                                        }
+
+                                        // Admin (SP.3e): users, organisation and roles. Each loads when it appears (its `init`).
+                                        if group.route == "/admin/users" : AdminUsersPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+                                        if group.route == "/admin/organisation" : AdminOrganisationPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            host-width: root.width;
+                                            host-height: root.height;
+                                        }
+                                        if group.route.starts-with("/p/") && group.route.ends-with("/members") : ProjectMembersPage {
+                                            host-width: root.width;
+                                            host-height: root.height;
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+                                        if group.route.starts-with("/p/") && group.route.ends-with("/settings") : ProjectSettingsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+                                        if group.route == "/admin/types-tags" : AdminTypesTagsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+                                        if group.route == "/admin/roles" : AdminRolesPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                        }
+
+                                        // Canvases (CV.6): the list and one canvas. Each reports its route from its init.
+                                        if root.is-canvas-list-route(group.route) : CanvasListPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            host-width: root.width;
+                                            host-height: root.height;
+                                        }
+                                        if root.is-canvas-route(group.route) : CanvasPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                        }
+
+                                        if root.content-kind(group.route) == "home" : ContentHomePage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            opened(r) => { root.content-opened(r); }
+                                        }
+                                        if root.content-kind(group.route) == "page" : ContentPageView {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            opened(r) => { root.content-opened(r); }
+                                            // The shared block editor (rimelight_editor). Its state is the window's EditorBridge, so it takes no bindings.
+                                            // Sized by the page's editor slot (a layout).
+                                            BlockEditor { }
+                                        }
+                                        if root.content-kind(group.route) == "collections" : ContentCollectionsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            opened(r) => { root.content-opened(r); }
+                                        }
+                                        if root.content-kind(group.route) == "media" : ContentMediaPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            opened(r) => { root.content-opened(r); }
+                                        }
+                                        if root.content-kind(group.route) == "reviews" : ContentReviewsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            route: group.route;
+                                            opened(r) => { root.content-opened(r); }
+                                        }
+
+                                        // Company > Locations: the offices, sites and remote hubs table. It loads when it appears.
+                                        if group.route == "/company/locations" : LocationsPage {
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            host-width: root.width;
+                                            host-height: root.height;
+                                        }
+
+                                        // Company > Departments (SP.3d): the department tree. It loads when it appears.
+                                        if group.route == "/company/departments" : DepartmentsPage {
+                                            init => { root.test-dept-body-height = self.height; }
+                                            changed height => { root.test-dept-body-height = self.height; }
+                                            height: parent.height;
+                                            vertical-stretch: 1;
+                                            width: parent.width;
+                                            state: root.dept-state;
+                                            error: root.dept-error;
+                                            view: root.dept-view;
+                                            open-content(id) => {
+                                                root.navigate-requested("/company/departments/" + id + "/docs");
+                                            }
+                                            opened => {
+                                                root.dept-opened();
+                                            }
+                                            retry => {
+                                                root.dept-retry();
+                                            }
+                                            toggle(id) => {
+                                                root.dept-toggle(id);
+                                            }
+                                            select(id) => {
+                                                root.dept-select(id);
+                                            }
+                                            open-team(id) => {
+                                                root.dept-open-team(id);
+                                            }
+                                            open-person(id) => {
+                                                root.dept-open-person(id);
+                                            }
+                                        }
+                                        }
+                                    }
+
+                                    // The drop overlay (T2b; JetBrains style): while a tab is dragged over this group's body, the
+                                    // edge zone it would split (the outer 25% on each side) or the centre (the tab joins the strip)
+                                    // is filled. A refused drop fills in the danger colour. Drawn over the page body, takes no pointer.
+                                    if root.drag-group == group.id && root.drag-zone > 0 : Rectangle {
+                                        x: 0px;
+                                        y: Tokens.size-control-md;
+                                        width: parent.width;
+                                        height: parent.height - Tokens.size-control-md;
+
+                                        Rectangle {
+                                            x: 0px;
+                                            y: 0px;
+                                            width: parent.width * 0.25;
+                                            height: parent.height;
+                                            visible: root.drag-zone == 1;
+                                            background: root.drag-refused ? Tokens.status-danger.transparentize(0.8) : Tokens.accent-default.transparentize(0.75);
+                                        }
+                                        Rectangle {
+                                            x: parent.width * 0.75;
+                                            y: 0px;
+                                            width: parent.width * 0.25;
+                                            height: parent.height;
+                                            visible: root.drag-zone == 2;
+                                            background: root.drag-refused ? Tokens.status-danger.transparentize(0.8) : Tokens.accent-default.transparentize(0.75);
+                                        }
+                                        Rectangle {
+                                            x: 0px;
+                                            y: 0px;
+                                            width: parent.width;
+                                            height: parent.height * 0.25;
+                                            visible: root.drag-zone == 3;
+                                            background: root.drag-refused ? Tokens.status-danger.transparentize(0.8) : Tokens.accent-default.transparentize(0.75);
+                                        }
+                                        Rectangle {
+                                            x: 0px;
+                                            y: parent.height * 0.75;
+                                            width: parent.width;
+                                            height: parent.height * 0.25;
+                                            visible: root.drag-zone == 4;
+                                            background: root.drag-refused ? Tokens.status-danger.transparentize(0.8) : Tokens.accent-default.transparentize(0.75);
+                                        }
+                                        Rectangle {
+                                            x: parent.width * 0.25;
+                                            y: parent.height * 0.25;
+                                            width: parent.width * 0.5;
+                                            height: parent.height * 0.5;
+                                            visible: root.drag-zone == 5;
+                                            background: root.drag-refused ? Tokens.status-danger.transparentize(0.8) : Tokens.accent-default.transparentize(0.75);
+                                        }
+                                    }
+                                }
+
+                                // The bars between groups. A drag reports the pointer in page area coordinates.
+                                for handle[index] in root.tile-handles : Rectangle {
+                                    x: handle.x * 1px;
+                                    y: handle.y * 1px;
+                                    width: handle.w * 1px;
+                                    height: handle.h * 1px;
+                                    background: Tokens.border-subtle;
+
+                                    TouchArea {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        mouse-cursor: handle.vertical-bar ? MouseCursor.ew-resize : MouseCursor.ns-resize;
+                                        moved => {
+                                            if (self.pressed) {
+                                                root.tile-handle-dragged(index,
+                                                    (parent.x + self.mouse-x) / 1px,
+                                                    (parent.y + self.mouse-y) / 1px);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // The drag ghost (T2b): the dragged tab's label follows the pointer. Red outline when refused.
+                            if root.tile-ghost-visible : Rectangle {
+                                x: root.tile-ghost-x * 1px + Tokens.space-2;
+                                y: root.tile-ghost-y * 1px + Tokens.space-2;
+                                width: Tokens.size-control-md * 4;
+                                height: Tokens.size-control-md;
+                                z: 20;
+                                background: Tokens.surface-raised;
+                                border-radius: Tokens.radius-control;
+                                border-width: 1px;
+                                border-color: root.tile-ghost-refused ? Tokens.status-danger : Tokens.border-subtle;
+                                opacity: 0.9;
+
+                                Text {
+                                    x: Tokens.space-3;
+                                    width: parent.width - Tokens.space-6;
+                                    height: parent.height;
+                                    text: root.tile-ghost-label;
+                                    color: root.tile-ghost-refused ? Tokens.status-danger : Tokens.text-primary;
+                                    font-family: Type.body.family;
+                                    font-size: Type.body.size;
+                                    font-weight: Type.body.weight;
+                                    wrap: no-wrap;
+                                    overflow: elide;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            }
+
+                            if root.about-open : VerticalLayout {
+                                padding: Tokens.space-6;
+                                alignment: start;
+
+                                AboutScreen {
+                                    app-name: "Rimelight Space";
+                                    version: root.app-version;
+                                    pt: false;
+                                }
+                            }
+
+                            if root.feedback-open : EmptyState {
+                                vertical-stretch: 1;
+                                icon: Icons.message-circle;
+                                title: "Give Feedback";
+                                description: "Sending feedback is not built yet. This screen is a placeholder.";
+                            }
+
+                            if root.report-open : EmptyState {
+                                vertical-stretch: 1;
+                                icon: Icons.bug;
+                                title: "Report Issue";
+                                description: "Reporting an issue is not built yet. This screen is a placeholder.";
+                            }
+
+                            if root.settings-open : EmptyState {
+                                vertical-stretch: 1;
+                                icon: Icons.settings;
+                                title: "Settings";
+                                description: "Settings are not built yet. This screen is a placeholder.";
+                            }
+                        }
+
+                    }
+
+                    Rectangle {
+                        x: 0px;
+                        y: root.workspace-height + root.topbar-height;
+                        width: parent.width;
+                        height: 1px;
+                        background: Tokens.border-subtle;
+                    }
+
+                    // Top bar: the search input, notifications, and the avatar. Each control
+                    // is the same height as the bar's content (the control height), so all of them centre vertically.
+                    topbar := Rectangle {
+                        x: 0px;
+                        y: root.workspace-height;
+                        width: parent.width;
+                        height: root.topbar-height;
+                        background: Tokens.surface-raised;
+
+                        HorizontalLayout {
+                            width: 100%;
+                            height: 100%;
+                            padding-left: Tokens.space-2;
+                            padding-right: Tokens.space-3;
+                            padding-top: Tokens.space-2;
+                            padding-bottom: Tokens.space-2;
+                            spacing: Tokens.space-2;
+                            alignment: stretch;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+
+                            // Workspace switcher (phone, and the web when the strip is hidden and two or more are open): a button
+                            // that opens the workspace sheet. The count is drawn over the icon's corner.
+                            if root.show-switcher : Rectangle {
+                                width: Tokens.size-control-md;
+                                height: Tokens.size-control-md;
+
+                                IconButton {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    icon: Icons.layers;
+                                    label: "Workspaces";
+                                    tooltip: "Workspaces";
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.md;
+                                    clicked => { workspace-sheet.open(); }
+                                }
+
+                                Text {
+                                    x: parent.width - self.width - Tokens.space-1;
+                                    y: Tokens.space-1;
+                                    text: root.workspace-tabs.length;
+                                    color: Tokens.text-primary;
+                                    font-family: Type.caption.family;
+                                    font-size: Type.caption.size;
+                                    font-weight: Type.caption.weight;
+                                }
+                            }
+
+                            // Phone: a search button that opens the command palette, the same as Ctrl+K.
+                            if root.phone : IconButton {
+                                icon: Icons.search;
+                                label: "Search";
+                                tooltip: "Search";
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.md;
+                                clicked => { root.palette-requested(); }
+                            }
+
+                            // Desktop: the search input, with the Ctrl K hint inside it. Enter opens the command palette.
+                            if !root.phone : SearchField {
+                                width: 240px;
+                                placeholder: "Search";
+                                accessible-name: "Search";
+                                shortcut-hint: "Ctrl K";
+                                submitted(value) => { root.palette-requested(); }
+                            }
+
+                            notify-btn := IconButton {
+                                icon: Icons.bell;
+                                label: "Notifications";
+                                tooltip: "Notifications";
+                                variant: ButtonVariant.ghost;
+                                size: ButtonSize.md;
+                                clicked => { root.notifications-clicked(); }
+                            }
+
+                            avatar-slot := Rectangle {
+                                width: Tokens.size-control-md;
+                                height: Tokens.size-control-md;
+
+                                avatar-btn := Button {
+                                    width: 100%;
+                                    height: 100%;
+                                    text: "";
+                                    square: true;
+                                    variant: ButtonVariant.ghost;
+                                    size: ButtonSize.md;
+                                    accessible-name: "Account: \{root.user-name}";
+                                    pointer-pressed => { profile.trigger-pressed(); }
+                                    clicked => {
+                                        avatar-btn.focus-me();
+                                        profile.trigger-clicked();
+                                    }
+                                }
+
+                                top-avatar := Avatar {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    name: root.user-name;
+                                    initials: root.user-initials;
+                                    size: AvatarSize.md;
+                                }
+
+                                PresenceMark {
+                                    x: parent.width - self.width - 2px;
+                                    y: parent.height - self.height - 2px;
+                                    presence: root.presence;
+                                }
+                            }
+                        }
+
+                        // The profile menu, opened by the avatar. Right-aligned under it; the panel opens below the top bar.
+                        profile := Popover {
+                            x: topbar.width - Tokens.space-3 - Tokens.size-control-md - root.profile-width;
+                            y: 0px;
+                            accessible-name: "Profile";
+                            anchor-height: root.topbar-height;
+                            panel-width: root.profile-width;
+                            profile-menu := AccountMenu {
+                                width: 100%;
+                                user-name: root.user-name;
+                                user-email: root.user-email;
+                                user-initials: root.user-initials;
+                                presence <=> root.presence;
+                                profile-clicked => { root.profile-clicked(); }
+                                about-clicked => { root.about-clicked(); }
+                                submit-feedback-clicked => { root.submit-feedback-clicked(); }
+                                report-issue-clicked => { root.report-issue-clicked(); }
+                                settings-clicked => { root.settings-clicked(); }
+                                sign-out-clicked => { root.sign-out-clicked(); }
+                            }
+                        }
+                    }
+
+                    // Quick action (SF.4 mock): bottom right of the content column, above the status bar. On a phone the
+                    // column ends above the tab bar, so the button sits above the tabs too. The drawer scrim covers it.
+                    // OQ25: on a phone the button is removed while a field has focus (it is shown on every other page). On the desktop
+                    // empty state (no workspace open) there is nothing to act on, so it is hidden there too.
+                    quick-button := QuickAction {
+                        visible: !(root.phone && root.input-focused) && !(!root.phone && root.no-workspace);
+                        x: parent.width - self.width - Tokens.space-4;
+                        y: parent.height - self.height - Tokens.space-4;
+                        categories: root.quick-categories;
+                        item-count: root.quick-item-count;
+                        open-request: root.quick-menu-request;
+                        item-picked(id) => { root.quick-item-picked(id); }
+                    }
+                }
+            }
+
+            // The status bar is left out on a phone to keep the page height. (PLAN 6.2 does not name a compact form.)
+            Rectangle {
+                width: 100%;
+                height: root.phone ? 0px : Tokens.size-control-sm + Tokens.space-2 * 2;
+                status-bar := StatusBar {
+                visible: !root.phone;
+                height: 100%;
+                width: 100%;
+                timer-running: root.timer-running;
+                timer-text: root.timer-text;
+                jobs: root.jobs;
+                jobs-clicked => { root.jobs-clicked(); }
+                theme-icon: root.theme-icon;
+                theme-label: root.theme-label;
+                language-index: root.language-index;
+                zoom-percent <=> root.zoom-percent;
+                clock-text: root.clock-text;
+                zoom-changed(v) => { root.zoom-changed(v); }
+                record-clicked => { root.record-clicked(); }
+                shortcuts-clicked => { root.open-shortcuts(); }
+                fullscreen-clicked => { root.fullscreen-clicked(); }
+                language-picked(index) => { root.language-picked(index); }
+                theme-clicked => { root.theme-clicked(); }
+            }
+            }
+
+            if root.phone : TabBar {
+                width: 100%;
+                items: root.tab-items;
+                selected: root.tab-selected;
+                activated(index) => { root.tab-activated(index); }
+            }
+        }
+
+        // Phone drawer (PLAN 6.2): a scrim over the window, and the active area's sidebar rows sliding in from the left.
+        // The panel is parked off the left edge while closed. A scrim click or a row pick closes it.
+        if root.phone : Rectangle {
+            width: 100%;
+            height: 100%;
+            background: Tokens.scrim;
+            visible: root.drawer-open;
+
+            drawer-scrim := TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.drawer-open = false; }
+            }
+        }
+
+        phone-sidebar := Sidebar {
+            visible: root.phone;
+            switcher: root.sidebar-switcher;
+            projects: root.project-choices;
+            project-key: root.project-key;
+            project-image: root.project-image;
+            project-has-image: root.project-has-image;
+            project-initials: root.project-initials;
+            project-filter-changed(text) => { root.project-filter-changed(text); }
+            project-picked(key) => { root.project-picked(key); }
+            project-create-requested => { root.project-create-requested(); }
+            x: (root.drawer-open && !root.more-view) ? 0px : -self.width;
+            y: root.safe-area-insets.top;
+            height: parent.height - root.safe-area-insets.top - root.safe-area-insets.bottom;
+            animate x { duration: Tokens.motion-base; easing: ease-out; }
+            title: root.sidebar-title;
+            icon: root.sidebar-icon;
+            items: root.sidebar-rows;
+            selected <=> root.sidebar-selected;
+            activated(index) => {
+                root.sidebar-activated(index);
+                root.drawer-open = false;
+            }
+            // The phone has no page tabs, so a new-tab request is a plain pick (it replaces the page).
+            opened-in-new-tab(index) => {
+                root.sidebar-activated(index);
+                root.drawer-open = false;
+            }
+            toggled(index) => { root.sidebar-toggled(index); }
+            // On a phone the collapse button closes the drawer instead of hiding the sidebar.
+            collapse-clicked => { root.drawer-open = false; }
+            // The way back from an area's tree to the More list (tail C2). The drawer stays open on the More panel.
+            back-row: true;
+            back-clicked => { root.more-view = true; }
+        }
+
+        // Phone More panel (OQ24, OQ29): the timer, the phone status tools, the areas without a tab, and the footer. It
+        // slides in where the sidebar does. A footer pick closes it, so the shell screen shows over the page.
+        if root.phone : MoreDrawer {
+            x: (root.drawer-open && root.more-view) ? 0px : -self.width;
+            y: root.safe-area-insets.top;
+            height: parent.height - root.safe-area-insets.top - root.safe-area-insets.bottom;
+            animate x { duration: Tokens.motion-base; easing: ease-out; }
+            timer-running: root.timer-running;
+            timer-text: root.timer-text;
+            jobs: root.jobs;
+            theme-icon: root.theme-icon;
+            theme-label: root.theme-label;
+            language-index: root.language-index;
+            areas: root.more-areas;
+            record-clicked => { root.record-clicked(); }
+            theme-clicked => { root.theme-clicked(); }
+            language-picked(index) => { root.language-picked(index); }
+            area-activated(index) => { root.more-area-activated(index); }
+            about-clicked => {
+                root.drawer-open = false;
+                root.about-clicked();
+            }
+            report-issue-clicked => {
+                root.drawer-open = false;
+                root.report-issue-clicked();
+            }
+            settings-clicked => {
+                root.drawer-open = false;
+                root.settings-clicked();
+            }
+        }
+
+        palette := CommandPalette {
+            visible: root.palette-open;
+            width: 100%;
+            height: 100%;
+            rows: root.palette-rows;
+            highlight: root.palette-highlight;
+            query <=> root.palette-query;
+            query-changed(value) => { root.palette-query-changed(value); }
+            move(delta) => { root.palette-move(delta); }
+            picked(index) => { root.palette-picked(index); }
+            closed => { root.palette-closed(); }
+        }
+
+        // The pinned-tab tooltip (gaps D4). Drawn here, at window level and last, so the strip's clip does not cut it. The
+        // strips report the tab (window px) through `set-tip`. The zero-sized wrapper sits at the tab's top left, so the
+        // Tooltip (at its origin) is anchored on the tab.
+        Rectangle {
+            x: root.tip-x;
+            y: root.tip-y;
+            width: 0px;
+            height: 0px;
+
+            Tooltip {
+                text: root.tip-text;
+                placement: TooltipPlacement.bottom;
+                anchor-width: root.tip-w;
+                anchor-height: root.tip-h;
+                forced-open: root.tip-shown;
+            }
+        }
+    }
+
+    // Shortcuts dialog (IA section 9). Zero-sized in the layout; its popup covers the window. `shortcuts-open` is for the tests.
+    out property <bool> shortcuts-open: shortcuts.is-open;
+    // The shortcuts list's rows, by group (the drawn list is built from them).
+    out property <[ShortcutSection]> shortcut-sections: shortcuts.sections;
+    shortcuts := ShortcutsDialog {
+        mac-keys: root.mac-keys;
+        host-width: root.width;
+        host-height: root.height;
+    }
+
+    // New issue (S1.5c). Zero-sized in the layout; its popup covers the window. The form is answered by Rust.
+    // Toasts sit bottom-right of the whole window, over every area.
+    ToastStack {
+        x: root.width - self.width - Tokens.space-4;
+        y: root.height - self.height - Tokens.space-4;
+                                host-width: root.width;
+                                toasts: root.toasts;
+                                action-clicked(id) => { root.toast-action(id); }
+                                close-requested(id) => { root.toast-close(id); }
+                                exit-done(id) => { root.toast-exit(id); }
+                                paused-changed(id, paused) => { root.toast-paused(id, paused); }
+    }
+
+    create-project := CreateProjectDialog {
+        host-width: root.width;
+        host-height: root.height;
+        project-key <=> root.create-project-key;
+        project-name <=> root.create-project-name;
+        project-description <=> root.create-project-description;
+        error: root.create-project-error;
+        creating: root.create-project-creating;
+        show: root.create-project-show;
+        picture-supported: root.create-project-picture-supported;
+        picture-name: root.create-project-picture-name;
+        picture-preview: root.create-project-picture-preview;
+        picture-has-preview: root.create-project-picture-has-preview;
+        choose-picture => { root.create-project-choose-picture(); }
+        save(key, name, description) => { root.create-project-save(key, name, description); }
+        cancel => { root.create-project-cancel(); }
+        dismissed => { root.create-project-cancel(); }
+    }
+
+    new-issue := NewIssueDialog {
+        host-width: root.width;
+        host-height: root.height;
+        project-options: root.new-issue-project-options;
+        project <=> root.new-issue-project;
+        summary <=> root.new-issue-summary;
+        description <=> root.new-issue-description;
+        type-options: root.new-issue-type-options;
+        issue-type <=> root.new-issue-type;
+        state-options: root.new-issue-state-options;
+        state <=> root.new-issue-state;
+        priority-options: root.new-issue-priority-options;
+        priority <=> root.new-issue-priority;
+        assignee-options: root.new-issue-assignee-options;
+        assignee <=> root.new-issue-assignee;
+        sprint-options: root.new-issue-sprint-options;
+        sprint <=> root.new-issue-sprint;
+        due-date <=> root.new-issue-due-date;
+        tags <=> root.new-issue-tags;
+        area-options: root.new-issue-area-options;
+        area-summary: root.new-issue-area-summary;
+        area-query <=> root.new-issue-area-query;
+        due-days: root.new-issue-due-days;
+        weekday-labels: root.new-issue-weekday-labels;
+        due-title: root.new-issue-due-title;
+        due-picked(index) => { root.new-issue-due-picked(index); }
+        due-month-step(step) => { root.new-issue-due-month-step(step); }
+        area-toggled(value) => { root.new-issue-area-toggled(value); }
+        files: root.new-issue-files;
+        can-create: root.new-issue-can-create;
+        creating: root.new-issue-creating;
+        error: root.new-issue-error;
+        edit-mode: root.new-issue-edit-mode;
+        estimate <=> root.new-issue-estimate;
+        project-picked(key) => { root.new-issue-project-picked(key); }
+        summary-edited => { root.new-issue-summary-edited(); }
+        attach => { root.new-issue-attach(); }
+        remove-file(index) => { root.new-issue-remove-file(index); }
+        create => { root.new-issue-create(); }
+    }
+    new-issue-show => { new-issue.open(); }
+    new-issue-close => { new-issue.close(); }
+
+    // New sprint dialog (ui/pages/projects/new-sprint.slint), opened by the Issues page's New sprint button and answered by src/pages/projects/new_sprint.rs.
+    new-sprint := NewSprintDialog {
+        host-width: root.width;
+        host-height: root.height;
+        name <=> root.new-sprint-name;
+        goal <=> root.new-sprint-goal;
+        start-date <=> root.new-sprint-start-date;
+        end-date <=> root.new-sprint-end-date;
+        start-days: root.new-sprint-start-days;
+        end-days: root.new-sprint-end-days;
+        start-title: root.new-sprint-start-title;
+        end-title: root.new-sprint-end-title;
+        weekday-labels: root.new-sprint-weekday-labels;
+        creating: root.new-sprint-creating;
+        error: root.new-sprint-error;
+        create => { root.new-sprint-create(); }
+        start-picked(index) => { root.new-sprint-start-picked(index); }
+        start-step(step) => { root.new-sprint-start-step(step); }
+        end-picked(index) => { root.new-sprint-end-picked(index); }
+        end-step(step) => { root.new-sprint-end-step(step); }
+    }
+    new-sprint-show => { new-sprint.open(); }
+    new-sprint-close => { new-sprint.close(); }
+
+    // Rename a workspace (B2). Save, or Enter in the field, sends the name (an empty name makes it automatic again).
+    out property <bool> workspace-rename-open: rename-dialog.is-open;
+    rename-dialog := Dialog {
+        title: "Rename workspace";
+        description: "Leave the name empty to use the title of the active page.";
+        host-width: root.width;
+        host-height: root.height;
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Save", variant: ButtonVariant.primary },
+        ];
+
+        action-clicked(index) => {
+            if (index == 1) {
+                root.workspace-renamed(root.rename-index, root.rename-text);
+            }
+            rename-dialog.close();
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-3;
+
+            Input {
+                text <=> root.rename-text;
+                placeholder: "Automatic";
+                accessible-name: "Workspace name";
+                submitted(value) => {
+                    root.workspace-renamed(root.rename-index, value);
+                    rename-dialog.close();
+                }
+            }
+        }
+    }
+
+    // The workspace switcher sheet (planned feature B3b): the phone's way to the workspaces, and the web's when the strip is
+    // hidden and two or more are open. A bottom sheet over the window. Each row switches (and closes the sheet); a row's X
+    // closes that workspace (not a pinned one). "New workspace" opens one on Home and closes the sheet; it is disabled at the
+    // cap of 10. The rows read the same `workspace-tabs` model as the strip, and every pick calls the same Rust callbacks.
+    workspace-sheet := Sheet {
+        title: "Workspaces";
+        description: "Pick a workspace to switch to it. Pinned workspaces stay until you unpin them.";
+        placement: SheetPlacement.bottom;
+        size: SheetSize.lg;
+        close-label: "Close workspaces";
+        host-width: root.width;
+        host-height: root.height;
+        child-open: workspace-menu.menu-open;
+        back-to-child => { workspace-menu.close(); }
+
+        VerticalLayout {
+            spacing: Tokens.space-2;
+
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    spacing: Tokens.space-1;
+
+                    for tab[index] in root.workspace-tabs : WorkspaceSwitchRow {
+                        label: "Workspace \{index + 1}: \{tab.label}";
+                        name: tab.label;
+                        pinned: tab.pinned;
+                        active: index == root.workspace-active;
+                        activated => {
+                            root.workspace-activated(index);
+                            workspace-sheet.close();
+                        }
+                        closed => { root.workspace-closed(index); }
+                        more-requested(x, y) => {
+                            // Rust fills the compact menu for this workspace first, then the shared menu opens below the button.
+                            root.workspace-sheet-menu-requested(index, x, y);
+                            root.workspace-menu-target = index;
+                            workspace-menu.open-at(x * 1px, y * 1px);
+                        }
+                    }
+                }
+            }
+
+            Button {
+                text: "New workspace";
+                variant: ButtonVariant.primary;
+                size: ButtonSize.md;
+                enabled: root.workspace-can-add;
+                clicked => {
+                    root.new-workspace-requested();
+                    workspace-sheet.close();
+                }
+            }
+
+            // Reopens the last closed workspace (the desktop menu's Reopen row, here as a footer). Enabled with a closed one.
+            Button {
+                text: "Reopen closed";
+                variant: ButtonVariant.ghost;
+                size: ButtonSize.md;
+                enabled: root.workspace-can-reopen;
+                clicked => { root.reopen-workspace-requested(); }
+            }
+        }
+    }
+
+    // Sign-in screen (SA.4): last child, so it covers the shell while there is no session. Its pointer area takes every click
+    // while it is shown. Keyboard focus stays on `keys`, so the shell's own shortcuts still answer; the desktop app does not
+    // set a session the user can use past this screen.
+    sign-in := SignInScreen {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        visible: root.session-phase != SessionPhase.signed-in;
+        phase: root.session-phase;
+        error-text: root.sign-in-error;
+        product-name: "Rimelight Space";
+        sign-in-clicked => { root.sign-in-clicked(); }
+        cancel-clicked => { root.sign-in-cancelled(); }
+        retry-clicked => { root.sign-in-retry-clicked(); }
+    }
+
+    // Connection lost (SA.9, owner decision 2026-11-15): while signed in and the server cannot be reached, one full-window
+    // overlay blocks the whole app. The scrim takes every pointer press, and its focus scope takes focus and every key, so
+    // nothing underneath can send a request. The open tabs stay underneath and reappear unchanged when the connection returns.
+    // Last child, so it covers the shell, the status bar and the tabs.
+    lost-overlay := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        visible: root.connection-lost-shown;
+        background: Tokens.scrim;
+
+        // Swallows every pointer press, move and wheel over the window.
+        lost-pointer := TouchArea {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+        }
+
+        // Takes the keyboard while shown (see `changed connection-lost-shown` below) and accepts every key.
+        lost-keys := FocusScope {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            key-pressed(event) => { return accept; }
+            key-released(event) => { return accept; }
+        }
+
+        lost-card := Rectangle {
+            width: min(parent.width - Tokens.space-8, 360px);
+            height: lost-layout.preferred-height;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Tokens.surface-raised;
+            border-radius: Tokens.radius-r4;
+            border-width: 1px;
+            border-color: Tokens.border-subtle;
+
+            lost-layout := VerticalLayout {
+                padding: Tokens.space-6;
+                spacing: Tokens.space-4;
+                alignment: center;
+
+                Spinner {
+                    size: SpinnerSize.md;
+                }
+
+                Text {
+                    text: "Connection lost";
+                    color: Tokens.text-primary;
+                    font-family: Type.title.family;
+                    font-size: Type.title.size;
+                    font-weight: Type.title.weight;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                    accessible-role: text;
+                    accessible-label: "Connection lost";
+                }
+
+                Text {
+                    text: "Reconnecting…";
+                    color: Tokens.text-muted;
+                    font-family: Type.body.family;
+                    font-size: Type.body.size;
+                    font-weight: Type.body.weight;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                    accessible-role: text;
+                    accessible-label: "Reconnecting…";
+                    accessible-live-region: polite;
+                }
+            }
+        }
+
+        changed visible => {
+            if (self.visible) {
+                lost-keys.focus();
+            }
+        }
+    }
+
+    // Test hook: a click on the sign-in button, as its pointer area does (nothing while it is disabled).
+    public function test-click-sign-in() {
+        sign-in.test-click-sign-in();
+    }
+
+    // Test hook: a click on the Retry button of the unreachable screen.
+    public function test-click-sign-in-retry() {
+        sign-in.test-click-retry();
+    }
+
+    // Test hook: a click on the sign-in screen's Cancel button.
+    public function test-click-sign-in-cancel() {
+        sign-in.test-click-cancel();
+    }
+
+    // Tooltips draw here, above everything in the window (TooltipLayer).
+    TooltipOverlay {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+    }
+}
+

@@ -1,0 +1,559 @@
+// Admin > Users (SP.3e). The people list (search, paging, deactivated people included), a form to add a person, and a detail
+// panel to change position, department, team, manager and start date, to deactivate or reactivate, and to grant or revoke the
+// admin and HR roles. The data and the actions come from src/users.rs through the `AdminUsersState` global. The
+// page reports `opened` from its `init`, so the list loads whenever its route becomes active.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
+import { Input } from "@rimelight_ui/components/input.slint";
+import { Field } from "@rimelight_ui/components/field.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { Combobox } from "@rimelight_ui/components/combobox.slint";
+import { SearchField } from "@rimelight_ui/components/search-field.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { EmptyState } from "@rimelight_ui/components/empty-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { DatePicker } from "@rimelight_ui/components/date-picker.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+
+// One person in the list. `status` is "Active" or "Deactivated"; `roles` is the role names joined ("Admin, HR") or empty.
+export struct AdminUserRow {
+    id: string,
+    name: string,
+    email: string,
+    title: string,
+    department: string,
+    team: string,
+    status: string,
+    active: bool,
+    roles: string,
+    initials: string,
+    selected: bool,
+}
+
+// The users page's state, set by src/users.rs. The `d-*` drafts are the detail panel's selects and input; the
+// `add-*` fields are the add form's. Empty means "none" for the selects.
+export global AdminUsersState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    // True when the caller does not hold the admin role. Nothing else is shown then.
+    in-out property <bool> denied;
+    in-out property <[AdminUserRow]> rows;
+    in-out property <bool> has-more;
+    in-out property <bool> loading-more;
+    // The search text (two-way with the search field).
+    in-out property <string> query;
+    in-out property <bool> detail-open;
+    in-out property <string> detail-name;
+    in-out property <string> detail-email;
+    in-out property <string> detail-status;
+    in-out property <string> detail-roles;
+    in-out property <bool> detail-active;
+    in-out property <bool> detail-admin;
+    in-out property <bool> detail-hr;
+    in-out property <string> detail-error;
+    in-out property <string> d-position;
+    in-out property <string> d-department;
+    in-out property <string> d-team;
+    in-out property <string> d-manager;
+    in-out property <string> d-start;
+    in-out property <[SelectOption]> position-options;
+    in-out property <[SelectOption]> department-options;
+    in-out property <[SelectOption]> team-options;
+    in-out property <[SelectOption]> person-options;
+    in-out property <string> d-seat;
+    in-out property <[SelectOption]> seat-options;
+    in-out property <bool> add-open;
+    in-out property <string> add-error;
+    in-out property <string> add-email;
+    in-out property <string> add-name;
+    in-out property <string> add-position;
+    in-out property <string> add-department;
+    in-out property <string> add-team;
+    in-out property <string> add-manager;
+    in-out property <string> add-start;
+    // The start date pickers: the cells and the month title of each, and the weekday labels (set by the page).
+    in-out property <[CalendarDay]> add-days;
+    in-out property <string> add-month-title;
+    in-out property <[CalendarDay]> d-days;
+    in-out property <string> d-month-title;
+    in-out property <[string]> weekday-labels;
+
+    callback add-pick(int);
+    callback add-month-step(int);
+    callback d-pick(int);
+    callback d-month-step(int);
+    callback opened();
+    callback retry();
+    callback search(string);
+    callback load-more();
+    callback select(string);
+    callback add-submit();
+    callback save();
+    callback set-active(bool);
+    callback set-role(string, bool);
+}
+
+export component AdminUsersPage inherits Rectangle {
+    background: transparent;
+    init => {
+        AdminUsersState.opened();
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if AdminUsersState.denied : EmptyState {
+            vertical-stretch: 1;
+            icon: Icons.shield;
+            title: "You need the admin or HR role";
+            description: "Users are managed by admins and HR. Ask an admin or HR to give you a role.";
+        }
+
+        if !AdminUsersState.denied : HorizontalLayout {
+            spacing: Tokens.space-3;
+
+            SearchField {
+                horizontal-stretch: 1;
+                placeholder: "Search people";
+                accessible-name: "Search users";
+                text <=> AdminUsersState.query;
+                changed(text) => {
+                    AdminUsersState.search(text);
+                }
+            }
+            Button {
+                text: "Add user";
+                accessible-name: "Add user";
+                leading-icon: Icons.user-plus;
+                variant: ButtonVariant.primary;
+                clicked => {
+                    AdminUsersState.add-open = !AdminUsersState.add-open;
+                }
+            }
+        }
+
+        // The add form. It shows under the search when opened, and stays until saved or closed.
+        if !AdminUsersState.denied && AdminUsersState.add-open : Rectangle {
+            background: Tokens.surface-raised;
+            border-radius: Tokens.radius-r6;
+
+            VerticalLayout {
+                padding: Tokens.space-3;
+                spacing: Tokens.space-2;
+
+                Text {
+                    text: "Add a person";
+                    color: Tokens.text-primary;
+                    font-family: Type.heading.family;
+                    font-size: Type.heading.size;
+                    font-weight: Type.heading.weight;
+                }
+                Text {
+                    text: "They can sign in with this email once they are added.";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                if AdminUsersState.add-error != "" : Banner {
+                    tone: BannerTone.danger;
+                    title: "Could not add this person";
+                    description: AdminUsersState.add-error;
+                }
+                Field {
+                    label: "Email";
+                    required: true;
+                    Input {
+                        text <=> AdminUsersState.add-email;
+                        accessible-name: "Email";
+                    }
+                }
+                Field {
+                    label: "Display name";
+                    required: true;
+                    Input {
+                        text <=> AdminUsersState.add-name;
+                        accessible-name: "Display name";
+                    }
+                }
+                Field {
+                    label: "Position";
+                    Select {
+                        value <=> AdminUsersState.add-position;
+                        options: AdminUsersState.position-options;
+                        accessible-name: "Position";
+                    }
+                }
+                Field {
+                    label: "Department";
+                    Select {
+                        value <=> AdminUsersState.add-department;
+                        options: AdminUsersState.department-options;
+                        accessible-name: "Department";
+                    }
+                }
+                Field {
+                    label: "Team";
+                    Select {
+                        value <=> AdminUsersState.add-team;
+                        options: AdminUsersState.team-options;
+                        accessible-name: "Team";
+                    }
+                }
+                Field {
+                    label: "Manager";
+                    Combobox {
+                        value <=> AdminUsersState.add-manager;
+                        options: AdminUsersState.person-options;
+                        accessible-name: "Manager";
+                    }
+                }
+                Field {
+                    label: "Start date";
+                    DatePicker {
+                        text: AdminUsersState.add-start;
+                        placeholder: "Pick a start date";
+                        accessible-name: "Start date";
+                        days: AdminUsersState.add-days;
+                        weekday-labels: AdminUsersState.weekday-labels;
+                        title: AdminUsersState.add-month-title;
+                        picked(index) => {
+                            AdminUsersState.add-pick(index);
+                        }
+                        month-step(step) => {
+                            AdminUsersState.add-month-step(step);
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Tokens.space-2;
+                    alignment: start;
+                    Button {
+                        text: "Add user";
+                        accessible-name: "Save new user";
+                        variant: ButtonVariant.primary;
+                        clicked => {
+                            AdminUsersState.add-submit();
+                        }
+                    }
+                    Button {
+                        text: "Close";
+                        accessible-name: "Close add form";
+                        variant: ButtonVariant.ghost;
+                        clicked => {
+                            AdminUsersState.add-open = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        if !AdminUsersState.denied && AdminUsersState.state != PageLoadState.loaded : PageState {
+            vertical-stretch: 1;
+            state: AdminUsersState.state;
+            icon: Icons.users;
+            empty-title: "No people match";
+            empty-description: "Try another search, or add a person.";
+            error-description: "People could not be loaded.";
+            error-details: AdminUsersState.error;
+            retry => {
+                AdminUsersState.retry();
+            }
+        }
+
+        if !AdminUsersState.denied && AdminUsersState.state == PageLoadState.loaded : HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-4;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Tokens.space-2;
+
+                // The people as a table, drawn by this page: a header row and one row per person. A row click opens the
+                // person's edit modal. The shared Table component is not used.
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: transparent;
+
+                    VerticalLayout {
+                        spacing: Tokens.space-1;
+
+                        Rectangle {
+                            height: 32px;
+                            background: Tokens.surface-raised;
+                            border-radius: Tokens.radius-r6;
+
+                            HorizontalLayout {
+                                padding-left: Tokens.space-3;
+                                padding-right: Tokens.space-3;
+                                spacing: Tokens.space-3;
+
+                                for heading[index] in ["Name", "Email", "Position", "Department", "Team", "Status", "Roles"] : Text {
+                                    text: heading;
+                                    horizontal-stretch: index < 2 ? 2 : 1;
+                                    color: Tokens.text-muted;
+                                    overflow: elide;
+                                    vertical-alignment: center;
+                                    font-family: Type.label.family;
+                                    font-size: Type.label.size;
+                                    font-weight: Type.label.weight;
+                                }
+                            }
+                        }
+
+                        ScrollArea {
+                            vertical-stretch: 1;
+                            accessible-name: "People";
+
+                            VerticalLayout {
+                                spacing: Tokens.space-1;
+                                alignment: start;
+
+                                for row in AdminUsersState.rows : Rectangle {
+                                    height: 40px;
+                                    border-radius: Tokens.radius-r6;
+                                    background: row.selected ? Tokens.status-info-surface : (row-touch.has-hover ? Tokens.surface-raised : transparent);
+
+                                    row-touch := TouchArea {
+                                        accessible-role: button;
+                                        accessible-label: row.name + ", " + row.email;
+                                        clicked => {
+                                            AdminUsersState.select(row.id);
+                                        }
+                                    }
+                                    HorizontalLayout {
+                                        padding-left: Tokens.space-3;
+                                        padding-right: Tokens.space-3;
+                                        spacing: Tokens.space-3;
+
+                                        Text {
+                                            text: row.name;
+                                            horizontal-stretch: 2;
+                                            color: row.active ? Tokens.text-primary : Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.body-strong.family;
+                                            font-size: Type.body-strong.size;
+                                            font-weight: Type.body-strong.weight;
+                                        }
+                                        Text {
+                                            text: row.email;
+                                            horizontal-stretch: 2;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                        Text {
+                                            text: row.title;
+                                            horizontal-stretch: 1;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                        Text {
+                                            text: row.department;
+                                            horizontal-stretch: 1;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                        Text {
+                                            text: row.team;
+                                            horizontal-stretch: 1;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                        Text {
+                                            text: row.status;
+                                            horizontal-stretch: 1;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                        Text {
+                                            text: row.roles;
+                                            horizontal-stretch: 1;
+                                            color: Tokens.text-muted;
+                                            overflow: elide;
+                                            vertical-alignment: center;
+                                            font-family: Type.caption.family;
+                                            font-size: Type.caption.size;
+                                            font-weight: Type.caption.weight;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if AdminUsersState.has-more : Button {
+                    text: "Load more";
+                    accessible-name: "Load more people";
+                    size: ButtonSize.sm;
+                    variant: ButtonVariant.secondary;
+                    enabled: !AdminUsersState.loading-more;
+                    loading: AdminUsersState.loading-more;
+                    clicked => {
+                        AdminUsersState.load-more();
+                    }
+                }
+            }
+
+            // The person's edit modal. It opens when a row is picked (`init` opens it) and closes on its own close control,
+            // which clears `detail-open`.
+            // A zero-size holder: the Dialog places itself, and a layout cannot set its position.
+            if AdminUsersState.detail-open : Rectangle {
+                width: 0px;
+                height: 0px;
+
+            Dialog {
+                title: AdminUsersState.detail-name;
+                description: AdminUsersState.detail-email + " · " + AdminUsersState.detail-status + " · Roles: " + AdminUsersState.detail-roles;
+                size: DialogSize.lg;
+                close-label: "Close person";
+                init => {
+                    self.open();
+                }
+                closed => {
+                    AdminUsersState.detail-open = false;
+                }
+
+                VerticalLayout {
+                    spacing: Tokens.space-3;
+                    alignment: start;
+
+                    if AdminUsersState.detail-error != "" : Banner {
+                        tone: BannerTone.danger;
+                        title: "Could not save";
+                        description: AdminUsersState.detail-error;
+                    }
+                    Field {
+                        label: "Position";
+                        Select {
+                            value <=> AdminUsersState.d-position;
+                            options: AdminUsersState.position-options;
+                            accessible-name: "Position";
+                        }
+                    }
+                    Field {
+                        label: "Seat";
+                        Select {
+                            value <=> AdminUsersState.d-seat;
+                            options: AdminUsersState.seat-options;
+                            accessible-name: "Seat";
+                        }
+                    }
+                    Field {
+                        label: "Department";
+                        Select {
+                            value <=> AdminUsersState.d-department;
+                            options: AdminUsersState.department-options;
+                            accessible-name: "Department";
+                        }
+                    }
+                    Field {
+                        label: "Team";
+                        Select {
+                            value <=> AdminUsersState.d-team;
+                            options: AdminUsersState.team-options;
+                            accessible-name: "Team";
+                        }
+                    }
+                    Field {
+                        label: "Manager";
+                        Combobox {
+                            value <=> AdminUsersState.d-manager;
+                            options: AdminUsersState.person-options;
+                            accessible-name: "Manager";
+                        }
+                    }
+                    Field {
+                        label: "Start date";
+                        DatePicker {
+                            text: AdminUsersState.d-start;
+                            placeholder: "Pick a start date";
+                            accessible-name: "Start date";
+                            days: AdminUsersState.d-days;
+                            weekday-labels: AdminUsersState.weekday-labels;
+                            title: AdminUsersState.d-month-title;
+                            picked(index) => {
+                                AdminUsersState.d-pick(index);
+                            }
+                            month-step(step) => {
+                                AdminUsersState.d-month-step(step);
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        Button {
+                            text: "Save changes";
+                            accessible-name: "Save changes";
+                            variant: ButtonVariant.primary;
+                            clicked => {
+                                AdminUsersState.save();
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        Button {
+                            text: AdminUsersState.detail-active ? "Deactivate" : "Reactivate";
+                            accessible-name: AdminUsersState.detail-active ? "Deactivate person" : "Reactivate person";
+                            variant: ButtonVariant.danger;
+                            clicked => {
+                                AdminUsersState.set-active(!AdminUsersState.detail-active);
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Tokens.space-2;
+                        alignment: start;
+                        Button {
+                            text: AdminUsersState.detail-admin ? "Revoke admin" : "Grant admin";
+                            accessible-name: AdminUsersState.detail-admin ? "Revoke admin role" : "Grant admin role";
+                            variant: ButtonVariant.secondary;
+                            clicked => {
+                                AdminUsersState.set-role("admin", !AdminUsersState.detail-admin);
+                            }
+                        }
+                        Button {
+                            text: AdminUsersState.detail-hr ? "Revoke HR" : "Grant HR";
+                            accessible-name: AdminUsersState.detail-hr ? "Revoke HR role" : "Grant HR role";
+                            variant: ButtonVariant.secondary;
+                            clicked => {
+                                AdminUsersState.set-role("hr", !AdminUsersState.detail-hr);
+                            }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+}

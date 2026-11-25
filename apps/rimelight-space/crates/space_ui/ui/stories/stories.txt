@@ -1,0 +1,4 @@
+# Space's app stories for the shared gallery (rimelight-rs apps/gallery). Run them with `cargo run -p space_gallery`.
+# One story per line, as section/name|Title|variant1,variant2 (the variants are optional). The line order is the
+# story index: stories.slint shows story N for `root.story == N`, so keep the two in the same order.
+# No stories now: the issues board is the shared BoardPage, shown by the shared gallery.

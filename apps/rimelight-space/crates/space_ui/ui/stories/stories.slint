@@ -1,0 +1,9 @@
+// Space's app stories for the shared gallery (rimelight-rs apps/gallery). The gallery loads this file through the
+// `@app_stories` library path and shows `AppStories`: `story` is the index of the line in stories.txt (0 for the first
+// story), `variant` the selected variant (0 for the default) and `pt` the toolbar's locale. Keep the `if` chain in the
+// same order as stories.txt. Space has no stories of its own now (the issues board is the shared BoardPage).
+export component AppStories inherits VerticalLayout {
+    in property <int> story;
+    in property <int> variant;
+    in property <bool> pt;
+}

@@ -1,0 +1,316 @@
+// Project > Members (`/p/:key/members`). The project's team as a table: a Name and a Roles column, a role Select per row and a
+// remove action per row. A person is added from the organisation in a dialog (Add people), with a picker, a role and Add. A
+// project admin may change the roles; anyone else sees the list read-only. The data and the actions come from
+// crates/areas/management/src/members.rs through the `ProjectMembersState` global.
+import { Tokens } from "@rimelight_design/tokens.slint";
+import { Type } from "@rimelight_ui/typography.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
+import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
+import { IconButton } from "@rimelight_ui/components/icon-button.slint";
+import { Combobox } from "@rimelight_ui/components/combobox.slint";
+import { Select, SelectOption } from "@rimelight_ui/components/select.slint";
+import { Avatar } from "@rimelight_ui/components/avatar.slint";
+import { ScrollArea } from "@rimelight_ui/components/scroll-area.slint";
+import { PageLoadState, PageState } from "@rimelight_ui/components/page-state.slint";
+import { Banner, BannerTone } from "@rimelight_ui/components/banner.slint";
+import { Dialog, DialogSize } from "@rimelight_ui/components/dialog.slint";
+
+// One member of the project.
+export struct MemberRow {
+    id: string,
+    name: string,
+    initials: string,
+    role: string,
+    role-label: string,
+    is-me: bool,
+}
+
+// The members page's state, set by crates/areas/management/src/members.rs. `pick-person` and `pick-role` are the add dialog's choices.
+export global ProjectMembersState {
+    in-out property <PageLoadState> state: PageLoadState.loading;
+    in-out property <string> error;
+    in-out property <string> action-error;
+    // Whether the caller may change the team (a project admin, or an admin of the organisation).
+    in-out property <bool> can-edit: false;
+    in-out property <int> count: 0;
+    in-out property <[MemberRow]> members;
+    in-out property <[SelectOption]> person-options;
+    in-out property <string> pick-person;
+    in-out property <string> pick-role;
+    in-out property <[SelectOption]> role-options;
+    // Set by Rust: true while the Add people dialog is shown. Rust sets it true on open-add, and false after a successful add
+    // or on close-add.
+    in-out property <bool> add-open: false;
+
+    callback opened();
+    callback retry();
+    // The Add people button was pressed: Rust sets add-open.
+    callback open-add();
+    // The dialog was cancelled or closed: Rust sets add-open false.
+    callback close-add();
+    // Adds the person picked in the picker, with the role picked beside it.
+    callback add();
+    // Changes a member's role: the member's id, then the new role.
+    callback set-role(string, string);
+    // Takes a member off the project: the member's id.
+    callback remove(string);
+}
+
+export component ProjectMembersPage inherits Rectangle {
+    // The size of the window the add dialog covers (the shell passes it).
+    in property <length> host-width: 10000px;
+    in property <length> host-height: 10000px;
+
+    // Fixed column widths of the team table. The header and every row use the same ones.
+    property <length> name-width: 340px;
+    property <length> role-width: 220px;
+    property <length> action-width: 40px;
+
+    // Mirrors add-open, so the dialog opens and closes when Rust changes the state.
+    property <bool> add-shown: ProjectMembersState.add-open;
+
+    background: transparent;
+    init => {
+        ProjectMembersState.opened();
+    }
+    changed add-shown => {
+        if (root.add-shown) {
+            add-dlg.open();
+        } else {
+            add-dlg.close();
+        }
+    }
+
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding: Tokens.space-4;
+        spacing: Tokens.space-3;
+
+        if ProjectMembersState.action-error != "" : Banner {
+            tone: BannerTone.danger;
+            title: "Could not change the team";
+            description: ProjectMembersState.action-error;
+        }
+
+        if ProjectMembersState.state != PageLoadState.loaded : PageState {
+            vertical-stretch: 1;
+            state: ProjectMembersState.state;
+            icon: Icons.users;
+            empty-title: "No members";
+            empty-description: "Add people from the organisation to this project.";
+            error-description: "The project team could not be loaded.";
+            error-details: ProjectMembersState.error;
+            retry => {
+                ProjectMembersState.retry();
+            }
+        }
+
+        if ProjectMembersState.state == PageLoadState.loaded : VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Tokens.space-3;
+
+            Text {
+                text: "Project Team \{ProjectMembersState.count}";
+                color: Tokens.text-primary;
+                font-family: Type.heading.family;
+                font-size: Type.heading.size;
+                font-weight: Type.heading.weight;
+            }
+
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                alignment: end;
+
+                Button {
+                    text: "Add people";
+                    accessible-name: "Add people to the project";
+                    variant: ButtonVariant.primary;
+                    enabled: ProjectMembersState.can-edit;
+                    clicked => {
+                        ProjectMembersState.open-add();
+                    }
+                }
+            }
+
+            ScrollArea {
+                vertical-stretch: 1;
+                accessible-name: "Project members";
+
+                VerticalLayout {
+                    alignment: start;
+                    width: parent.width;
+
+                    // Column titles, in the same columns as the rows below.
+                    HorizontalLayout {
+                        height: 32px;
+                        padding-left: Tokens.space-3;
+                        padding-right: Tokens.space-3;
+                        spacing: Tokens.space-3;
+                        alignment: start;
+
+                        Text {
+                            width: root.name-width;
+                            text: "Name";
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        Text {
+                            width: root.role-width;
+                            text: "Roles";
+                            color: Tokens.text-muted;
+                            vertical-alignment: center;
+                            font-family: Type.caption.family;
+                            font-size: Type.caption.size;
+                            font-weight: Type.caption.weight;
+                        }
+                        Rectangle {
+                            width: root.action-width;
+                        }
+                    }
+
+                    for member[index] in ProjectMembersState.members : VerticalLayout {
+                        if index > 0 : Rectangle {
+                            height: 1px;
+                            background: Tokens.border-subtle;
+                        }
+
+                        HorizontalLayout {
+                            height: 56px;
+                            padding-left: Tokens.space-3;
+                            padding-right: Tokens.space-3;
+                            spacing: Tokens.space-3;
+                            alignment: start;
+
+                            VerticalLayout {
+                                width: root.name-width;
+                                alignment: center;
+
+                                HorizontalLayout {
+                                    spacing: Tokens.space-3;
+                                    alignment: start;
+
+                                    Avatar {
+                                        name: member.name;
+                                        initials: member.initials;
+                                    }
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        text: member.is-me ? member.name + " (you)" : member.name;
+                                        color: Tokens.text-primary;
+                                        overflow: elide;
+                                        vertical-alignment: center;
+                                        font-family: Type.body-strong.family;
+                                        font-size: Type.body-strong.size;
+                                        font-weight: Type.body-strong.weight;
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                width: root.role-width;
+                                alignment: center;
+
+                                Select {
+                                    width: parent.width;
+                                    value: member.role;
+                                    options: ProjectMembersState.role-options;
+                                    accessible-name: member.name + " role";
+                                    enabled: ProjectMembersState.can-edit;
+                                    changed(role) => {
+                                        ProjectMembersState.set-role(member.id, role);
+                                    }
+                                }
+                            }
+                            VerticalLayout {
+                                width: root.action-width;
+                                alignment: center;
+
+                                IconButton {
+                                    icon: Icons.user-minus;
+                                    variant: ButtonVariant.ghost;
+                                    tooltip: "Remove from project";
+                                    accessible-name: "Remove " + member.name + " from the project";
+                                    enabled: ProjectMembersState.can-edit;
+                                    clicked => {
+                                        ProjectMembersState.remove(member.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // The Add people dialog: a person picker, a role and the footer Cancel and Add. Zero-sized in the page; the popup it opens
+    // covers the window.
+    add-dlg := Dialog {
+        title: "Add people";
+        description: "Choose a person from the organisation and the role they take on this project.";
+        size: DialogSize.sm;
+        close-label: "Close add people";
+        host-width: root.host-width;
+        host-height: root.host-height;
+        actions: [
+            { text: "Cancel", variant: ButtonVariant.secondary },
+            { text: "Add", variant: ButtonVariant.primary },
+        ];
+
+        action-clicked(index) => {
+            if (index == 0) {
+                ProjectMembersState.close-add();
+            } else {
+                ProjectMembersState.add();
+            }
+        }
+
+        closed => {
+            ProjectMembersState.close-add();
+        }
+
+        VerticalLayout {
+            spacing: Tokens.space-4;
+
+            VerticalLayout {
+                spacing: Tokens.space-1;
+
+                Text {
+                    text: "Person";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                Combobox {
+                    value <=> ProjectMembersState.pick-person;
+                    options: ProjectMembersState.person-options;
+                    placeholder: "Choose a person";
+                    accessible-name: "Person";
+                    enabled: ProjectMembersState.can-edit;
+                }
+            }
+
+            VerticalLayout {
+                spacing: Tokens.space-1;
+
+                Text {
+                    text: "Role";
+                    color: Tokens.text-muted;
+                    font-family: Type.caption.family;
+                    font-size: Type.caption.size;
+                    font-weight: Type.caption.weight;
+                }
+                Select {
+                    value <=> ProjectMembersState.pick-role;
+                    options: ProjectMembersState.role-options;
+                    accessible-name: "Role";
+                    enabled: ProjectMembersState.can-edit;
+                }
+            }
+        }
+    }
+}

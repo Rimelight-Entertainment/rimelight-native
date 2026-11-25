@@ -20,8 +20,8 @@ slint.workspace = true
 # build.rs runs on the host and reads the library folders, so the markup libraries are build dependencies.
 [build-dependencies]
 slint-build.workspace = true
-rimelight_ui = { path = "../../crates/rimelight_ui" }
-rimelight_shell = { path = "../../crates/rimelight_shell" }
+rimelight_ui = { path = "../rimelight_ui" }
+rimelight_shell = { path = "../rimelight_shell" }
 rimelight_design.workspace = true
 
 [dev-dependencies]

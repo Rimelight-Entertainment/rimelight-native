@@ -158,7 +158,7 @@ impl App {
     }
 
     /// Shows or hides the in-app workspace strip (planned feature B3b). The web hides it, since the browser's tabs do that job
-    /// (`PLAN.md section 6.6` part B, P5). The workspaces, their saving and the shortcuts are the same either way. Call it
+    /// (`PROJECT.md section 6.6` part B, P5). The workspaces, their saving and the shortcuts are the same either way. Call it
     /// before the event loop runs.
     pub fn show_workspace_strip(&self, show: bool) {
         self.ui.set_show_workspace_strip(show);
@@ -2525,7 +2525,7 @@ fn wire_navigation(ui: &AppShell, tabs: Rc<Tabs>, copier: LinkCopier) {
         }
     });
 
-    // Status bar Record: an empty mock. No recording runs yet (PLAN.md section 6.6, "Screen recording (Clips)").
+    // Status bar Record: an empty mock. No recording runs yet (PROJECT.md section 6.6, "Screen recording (Clips)").
     ui.on_record_clicked(|| {});
 
     // Status bar Fullscreen: toggles the window. The other top bar and status bar controls (notifications, profile,

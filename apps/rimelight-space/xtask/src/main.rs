@@ -18,15 +18,15 @@ commands:
   gate targets    cargo check for installed targets: host, wasm32, android (cargo-ndk)
   lint            static checks (stub: prints checks not yet implemented)
   screenshot      capture PNGs to check a UI change: windows | shell/<state> | gallery-all | android (see `cargo xtask screenshot`)
-  docs ia         regenerate the route table in PLAN.md section 6.5
+  docs ia         regenerate the route table in PROJECT.md section 6.5
   ffmpeg          fetch the pinned FFmpeg build the apps link against into ffmpeg/current (Windows, once per machine)
   release pack    build and package Rimelight Space with Velopack (Windows; see `cargo xtask release`)
   media pack      build and package Rimelight Media with Velopack, --install to set it up here (see `cargo xtask media`)
   db              not implemented";
 
-/// Checks that `lint` will run once they are implemented (PLAN.md section 10.1).
+/// Checks that `lint` will run once they are implemented (PROJECT.md section 10.1).
 const PENDING_LINT_CHECKS: &[&str] = &[
-    "dependency rules (PLAN.md section 7.2)",
+    "dependency rules (PROJECT.md section 7.2)",
     "raw colour, font size and spacing literal ban outside space_ui",
     "i18n key check",
     "navigation manifest check",

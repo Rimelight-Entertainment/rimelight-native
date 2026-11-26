@@ -1,4 +1,4 @@
-//! Tab drag rules (planned feature B, tiles, T2b; `PLAN.md section 6.6` "Tile groups"). Plain Rust, always compiled, so the
+//! Tab drag rules (planned feature B, tiles, T2b; `PROJECT.md section 6.6` "Tile groups"). Plain Rust, always compiled, so the
 //! hit test and the drop plan run without a window. The Slint side only forwards pointer positions (in page area units, px) and
 //! draws what [`hit_test`] and [`plan`] say.
 //!

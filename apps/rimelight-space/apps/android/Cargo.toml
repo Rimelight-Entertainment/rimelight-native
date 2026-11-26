@@ -6,7 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 # Lints are spelled out, not inherited: unsafe_code is `deny` with one narrow allow on the android_main export (see
-# PLAN.md section 15.4, proposed). Keep the rest equal to [workspace.lints] in the root Cargo.toml.
+# PROJECT.md section 15.4, proposed). Keep the rest equal to [workspace.lints] in the root Cargo.toml.
 [lints.rust]
 future_incompatible = { level = "deny", priority = -1 }
 unsafe_code = "deny"

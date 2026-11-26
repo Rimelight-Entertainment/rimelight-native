@@ -20,4 +20,4 @@ cargo run -p ui_gallery          # Design system component gallery
 ## References
 
 - **README.md**: Overview of the repository with local development and build instructions.
-- App-specific `PROJECT.md` and `PLAN.md` files live under each directory in `apps/`.
+- App-specific `PROJECT.md` files live under each directory in `apps/`; each ends with a Status section that tracks progress.

@@ -4,7 +4,7 @@
 //!
 //! The data lives in [`manifest`]. Every route in PLAN 6.4 is one [`Page`]. `:name` segments are parameters.
 //!
-//! `PLAN.md section 6.5` is generated from [`ia_doc`] by `cargo xtask docs ia`. Titles are plain English strings with no i18n
+//! `PROJECT.md section 6.5` is generated from [`ia_doc`] by `cargo xtask docs ia`. Titles are plain English strings with no i18n
 //! keys (TODO: P0.22).
 
 pub mod ia_doc;

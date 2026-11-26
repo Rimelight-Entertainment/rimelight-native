@@ -1,5 +1,5 @@
 -- Projects and issues (PLAN section 4, slice S1; decision 0026).
--- Requires PostgreSQL 18 for uuidv7(). Primary keys are UUIDv7 (PLAN-archive 7.7).
+-- Requires PostgreSQL 18 for uuidv7(). Primary keys are UUIDv7.
 -- Every table has created_at, updated_at and deleted_at (soft delete by default).
 --
 -- Consistency is enforced in SQL with composite foreign keys:

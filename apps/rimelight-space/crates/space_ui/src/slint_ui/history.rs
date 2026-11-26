@@ -1,4 +1,4 @@
-//! Route rules for the back and forward history of one page tab (planned feature A, `PLAN.md section 6.6`). The
+//! Route rules for the back and forward history of one page tab (planned feature A, `PROJECT.md section 6.6`). The
 //! [`History`] type is in `rimelight_shell::history`. This module keeps the rules that read `space_nav` (the location
 //! and deep-link checks, the Back key) and the Home route the Space app opens on.
 
@@ -48,7 +48,7 @@ pub fn location_from_route(route: &str) -> Option<String> {
     parse(route).map(|_| route.to_owned())
 }
 
-/// The web address of the app. Copy link writes `APP_BASE_URL` followed by a page's route (`PLAN.md section 6.6`).
+/// The web address of the app. Copy link writes `APP_BASE_URL` followed by a page's route (`PROJECT.md section 6.6`).
 pub const APP_BASE_URL: &str = "https://space.rimelight.com";
 
 /// The web link of a page route: `APP_BASE_URL` followed by the route, with its `?view=<id>` query when it has one. A route

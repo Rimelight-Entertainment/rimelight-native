@@ -208,7 +208,7 @@ export component StatusBar inherits Rectangle {
 
     // Right side (SF.4, IA section 5, in this order): Record, Fullscreen, Shortcuts, Language, Theme. They only report clicks;
     // the shell decides what they do. `theme-icon` and `theme-label` show the current mode (system, light or dark). Record is
-    // a mock placeholder: no recording runs yet (PLAN.md section 6.6, "Screen recording (Clips)").
+    // a mock placeholder: no recording runs yet (PROJECT.md section 6.6, "Screen recording (Clips)").
     // The defaults are the system mode, the same as the default label. Without an icon the button drew nothing (the
     // gallery story passed neither, so its Theme button was a blank space).
     in property <image> theme-icon: Icons.monitor;

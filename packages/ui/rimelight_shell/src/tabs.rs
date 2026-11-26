@@ -1,4 +1,4 @@
-//! The page tabs of one tile group (planned features A, A2b and B2; `PLAN.md section 6.6`). Plain Rust, always compiled, so
+//! The page tabs of one tile group (planned features A, A2b and B2; `PROJECT.md section 6.6`). Plain Rust, always compiled, so
 //! the tab rules run without a window. [`PageTabs`] holds the open page tabs, their pinned state and the closed stack. The
 //! strip menu rows ([`StripMenu`], [`TabMenuRow`]) are the rows the window's tab menus show.
 //!

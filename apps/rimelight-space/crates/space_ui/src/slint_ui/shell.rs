@@ -2,7 +2,7 @@
 //! `@rimelight_shell/components/sidebar.slint` from the `space_nav` manifest. The markup only draws and reports clicks; the rows and the icons come from here.
 //!
 //! The rail lists the areas in manifest order. The sidebar lists the sections of the active area; each section heading is
-//! collapsible (SF.4, PLAN.md section 6.6 "Sidebar hierarchy rule"), and under it are its pages that have no
+//! collapsible (SF.4, PROJECT.md section 6.6 "Sidebar hierarchy rule"), and under it are its pages that have no
 //! `:parameter` (a parameter page needs an id, so it is not a sidebar row, as in PLAN 6.4). A collapsed section keeps its
 //! heading and hides its pages. The collapse state is kept here, per area and section, in memory.
 

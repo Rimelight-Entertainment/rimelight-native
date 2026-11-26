@@ -1,4 +1,4 @@
-//! space_policy: access decisions for projects and issues (PLAN-archive 7.6, decision 0026).
+//! space_policy: access decisions for projects and issues (decision 0026).
 //!
 //! This is the first piece of the relationship-based engine. Today a decision takes two inputs:
 //! whether the caller holds the global `admin` role, and the caller's role on the project (if

@@ -4357,7 +4357,7 @@ const fn cmd(
     }
 }
 
-/// Every command, with our keys (PureRef's where PureRef has one; see PLAN.md CV.6b).
+/// Every command, with our keys (PureRef's where PureRef has one; see PROJECT.md CV.6b).
 const COMMANDS: &[Command] = &[
     cmd(
         "hierarchy",

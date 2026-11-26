@@ -1,4 +1,4 @@
-//! Tile groups in the window (planned feature B, tiles; T2a; `PLAN.md section 6.6` "Tile groups"). A workspace's page
+//! Tile groups in the window (planned feature B, tiles; T2a; `PROJECT.md section 6.6` "Tile groups"). A workspace's page
 //! tabs sit in groups, each with its own page tab strip. The window draws them from `tile-groups` and `tile-handles`, and
 //! the test calls the callbacks the markup calls (the pointer is not driven: a split by drag is T2b).
 //!

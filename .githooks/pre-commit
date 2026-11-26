@@ -4,7 +4,7 @@
 # Always the whole workspace (decision 0043): one dependency build shared with the gate and the agent test command.
 # Dry run: RIMELIGHT_HOOK_DRY=1 prints the commands without running them.
 # Override the staged list: RIMELIGHT_HOOK_FILES="a b c" (dry runs and tests only).
-# Never bypass this hook with git commit --no-verify (AGENTS.md). See PLAN-archive.md section 9.1, "Git hooks".
+# Never bypass this hook with git commit --no-verify (AGENTS.md).
 # Reads no stdin.
 
 root=$(git rev-parse --show-toplevel) || { echo "pre-commit: not inside a git work tree" >&2; exit 1; }

@@ -1,4 +1,4 @@
-//! Page tab drags in the window (planned feature B, tiles, T2b; `PLAN.md section 6.6` "Tile groups"). The markup reports
+//! Page tab drags in the window (planned feature B, tiles, T2b; `PROJECT.md section 6.6` "Tile groups"). The markup reports
 //! the pointer of a tab drag to `tile-drag-moved` and `tile-drag-dropped` (page area px), and Escape to `tile-drag-escaped`.
 //! The tests call those callbacks in the order a real drag sends them (moves, then the release): the pointer itself is not
 //! driven. Each test builds its own window.

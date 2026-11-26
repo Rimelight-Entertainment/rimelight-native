@@ -1,5 +1,5 @@
 //! Icons (P0.14): our [`IconName`] for the shell's needs, mapped to the Lucide icons bundled in rimelight-rs
-//! (`crates/rimelight_ui/assets/icons/`, ISC licence, see `PLAN.md section 8.7`). The shared `ui/icons.slint` loads the same
+//! (`crates/rimelight_ui/assets/icons/`, ISC licence, see `PROJECT.md section 8.7`). The shared `ui/icons.slint` loads the same
 //! files; `slint_ui::assets` checks that its names match the Rust lists.
 
 /// The icons the shell needs now. Each maps to one bundled Lucide icon, listed in [`IconName::lucide`].

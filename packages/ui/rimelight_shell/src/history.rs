@@ -1,4 +1,4 @@
-//! Back and forward history of one page tab (planned feature A, `PLAN.md section 6.6`). Plain Rust, always compiled, so
+//! Back and forward history of one page tab (planned feature A, `PROJECT.md section 6.6`). Plain Rust, always compiled, so
 //! its tests run without a window.
 //!
 //! A [`History`] is a list of routes and a cursor on the current one. [`History::push`] adds a route after the cursor and

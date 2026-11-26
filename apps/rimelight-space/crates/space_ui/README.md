@@ -1,6 +1,6 @@
 # space_ui
 
-The Rimelight design system on Slint 1.18.1 ([decision 0007](../../PLAN.md#15-decision-log)). It holds the tokens, icons, text styles, motion rules, the component facade (Rust API and `.slint` components), the story registry for the gallery, and the screenshot helpers.
+The Rimelight design system on Slint 1.18.1 ([decision 0007](../../PROJECT.md#15-decision-log)). It holds the tokens, icons, text styles, motion rules, the component facade (Rust API and `.slint` components), the story registry for the gallery, and the screenshot helpers.
 
 ## The facade rule
 
@@ -25,7 +25,7 @@ Only this crate depends on `slint`. Feature code, `apps/` and the other crates i
 
 ## About requirement
 
-The Slint royalty-free licence requires the `AboutSlint` widget on an About screen reachable from the top-level menu ([licence notes](../../PLAN.md#15-decision-log), PLAN section 15.1). `about.slint` in rimelight-rs `crates/rimelight_shell` (imported as `@rimelight_shell/about.slint`) exports `AboutScreen`, which contains `AboutSlint` on a fixed light panel, so the widget reads in both themes. The app shell mounts it. Do not remove the widget.
+The Slint royalty-free licence requires the `AboutSlint` widget on an About screen reachable from the top-level menu ([licence notes](../../PROJECT.md#15-decision-log), PLAN section 15.1). `about.slint` in rimelight-rs `crates/rimelight_shell` (imported as `@rimelight_shell/about.slint`) exports `AboutScreen`, which contains `AboutSlint` on a fixed light panel, so the widget reads in both themes. The app shell mounts it. Do not remove the widget.
 
 ## Components
 
@@ -86,7 +86,7 @@ The gaps below that name a moved component (Button, Table, Tabs and so on) are c
 - The software renderer draws no box shadows, so headless captures show none. The app's femtovg renderer draws them; not verified on screen.
 - Dark theme: some highlights, the Avatar fill and the Progress track read near black.
 - Phone-width captures with chrome off are clipped by the gallery frame.
-- Some colours are placeholders or derived (`status.info`, parts of the dark, disabled and tint sets). See `PLAN.md section 8.6`.
+- Some colours are placeholders or derived (`status.info`, parts of the dark, disabled and tint sets). See `PROJECT.md section 8.6`.
 
 **Testing**
 - No visual regression comparison. Captures are checked by eye.

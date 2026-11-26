@@ -76,7 +76,7 @@ import { ContentMediaPage } from "@space_area_content/media.slint";
 import { ContentReviewsPage } from "@space_area_content/reviews.slint";
 import { BlockEditor } from "@rimelight_editor/block-editor.slint";
 
-// A tile group (planned feature B, tiles; `PLAN.md section 6.6` "Tile groups"): its rectangle in the page area, its own
+// A tile group (planned feature B, tiles; `PROJECT.md section 6.6` "Tile groups"): its rectangle in the page area, its own
 // page tab strip (`tabs`, `active`, `pinned-count`) and the icon of its active page. Rust fills the list with
 // `TileLayout::layout_rects` (src/slint_ui/tiles.rs). `focused` is true for the focused group.
 export struct TileGroup {
@@ -1600,7 +1600,7 @@ export component AppShell inherits Window {
                                 action => { root.open-home-clicked(); }
                             }
 
-                            // Tile groups (T2a; `PLAN.md section 6.6` "Tile groups"). Rust lays the groups out from the
+                            // Tile groups (T2a; `PROJECT.md section 6.6` "Tile groups"). Rust lays the groups out from the
                             // page area's size: each group is a page tab strip over its active page, and the bars between
                             // groups resize them. The page area's size goes back to Rust on init and on every resize.
                             if !root.overlay-open && root.open-tabs.length > 0 : tile-area := Rectangle {

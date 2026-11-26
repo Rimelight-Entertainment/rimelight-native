@@ -1,4 +1,4 @@
-//! Keyboard on the tab strips (gaps D3, D4; `PLAN.md section 6.6` section 9). The page-tab strip of the group and the
+//! Keyboard on the tab strips (gaps D3, D4; `PROJECT.md section 6.6` section 9). The page-tab strip of the group and the
 //! workspace strip are one Tab stop each. Right and Left move the focus, Home and End jump, Enter activates, Delete closes an
 //! unpinned tab, Shift+F10 (or the Menu key) opens the tab menu, and Escape gives the focus back to the content. A pinned tab
 //! shows its full title in a tooltip on keyboard focus. The key events are real window events; the menu picks are the same

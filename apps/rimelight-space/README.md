@@ -23,7 +23,6 @@ Our repository adheres to the standardized 4-file documentation architecture:
 |---|---|
 | [**README.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-space/README.md) | Simple overview of Rimelight Space with local development and build instructions (this file). |
 | [**PROJECT.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-space/PROJECT.md) | Comprehensive description: architecture, product modules, CMS block editor specifications, and conventions. |
-| [**PLAN.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-space/PLAN.md) | Progress tracker: vertical slice execution matrix, decision log, and active engineering milestones. |
 | [**AGENTS.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-space/AGENTS.md) | Specific agent instructions: strict "build once" rule, gate checks, cargo workspace scoping, and verification rules. |
 
 ---
@@ -33,7 +32,7 @@ Our repository adheres to the standardized 4-file documentation architecture:
 ### Prerequisites
 
 - **Rust:** Pinned via `rust-toolchain.toml` (1.100.0+ / 2024 edition).
-- **Target Folder:** Builds utilize a dedicated target folder at `C:\Users\idant\RustRoverProjects\rimelight-space-target` to prevent repository bloat.
+- **Target Folder:** Cargo uses the default `target/` folder in the workspace. No `CARGO_TARGET_DIR` override is set.
 - **Git Dependencies:** Access to `Rimelight-Entertainment/rimelight` and `Rimelight-Entertainment/rimelight-rs`.
 
 ### Initial Build & Verification
@@ -67,8 +66,7 @@ rimelight-space/
 ├── xtask/                       # Monorepo build and gate automation
 ├── AGENTS.md                    # Agent operating manual & "build once" constraint
 ├── README.md                    # Project overview & local development guide (this file)
-├── PROJECT.md                   # Comprehensive technical manual & architecture
-└── PLAN.md                      # Vertical slice implementation tracker
+└── PROJECT.md                   # Comprehensive technical manual & architecture
 ```
 
 ## License

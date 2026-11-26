@@ -1,4 +1,4 @@
-//! Quick action categories (OQ14, OQ16, OQ17; `PLAN.md section 6.6` section 4). Data only: one category per area,
+//! Quick action categories (OQ14, OQ16, OQ17; `PROJECT.md section 6.6` section 4). Data only: one category per area,
 //! and each item names a create action that opens a dialog. No item names a route (OQ16).
 //!
 //! Only Personal (Home) and Chat exist. Other areas are added here as each area is built.

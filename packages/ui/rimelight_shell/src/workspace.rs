@@ -1,4 +1,4 @@
-//! Top-level workspaces (planned feature B, `PLAN.md section 6.6` part B) and their persistence. Plain Rust, always
+//! Top-level workspaces (planned feature B, `PROJECT.md section 6.6` part B) and their persistence. Plain Rust, always
 //! compiled, so its tests run without a window.
 //!
 //! A [`Workspaces`] holds up to [`WORKSPACE_CAP`] workspaces. Each one holds a tile layout ([`TileLayout`], in

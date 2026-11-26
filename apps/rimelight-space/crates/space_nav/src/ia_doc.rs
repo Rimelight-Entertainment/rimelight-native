@@ -1,11 +1,11 @@
-//! Renders the manifest as Markdown for `PLAN.md section 6.5` (`cargo xtask docs ia`). Deterministic: areas in rail order,
+//! Renders the manifest as Markdown for `PROJECT.md section 6.5` (`cargo xtask docs ia`). Deterministic: areas in rail order,
 //! sections in manifest order, pages in manifest order. Pure data, no file access (the xtask writes the file).
 
 use std::fmt::Write;
 
 use crate::{Area, pages, sections_in};
 
-/// The whole `PLAN.md section 6.5` file as one string.
+/// The whole `PROJECT.md section 6.5` file as one string.
 pub fn render() -> String {
     let all = pages();
     let records = all.iter().filter(|p| p.has_params()).count();

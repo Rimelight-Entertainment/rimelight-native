@@ -24,7 +24,6 @@ This repository adheres to the standardized 4-file documentation architecture:
 |---|---|
 | [**README.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/README.md) | Simple overview of Rimelight Personal with local development and build instructions (this file). |
 | [**PROJECT.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/PROJECT.md) | Comprehensive description: technical architecture, 13-module feature catalog, and design tokens. |
-| [**PLAN.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/PLAN.md) | Progress tracker: page-by-page porting matrix, decision log, and web retirement checklist. |
 | [**AGENTS.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/AGENTS.md) | Specific agent instructions: strict "build once" rule, gate checks, and Cloudflare Access auth rules. |
 
 ---
@@ -69,8 +68,7 @@ rimelight-personal/
 │   └── features/                # 14 modular domain crates (todos, notes, habits, etc.)
 ├── AGENTS.md                    # Agent operating rules & "build once" constraint
 ├── README.md                    # Project overview & local development guide (this file)
-├── PROJECT.md                   # Comprehensive technical manual & feature catalog
-└── PLAN.md                      # Feature porting progress matrix & decision log
+└── PROJECT.md                   # Comprehensive technical manual & feature catalog
 ```
 
 ## License

@@ -59,7 +59,7 @@ const DEFAULT_API_URL: &str = "https://rimelight.com";
 
 /// Entry point called by android-activity. Opens the shell with the saved workspaces, or one Home workspace.
 ///
-/// The only unsafe item in this crate: the export symbol android-activity looks up. See PLAN.md section 15.4.
+/// The only unsafe item in this crate: the export symbol android-activity looks up. See PROJECT.md section 15.4.
 #[cfg(target_os = "android")]
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]

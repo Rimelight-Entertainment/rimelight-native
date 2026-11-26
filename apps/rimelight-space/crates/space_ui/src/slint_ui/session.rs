@@ -1,4 +1,4 @@
-//! Sign-in and session rules (SA.4; PLAN.md section 4, slice SA). Plain Rust, always compiled: the text
+//! Sign-in and session rules (SA.4; PROJECT.md section 4, slice SA). Plain Rust, always compiled: the text
 //! the sign-in screen shows for each problem, and the sign-in messages' wording. The screen is `@rimelight_shell/components/sign-in-screen.slint`,
 //! the status indicator is in `@rimelight_shell/components/status-bar.slint`. The desktop app (`apps/desktop/src/session.rs`) runs the client
 //! and sets the window's properties from these rules.

@@ -1,7 +1,7 @@
-//! `cargo xtask docs ia`: regenerates the route table in `PLAN.md` section 6.5 from the navigation manifest.
+//! `cargo xtask docs ia`: regenerates the route table in `PROJECT.md` section 6.5 from the navigation manifest.
 //!
 //! Each runs an example that prints Markdown. The output replaces only the text between the marker lines
-//! `<!-- BEGIN GENERATED: <name> -->` and `<!-- END GENERATED: <name> -->` in `PLAN.md`. Everything else in the
+//! `<!-- BEGIN GENERATED: <name> -->` and `<!-- END GENERATED: <name> -->` in `PROJECT.md`. Everything else in the
 //! file is left alone. Headings in the output are shifted down so they sit under the plan's section headings.
 //! Run from the repo root. std only.
 
@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-const PLAN: &str = "PLAN.md";
+const PLAN: &str = "PROJECT.md";
 
 /// One generated region: its marker name, the example that prints it, and how far its headings move down.
 struct Target {
@@ -37,7 +37,7 @@ pub fn run(args: &[&str]) -> ExitCode {
     }
 }
 
-/// Runs the example and writes its Markdown into the marked region of `PLAN.md`.
+/// Runs the example and writes its Markdown into the marked region of `PROJECT.md`.
 fn generate(t: &Target) -> ExitCode {
     let output = match Command::new("cargo")
         .args(["run", "--quiet", "-p", t.package, "--example", t.example])

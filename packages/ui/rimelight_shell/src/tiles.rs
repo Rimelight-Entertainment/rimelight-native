@@ -1,4 +1,4 @@
-//! Tile groups (planned feature B, tiles: `PLAN.md section 6.6` part B, owner decision 2026-11-13). Plain Rust, always
+//! Tile groups (planned feature B, tiles: `PROJECT.md section 6.6` part B, owner decision 2026-11-13). Plain Rust, always
 //! compiled, so its rules run without a window.
 //!
 //! A [`TileLayout`] holds the page tabs of one workspace in a tree of groups. A [`Group`] is a leaf with its own
@@ -7,7 +7,7 @@
 //! [`GROUP_CAP`] groups and always has one focused group: the shared controls act on it.
 //!
 //! The window will draw the flat lists from [`TileLayout::layout_rects`], since Slint cannot recurse into components
-//! (the window part is not built yet, see `PLAN.md section 11.2`).
+//! (the window part is not built yet, see `PROJECT.md section 11.2`).
 //!
 //! Persistence. [`TileLayout::encode_rows`] and [`TileLayout::decode_rows`] write the tree as text rows in pre-order: a
 //! `split` row, then its first child and its second child, or a `group` row, then its page rows (`workspace.rs` writes

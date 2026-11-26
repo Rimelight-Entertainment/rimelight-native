@@ -1,39 +1,24 @@
 # Rimelight Personal
 
-> **Native Multiplatform Personal Productivity Suite & Life OS**  
-> Built in Rust 2024 with Slint, powered by Cloudflare D1 + Access. Formerly known as `rimelight-personal`.
+## Overview
 
----
+**Rimelight Personal** is a cross-platform personal productivity and life management suite, built with Rust and Slint.
 
-## 1. Overview
+Its infrastructure lives within your own Cloudflare account. 
 
-**Rimelight Personal** is the official native client replacing the legacy web application `personal.idantity.me`. It unifies 13 core life management domains into a fast, fluid desktop and web workspace:
+## Features
 
 - **Productivity:** Overview dashboard, Tasks & Todos, Focus timer, Notes, Habits, Notebooks, and Projects.
 - **Lifestyle & Health:** Intermittent fasting, workout logs, body metrics, and household management.
+- **H
 - **Finances:** Multi-account ledgers, recurring bills, active subscriptions, and net worth tracking (in BRL).
 - **Communication & Media:** Unified inbox (Cloudflare Email Routing), cloud storage, watchlist, and music player.
 
----
-
-## 2. Standard Documentation Suite
-
-This repository adheres to the standardized 4-file documentation architecture:
-
-| Document | Purpose |
-|---|---|
-| [**README.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/README.md) | Simple overview of Rimelight Personal with local development and build instructions (this file). |
-| [**PROJECT.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/PROJECT.md) | Comprehensive description: technical architecture, 13-module feature catalog, and design tokens. |
-| [**AGENTS.md**](file:///C:/Users/idant/RustRoverProjects/rimelight-personal/AGENTS.md) | Specific agent instructions: strict "build once" rule, gate checks, and Cloudflare Access auth rules. |
-
----
-
-## 3. Local Development Quickstart
+## Local Development
 
 ### Prerequisites
 
-- **Rust:** Pinned to `1.100.0` via `rust-toolchain.toml` (2024 edition).
-- **Network Access:** Required on initial build to fetch Git dependencies (`rimelight-rs` and `rimelight` design tokens).
+- **Rust:** `1.100.0`
 
 ### Build Commands
 
@@ -51,12 +36,7 @@ cargo test --workspace --lib
 cargo build -p web --target wasm32-unknown-unknown
 ```
 
-> [!IMPORTANT]
-> **Owner Rule:** Write features first in batches. **Build ONCE at the very end** of a task batch to prevent disk bloat and compiler lock contention.
-
----
-
-## 4. Repository Layout
+## Repository Structure
 
 ```
 rimelight-personal/

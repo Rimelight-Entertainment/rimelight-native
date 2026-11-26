@@ -393,7 +393,12 @@ pub fn show_main(app: &Rc<App>) {
         schedule_handoff(app);
         return;
     }
+    // A window coming from the tray (hidden) opens centred, like a fresh start; a visible one stays where the user put it.
+    let was_hidden = !app.ui.window().is_visible();
     let _ = app.ui.show();
+    if was_hidden {
+        center_window(app.ui.window());
+    }
     use slint::winit_030::WinitWindowAccessor as _;
     app.ui.window().with_winit_window(|w| {
         w.set_minimized(false);
@@ -635,10 +640,20 @@ pub fn start_hotkeys(app: &Rc<App>) {
 }
 /// Centres a window on the monitor the pointer is on (Windows opens new windows at its own default spot).
 pub fn center_window(window: &slint::Window) {
-    let size = window.size();
+    use slint::winit_030::WinitWindowAccessor as _;
+    // The real window size: right after `show()` Slint's size can still be the pre-layout default, which put the window off-centre.
+    let (w, h) = window
+        .with_winit_window(|win| {
+            let s = win.outer_size();
+            (s.width, s.height)
+        })
+        .unwrap_or_else(|| {
+            let s = window.size();
+            (s.width, s.height)
+        });
     if let Some((_, mon)) = rimelight_platform::cursor_monitor() {
-        let x = mon.x + (mon.w - size.width as i32).max(0) / 2;
-        let y = mon.y + (mon.h - size.height as i32).max(0) / 2;
+        let x = mon.x + (mon.w - w as i32).max(0) / 2;
+        let y = mon.y + (mon.h - h as i32).max(0) / 2;
         window.set_position(slint::PhysicalPosition::new(x, y));
     }
 }

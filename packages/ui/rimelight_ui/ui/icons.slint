@@ -1,10 +1,6 @@
-// Lucide icons (icon::IconName). One image per mapped icon, named by its Lucide name. The files are in
-// assets/icons (ISC, see assets/icons/LICENSE). The test `every_icon_has_a_file` checks this list against IconName.
-// Icons are monochrome: set `colorize` on the Image to tint them (size tokens: size-icon-small/medium/large).
 import { Tokens } from "@rimelight_design/tokens.slint";
 
 export global Icons {
-    // Icon sizes scale with the text scale (decision 0008 (c)): the size tokens times the text factor.
     out property <length> small-size: Tokens.icon-small * Tokens.text-factor;
     out property <length> medium-size: Tokens.icon-medium * Tokens.text-factor;
     out property <length> large-size: Tokens.icon-large * Tokens.text-factor;
@@ -24,16 +20,15 @@ export global Icons {
     out property <image> bell: @image-url("../assets/icons/bell.svg");
     out property <image> circle-question-mark: @image-url("../assets/icons/circle-question-mark.svg");
     out property <image> plus: @image-url("../assets/icons/plus.svg");
-out property <image> minus: @image-url("../assets/icons/minus.svg");
+    out property <image> minus: @image-url("../assets/icons/minus.svg");
     out property <image> chevron-left: @image-url("../assets/icons/chevron-left.svg");
     out property <image> chevron-right: @image-url("../assets/icons/chevron-right.svg");
-    // Back and forward in the page tab history (the top bar buttons, IA section 6; planned feature A).
     out property <image> arrow-left: @image-url("../assets/icons/arrow-left.svg");
     out property <image> arrow-right: @image-url("../assets/icons/arrow-right.svg");
     out property <image> chevrons-up-down: @image-url("../assets/icons/chevrons-up-down.svg");
     out property <image> x: @image-url("../assets/icons/x.svg");
-out property <image> eye: @image-url("../assets/icons/eye.svg");
-out property <image> eye-off: @image-url("../assets/icons/eye-off.svg");
+    out property <image> eye: @image-url("../assets/icons/eye.svg");
+    out property <image> eye-off: @image-url("../assets/icons/eye-off.svg");
     out property <image> check: @image-url("../assets/icons/check.svg");
     out property <image> ellipsis: @image-url("../assets/icons/ellipsis.svg");
     out property <image> star: @image-url("../assets/icons/star.svg");
@@ -63,16 +58,11 @@ out property <image> eye-off: @image-url("../assets/icons/eye-off.svg");
     out property <image> maximize: @image-url("../assets/icons/maximize.svg");
     out property <image> bug: @image-url("../assets/icons/bug.svg");
     out property <image> settings: @image-url("../assets/icons/settings.svg");
-    // The quick action menu's icons (SF.4). Mail and notebook-pen are listed above.
     out property <image> calendar-plus: @image-url("../assets/icons/calendar-plus.svg");
     out property <image> square-check: @image-url("../assets/icons/square-check.svg");
-    // The Chat sidebar's icons (SF.4): pin for the Pinned subsection, folder and folder-open for a group, messages-square for
-    // the Chats section. Shell::icon maps them; chevron-down and chevron-right are listed above.
     out property <image> pin: @image-url("../assets/icons/pin.svg");
     out property <image> folder-open: @image-url("../assets/icons/folder-open.svg");
     out property <image> messages-square: @image-url("../assets/icons/messages-square.svg");
-    // The sidebar rows' icons. shell::icon maps a row's Lucide name (Page::icon() in rimelight_nav) to one of these; every
-    // icon of assets/icons/ICONS.txt is listed here. The sidebar draws the image it is given (SidebarItem.icon).
     out property <image> activity: @image-url("../assets/icons/activity.svg");
     out property <image> app-window: @image-url("../assets/icons/app-window.svg");
     out property <image> arrow-left-right: @image-url("../assets/icons/arrow-left-right.svg");
@@ -189,7 +179,6 @@ out property <image> eye-off: @image-url("../assets/icons/eye-off.svg");
     out property <image> webhook: @image-url("../assets/icons/webhook.svg");
     out property <image> workflow: @image-url("../assets/icons/workflow.svg");
     out property <image> zap: @image-url("../assets/icons/zap.svg");
-    // The canvas page's toolbar, zoom and context menu icons (CV.6).
     out property <image> mouse-pointer-2: @image-url("../assets/icons/mouse-pointer-2.svg");
     out property <image> type: @image-url("../assets/icons/type.svg");
     out property <image> hand: @image-url("../assets/icons/hand.svg");
@@ -217,10 +206,324 @@ out property <image> eye-off: @image-url("../assets/icons/eye-off.svg");
     out property <image> eraser: @image-url("../assets/icons/eraser.svg");
     out property <image> diamond: @image-url("../assets/icons/diamond.svg");
     out property <image> circle: @image-url("../assets/icons/circle.svg");
-    // Canvas video controls (CV-V.4).
     out property <image> pause: @image-url("../assets/icons/pause.svg");
     out property <image> volume-2: @image-url("../assets/icons/volume-2.svg");
     out property <image> volume-x: @image-url("../assets/icons/volume-x.svg");
     out property <image> square: @image-url("../assets/icons/square.svg");
     out property <image> music: @image-url("../assets/icons/music.svg");
+    out property <image> align-left: @image-url("../assets/icons/align-left.svg");
+    out property <image> arrow-down-a-z: @image-url("../assets/icons/arrow-down-a-z.svg");
+    out property <image> arrow-down-left: @image-url("../assets/icons/arrow-down-left.svg");
+    out property <image> audio-lines: @image-url("../assets/icons/audio-lines.svg");
+    out property <image> brush: @image-url("../assets/icons/brush.svg");
+    out property <image> camera: @image-url("../assets/icons/camera.svg");
+    out property <image> cast: @image-url("../assets/icons/cast.svg");
+    out property <image> chevron-up: @image-url("../assets/icons/chevron-up.svg");
+    out property <image> cloud: @image-url("../assets/icons/cloud.svg");
+    out property <image> crop: @image-url("../assets/icons/crop.svg");
+    out property <image> disc: @image-url("../assets/icons/disc.svg");
+    out property <image> download: @image-url("../assets/icons/download.svg");
+    out property <image> dumbbell: @image-url("../assets/icons/dumbbell.svg");
+    out property <image> file-code: @image-url("../assets/icons/file-code.svg");
+    out property <image> file-plus: @image-url("../assets/icons/file-plus.svg");
+    out property <image> film: @image-url("../assets/icons/film.svg");
+    out property <image> fit: @image-url("../assets/icons/fit.svg");
+    out property <image> folder-plus: @image-url("../assets/icons/folder-plus.svg");
+    out property <image> folder-search: @image-url("../assets/icons/folder-search.svg");
+    out property <image> fullscreen: @image-url("../assets/icons/fullscreen.svg");
+    out property <image> gift: @image-url("../assets/icons/gift.svg");
+    out property <image> grid-3x3: @image-url("../assets/icons/grid-3x3.svg");
+    out property <image> heart: @image-url("../assets/icons/heart.svg");
+    out property <image> highlighter: @image-url("../assets/icons/highlighter.svg");
+    out property <image> inbox: @image-url("../assets/icons/inbox.svg");
+    out property <image> indent-increase: @image-url("../assets/icons/indent-increase.svg");
+    out property <image> lasso: @image-url("../assets/icons/lasso.svg");
+    out property <image> list-indent: @image-url("../assets/icons/list-indent.svg");
+    out property <image> list-tree: @image-url("../assets/icons/list-tree.svg");
+    out property <image> md-editor: @image-url("../assets/icons/md-editor.svg");
+    out property <image> minimize-2: @image-url("../assets/icons/minimize-2.svg");
+    out property <image> move: @image-url("../assets/icons/move.svg");
+    out property <image> music-2: @image-url("../assets/icons/music-2.svg");
+    out property <image> paint-bucket: @image-url("../assets/icons/paint-bucket.svg");
+    out property <image> printer: @image-url("../assets/icons/printer.svg");
+    out property <image> radio: @image-url("../assets/icons/radio.svg");
+    out property <image> record: @image-url("../assets/icons/record.svg");
+    out property <image> resize: @image-url("../assets/icons/resize.svg");
+    out property <image> ruler: @image-url("../assets/icons/ruler.svg");
+    out property <image> save: @image-url("../assets/icons/save.svg");
+    out property <image> save-as: @image-url("../assets/icons/save-as.svg");
+    out property <image> scissors: @image-url("../assets/icons/scissors.svg");
+    out property <image> skip-forward: @image-url("../assets/icons/skip-forward.svg");
+    out property <image> sparkles: @image-url("../assets/icons/sparkles.svg");
+    out property <image> square-check-big: @image-url("../assets/icons/square-check-big.svg");
+    out property <image> square-dashed: @image-url("../assets/icons/square-dashed.svg");
+    out property <image> square-stop: @image-url("../assets/icons/square-stop.svg");
+    out property <image> sticky-note: @image-url("../assets/icons/sticky-note.svg");
+    out property <image> subtitles: @image-url("../assets/icons/subtitles.svg");
+    out property <image> text-scan: @image-url("../assets/icons/text-scan.svg");
+    out property <image> text-wrap: @image-url("../assets/icons/text-wrap.svg");
+    out property <image> tv: @image-url("../assets/icons/tv.svg");
+
+    public pure function icon-for(name: string) -> image {
+        if (name == "activity") { return activity; }
+        if (name == "app-window") { return app-window; }
+        if (name == "arrow-down") { return arrow-down; }
+        if (name == "arrow-left") { return arrow-left; }
+        if (name == "arrow-left-right") { return arrow-left-right; }
+        if (name == "arrow-right") { return arrow-right; }
+        if (name == "arrow-up") { return arrow-up; }
+        if (name == "at-sign") { return at-sign; }
+        if (name == "ban") { return ban; }
+        if (name == "banknote") { return banknote; }
+        if (name == "bell") { return bell; }
+        if (name == "book-marked") { return book-marked; }
+        if (name == "book-open") { return book-open; }
+        if (name == "book-user") { return book-user; }
+        if (name == "bookmark") { return bookmark; }
+        if (name == "bot") { return bot; }
+        if (name == "box") { return box; }
+        if (name == "boxes") { return boxes; }
+        if (name == "briefcase") { return briefcase; }
+        if (name == "briefcase-business") { return briefcase-business; }
+        if (name == "bring-to-front") { return bring-to-front; }
+        if (name == "bug") { return bug; }
+        if (name == "building") { return building; }
+        if (name == "building-2") { return building-2; }
+        if (name == "calendar") { return calendar; }
+        if (name == "calendar-check") { return calendar-check; }
+        if (name == "calendar-days") { return calendar-days; }
+        if (name == "calendar-plus") { return calendar-plus; }
+        if (name == "calendar-range") { return calendar-range; }
+        if (name == "chart-column") { return chart-column; }
+        if (name == "chart-pie") { return chart-pie; }
+        if (name == "check") { return check; }
+        if (name == "chevron-down") { return chevron-down; }
+        if (name == "chevron-left") { return chevron-left; }
+        if (name == "chevron-right") { return chevron-right; }
+        if (name == "chevrons-up-down") { return chevrons-up-down; }
+        if (name == "circle") { return circle; }
+        if (name == "circle-check") { return circle-check; }
+        if (name == "circle-dot") { return circle-dot; }
+        if (name == "circle-question-mark") { return circle-question-mark; }
+        if (name == "circle-x") { return circle-x; }
+        if (name == "clipboard-check") { return clipboard-check; }
+        if (name == "clipboard-list") { return clipboard-list; }
+        if (name == "clock") { return clock; }
+        if (name == "columns-2") { return columns-2; }
+        if (name == "compass") { return compass; }
+        if (name == "concierge-bell") { return concierge-bell; }
+        if (name == "contact") { return contact; }
+        if (name == "copy") { return copy; }
+        if (name == "copy-plus") { return copy-plus; }
+        if (name == "credit-card") { return credit-card; }
+        if (name == "database") { return database; }
+        if (name == "diamond") { return diamond; }
+        if (name == "door-open") { return door-open; }
+        if (name == "ellipsis") { return ellipsis; }
+        if (name == "eraser") { return eraser; }
+        if (name == "external-link") { return external-link; }
+        if (name == "eye") { return eye; }
+        if (name == "eye-off") { return eye-off; }
+        if (name == "file-chart-column") { return file-chart-column; }
+        if (name == "file-chart-line") { return file-chart-line; }
+        if (name == "file-check") { return file-check; }
+        if (name == "file-pen") { return file-pen; }
+        if (name == "file-pen-line") { return file-pen-line; }
+        if (name == "file-signature") { return file-signature; }
+        if (name == "file-spreadsheet") { return file-spreadsheet; }
+        if (name == "file-text") { return file-text; }
+        if (name == "flag") { return flag; }
+        if (name == "flip-horizontal-2") { return flip-horizontal-2; }
+        if (name == "flip-vertical-2") { return flip-vertical-2; }
+        if (name == "folder") { return folder; }
+        if (name == "folder-kanban") { return folder-kanban; }
+        if (name == "folder-open") { return folder-open; }
+        if (name == "folders") { return folders; }
+        if (name == "frame") { return frame; }
+        if (name == "funnel") { return funnel; }
+        if (name == "gamepad-2") { return gamepad-2; }
+        if (name == "gantt-chart") { return gantt-chart; }
+        if (name == "gauge") { return gauge; }
+        if (name == "git-branch") { return git-branch; }
+        if (name == "git-merge") { return git-merge; }
+        if (name == "git-pull-request") { return git-pull-request; }
+        if (name == "graduation-cap") { return graduation-cap; }
+        if (name == "hand") { return hand; }
+        if (name == "hand-coins") { return hand-coins; }
+        if (name == "handshake") { return handshake; }
+        if (name == "hash") { return hash; }
+        if (name == "headset") { return headset; }
+        if (name == "heart-handshake") { return heart-handshake; }
+        if (name == "history") { return history; }
+        if (name == "house") { return house; }
+        if (name == "id-card") { return id-card; }
+        if (name == "image") { return image; }
+        if (name == "image-plus") { return image-plus; }
+        if (name == "info") { return info; }
+        if (name == "kanban") { return kanban; }
+        if (name == "key-round") { return key-round; }
+        if (name == "keyboard") { return keyboard; }
+        if (name == "landmark") { return landmark; }
+        if (name == "languages") { return languages; }
+        if (name == "laptop") { return laptop; }
+        if (name == "layers") { return layers; }
+        if (name == "layout-dashboard") { return layout-dashboard; }
+        if (name == "layout-panel-top") { return layout-panel-top; }
+        if (name == "link") { return link; }
+        if (name == "list") { return list; }
+        if (name == "list-checks") { return list-checks; }
+        if (name == "list-todo") { return list-todo; }
+        if (name == "lock") { return lock; }
+        if (name == "lock-open") { return lock-open; }
+        if (name == "log-out") { return log-out; }
+        if (name == "mail") { return mail; }
+        if (name == "map") { return map; }
+        if (name == "map-pin") { return map-pin; }
+        if (name == "maximize") { return maximize; }
+        if (name == "megaphone") { return megaphone; }
+        if (name == "message-circle") { return message-circle; }
+        if (name == "message-square") { return message-square; }
+        if (name == "message-square-reply") { return message-square-reply; }
+        if (name == "messages-square") { return messages-square; }
+        if (name == "mic") { return mic; }
+        if (name == "mic-off") { return mic-off; }
+        if (name == "minus") { return minus; }
+        if (name == "monitor") { return monitor; }
+        if (name == "moon") { return moon; }
+        if (name == "mouse-pointer-2") { return mouse-pointer-2; }
+        if (name == "move-up-right") { return move-up-right; }
+        if (name == "music") { return music; }
+        if (name == "network") { return network; }
+        if (name == "notebook") { return notebook; }
+        if (name == "notebook-pen") { return notebook-pen; }
+        if (name == "package") { return package; }
+        if (name == "package-check") { return package-check; }
+        if (name == "palm-tree") { return palm-tree; }
+        if (name == "panel-left") { return panel-left; }
+        if (name == "paperclip") { return paperclip; }
+        if (name == "pause") { return pause; }
+        if (name == "pen-tool") { return pen-tool; }
+        if (name == "pencil") { return pencil; }
+        if (name == "percent") { return percent; }
+        if (name == "phone-call") { return phone-call; }
+        if (name == "phone-off") { return phone-off; }
+        if (name == "pie-chart") { return pie-chart; }
+        if (name == "pin") { return pin; }
+        if (name == "pipette") { return pipette; }
+        if (name == "plane") { return plane; }
+        if (name == "play") { return play; }
+        if (name == "plug") { return plug; }
+        if (name == "plug-zap") { return plug-zap; }
+        if (name == "plus") { return plus; }
+        if (name == "presentation") { return presentation; }
+        if (name == "receipt") { return receipt; }
+        if (name == "receipt-text") { return receipt-text; }
+        if (name == "redo-2") { return redo-2; }
+        if (name == "repeat") { return repeat; }
+        if (name == "rocket") { return rocket; }
+        if (name == "rotate-cw") { return rotate-cw; }
+        if (name == "scale") { return scale; }
+        if (name == "scan") { return scan; }
+        if (name == "school") { return school; }
+        if (name == "scroll-text") { return scroll-text; }
+        if (name == "search") { return search; }
+        if (name == "send") { return send; }
+        if (name == "send-to-back") { return send-to-back; }
+        if (name == "settings") { return settings; }
+        if (name == "share-2") { return share-2; }
+        if (name == "shield") { return shield; }
+        if (name == "shield-check") { return shield-check; }
+        if (name == "shopping-cart") { return shopping-cart; }
+        if (name == "slash") { return slash; }
+        if (name == "smartphone") { return smartphone; }
+        if (name == "square") { return square; }
+        if (name == "square-check") { return square-check; }
+        if (name == "stamp") { return stamp; }
+        if (name == "star") { return star; }
+        if (name == "sun") { return sun; }
+        if (name == "table-properties") { return table-properties; }
+        if (name == "tag") { return tag; }
+        if (name == "target") { return target; }
+        if (name == "thumbs-up") { return thumbs-up; }
+        if (name == "ticket") { return ticket; }
+        if (name == "timer") { return timer; }
+        if (name == "trash") { return trash; }
+        if (name == "triangle-alert") { return triangle-alert; }
+        if (name == "truck") { return truck; }
+        if (name == "type") { return type; }
+        if (name == "undo-2") { return undo-2; }
+        if (name == "upload") { return upload; }
+        if (name == "user-check") { return user-check; }
+        if (name == "user-cog") { return user-cog; }
+        if (name == "user-minus") { return user-minus; }
+        if (name == "user-plus") { return user-plus; }
+        if (name == "user-round") { return user-round; }
+        if (name == "user-search") { return user-search; }
+        if (name == "users") { return users; }
+        if (name == "users-round") { return users-round; }
+        if (name == "video") { return video; }
+        if (name == "volume-2") { return volume-2; }
+        if (name == "volume-x") { return volume-x; }
+        if (name == "wallet") { return wallet; }
+        if (name == "warehouse") { return warehouse; }
+        if (name == "webhook") { return webhook; }
+        if (name == "workflow") { return workflow; }
+        if (name == "x") { return x; }
+        if (name == "zap") { return zap; }
+        if (name == "zoom-in") { return zoom-in; }
+        if (name == "zoom-out") { return zoom-out; }
+        if (name == "align-left") { return align-left; }
+        if (name == "arrow-down-a-z") { return arrow-down-a-z; }
+        if (name == "arrow-down-left") { return arrow-down-left; }
+        if (name == "audio-lines") { return audio-lines; }
+        if (name == "brush") { return brush; }
+        if (name == "camera") { return camera; }
+        if (name == "cast") { return cast; }
+        if (name == "chevron-up") { return chevron-up; }
+        if (name == "cloud") { return cloud; }
+        if (name == "crop") { return crop; }
+        if (name == "disc") { return disc; }
+        if (name == "download") { return download; }
+        if (name == "dumbbell") { return dumbbell; }
+        if (name == "file-code") { return file-code; }
+        if (name == "file-plus") { return file-plus; }
+        if (name == "film") { return film; }
+        if (name == "fit") { return fit; }
+        if (name == "folder-plus") { return folder-plus; }
+        if (name == "folder-search") { return folder-search; }
+        if (name == "fullscreen") { return fullscreen; }
+        if (name == "gift") { return gift; }
+        if (name == "grid-3x3") { return grid-3x3; }
+        if (name == "heart") { return heart; }
+        if (name == "highlighter") { return highlighter; }
+        if (name == "inbox") { return inbox; }
+        if (name == "indent-increase") { return indent-increase; }
+        if (name == "lasso") { return lasso; }
+        if (name == "list-indent") { return list-indent; }
+        if (name == "list-tree") { return list-tree; }
+        if (name == "md-editor") { return md-editor; }
+        if (name == "minimize-2") { return minimize-2; }
+        if (name == "move") { return move; }
+        if (name == "music-2") { return music-2; }
+        if (name == "paint-bucket") { return paint-bucket; }
+        if (name == "printer") { return printer; }
+        if (name == "radio") { return radio; }
+        if (name == "record") { return record; }
+        if (name == "resize") { return resize; }
+        if (name == "ruler") { return ruler; }
+        if (name == "save") { return save; }
+        if (name == "save-as") { return save-as; }
+        if (name == "scissors") { return scissors; }
+        if (name == "skip-forward") { return skip-forward; }
+        if (name == "sparkles") { return sparkles; }
+        if (name == "square-check-big") { return square-check-big; }
+        if (name == "square-dashed") { return square-dashed; }
+        if (name == "square-stop") { return square-stop; }
+        if (name == "sticky-note") { return sticky-note; }
+        if (name == "subtitles") { return subtitles; }
+        if (name == "text-scan") { return text-scan; }
+        if (name == "text-wrap") { return text-wrap; }
+        if (name == "tv") { return tv; }
+        return layout-dashboard;
+    }
 }

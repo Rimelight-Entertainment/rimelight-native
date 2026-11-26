@@ -3,16 +3,15 @@
 // (src/filesctl.rs) fills the `Files` global; every click and key comes back as a callback. Dialogs: 1 new folder,
 // 2 rename, 3 batch rename, 4 new archive, 5 archive password, 6 delete.
 import { LineEdit, ScrollView } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
 import { Breadcrumbs } from "@rimelight_ui/components/breadcrumbs.slint";
 import { Table, TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
 import { ToolbarRow, ToolDivider } from "@rimelight_ui/components/toolbar.slint";
 import { FileKindTile } from "@rimelight_ui/components/tile.slint";
 import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
 import { TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
-import { Icons } from "icons.slint";
 import { ToolButton, StatusBar, ConfirmDialog } from "widgets.slint";
 
 // One row of the list. `kind` is "Folder", "Drive", "Picture", "Video", "Audio", "Archive", "Encrypted", "Text" or "File".
@@ -153,20 +152,20 @@ component FileIcon inherits Rectangle {
             : root.kind == "Audio" ? #E11D48
             : root.kind == "Text" ? #16A34A
             : #64748B;
-        glyph: root.kind == "Folder" ? SharedIcons.folder
+        glyph: root.kind == "Folder" ? Icons.folder
             : root.kind == "Cloud" ? Icons.cloud
-            : root.kind == "Recycle" ? SharedIcons.trash
-            : root.kind == "Desktop" ? SharedIcons.app-window
-            : root.kind == "Documents" ? SharedIcons.file-text
+            : root.kind == "Recycle" ? Icons.trash
+            : root.kind == "Desktop" ? Icons.app-window
+            : root.kind == "Documents" ? Icons.file-text
             : root.kind == "Downloads" ? Icons.download
-            : root.kind == "Drive" ? SharedIcons.monitor
-            : root.kind == "Archive" ? SharedIcons.package
-            : root.kind == "Encrypted" ? SharedIcons.lock
-            : root.kind == "Picture" ? SharedIcons.image
-            : root.kind == "Video" ? SharedIcons.video
+            : root.kind == "Drive" ? Icons.monitor
+            : root.kind == "Archive" ? Icons.package
+            : root.kind == "Encrypted" ? Icons.lock
+            : root.kind == "Picture" ? Icons.image
+            : root.kind == "Video" ? Icons.video
             : root.kind == "Audio" ? Icons.music
             : root.kind == "Text" ? Icons.file-code
-            : SharedIcons.file-text;
+            : Icons.file-text;
     }
 }
 
@@ -278,24 +277,24 @@ export component FilesPage inherits Rectangle {
     VerticalLayout {
         // The main toolbar, as on every tab (the same colour, height and hairline).
         ToolbarRow {
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.arrow-up; label: "Up"; tooltip: "Up (Backspace)"; enabled: Files.crumbs.length > 1 || Files.recycle-view; clicked => { Files.up(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.rotate-cw; label: "Refresh"; tooltip: "Refresh"; clicked => { Files.refresh(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.arrow-up; label: "Up"; tooltip: "Up (Backspace)"; enabled: Files.crumbs.length > 1 || Files.recycle-view; clicked => { Files.up(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.rotate-cw; label: "Refresh"; tooltip: "Refresh"; clicked => { Files.refresh(); } }
             ToolDivider { }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-plus; label: "New folder"; tooltip: "New folder: makes a folder in the folder you are in"; enabled: !Files.read-only; clicked => { Files.new-folder-start(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.pencil; label: "Rename"; tooltip: "Rename the one selected item (F2)"; enabled: Files.single-selected && !Files.read-only; clicked => { Files.rename-start(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.pin; label: Files.pin-active ? "Unpin" : "Pin"; tooltip: Files.pin-active ? "Unpin this folder from the sidebar" : "Pin this folder to the sidebar"; enabled: Files.can-pin; clicked => { Files.pin-toggle(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.pencil; label: "Rename"; tooltip: "Rename the one selected item (F2)"; enabled: Files.single-selected && !Files.read-only; clicked => { Files.rename-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.pin; label: Files.pin-active ? "Unpin" : "Pin"; tooltip: Files.pin-active ? "Unpin this folder from the sidebar" : "Pin this folder to the sidebar"; enabled: Files.can-pin; clicked => { Files.pin-toggle(); } }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.copy; label: "Copy"; tooltip: "Copy the selection (Ctrl+C)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.copy(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.copy; label: "Copy"; tooltip: "Copy the selection (Ctrl+C)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.copy(); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.scissors; label: "Cut"; tooltip: "Cut the selection, to move it on paste (Ctrl+X)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.cut(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.clipboard-check; label: "Paste"; tooltip: "Paste into this folder (Ctrl+V)"; enabled: Files.can-paste; clicked => { Files.paste(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.trash; label: "Delete"; tooltip: "Delete the selection to the Recycle Bin (Delete)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.delete-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.clipboard-check; label: "Paste"; tooltip: "Paste into this folder (Ctrl+V)"; enabled: Files.can-paste; clicked => { Files.paste(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.trash; label: "Delete"; tooltip: "Delete the selection to the Recycle Bin (Delete)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.delete-start(); } }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.file-pen-line; label: "Batch rename"; tooltip: "Batch rename the selection with a pattern, with a preview"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.batch-start(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.package; label: "New archive"; tooltip: "New zip archive of the selection (optional password)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.archive-start(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.arrow-down; label: "Extract"; tooltip: "Extract next to the archive"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-here(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.folder-open; label: "Extract to"; tooltip: "Extract to a folder you choose"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-to(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.file-pen-line; label: "Batch rename"; tooltip: "Batch rename the selection with a pattern, with a preview"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.batch-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.package; label: "New archive"; tooltip: "New zip archive of the selection (optional password)"; enabled: Files.has-selection && !Files.read-only; clicked => { Files.archive-start(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.arrow-down; label: "Extract"; tooltip: "Extract next to the archive"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-here(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-open; label: "Extract to"; tooltip: "Extract to a folder you choose"; enabled: Files.in-archive || Files.has-selection; clicked => { Files.extract-to(); } }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.undo-2; label: "Undo"; tooltip: "Undo the last rename, move or new folder (Ctrl+Z)"; enabled: Files.can-undo; clicked => { Files.undo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.undo-2; label: "Undo"; tooltip: "Undo the last rename, move or new folder (Ctrl+Z)"; enabled: Files.can-undo; clicked => { Files.undo(); } }
         }
 
         // The trail, under the toolbar.
@@ -374,7 +373,7 @@ export component FilesPage inherits Rectangle {
                                 Rectangle {
                                     width: 16px;
                                     if node.has-children: Image {
-                                        source: node.expanded ? SharedIcons.chevron-down : SharedIcons.chevron-right;
+                                        source: node.expanded ? Icons.chevron-down : Icons.chevron-right;
                                         width: 12px;
                                         height: 12px;
                                         x: 2px;
@@ -401,7 +400,7 @@ export component FilesPage inherits Rectangle {
                                     height: 12px;
                                     x: (parent.width - self.width) / 2;
                                     y: (parent.height - self.height) / 2;
-                                    source: SharedIcons.x;
+                                    source: Icons.x;
                                     colorize: Tokens.text-muted;
                                 }
                                 unpin-ta := TouchArea {

@@ -1,6 +1,6 @@
 // Embedded in rimelight-media.exe by build.rs: the app icon (shortcuts, taskbar) and the version information Windows
 // shows as the app's name (Task Manager, Properties > Details). The version is passed in by build.rs.
-1 ICON "assets/rimelight-media.ico"
+1 ICON "assets/logo/logo_color.ico"
 
 1 VERSIONINFO
 FILEVERSION APP_VERSION_COMMAS

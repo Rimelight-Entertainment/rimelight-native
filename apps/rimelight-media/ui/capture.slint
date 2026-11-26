@@ -1,7 +1,6 @@
 // Capture windows: the full-screen snip overlay, the small recording bar and the tray icon.
 import { Tokens } from "@rimelight_design/tokens.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { StageIconButton } from "widgets.slint";
 
 // A window on screen, as fractions of the frozen screenshot.
@@ -258,12 +257,12 @@ export component SnipWindow inherits Window {
         bar := HorizontalLayout {
             padding: 8px;
             spacing: 4px;
-            StageIconButton { icon: SharedIcons.scan; label: "Rectangle"; active: root.mode == "region"; clicked => { root.set-mode("region"); } }
+            StageIconButton { icon: Icons.scan; label: "Rectangle"; active: root.mode == "region"; clicked => { root.set-mode("region"); } }
             if root.purpose == "snip": StageIconButton { icon: Icons.lasso; label: "Freeform"; active: root.mode == "free"; clicked => { root.set-mode("free"); } }
-            StageIconButton { icon: SharedIcons.app-window; label: "Window"; active: root.mode == "window"; clicked => { root.set-mode("window"); } }
-            StageIconButton { icon: SharedIcons.monitor; label: "Whole screen"; active: root.mode == "screen"; clicked => { root.set-mode("screen"); } }
+            StageIconButton { icon: Icons.app-window; label: "Window"; active: root.mode == "window"; clicked => { root.set-mode("window"); } }
+            StageIconButton { icon: Icons.monitor; label: "Whole screen"; active: root.mode == "screen"; clicked => { root.set-mode("screen"); } }
             if root.purpose == "snip": Rectangle { width: 9px; Rectangle { width: 1px; height: 20px; background: #2F3540; } }
-            if root.purpose == "snip": StageIconButton { icon: SharedIcons.pipette; label: "Colour picker"; active: root.mode == "color"; clicked => { root.set-mode("color"); } }
+            if root.purpose == "snip": StageIconButton { icon: Icons.pipette; label: "Colour picker"; active: root.mode == "color"; clicked => { root.set-mode("color"); } }
             if root.purpose == "snip": StageIconButton { icon: Icons.text-scan; label: "Copy text (text extractor)"; active: root.mode == "text"; clicked => { root.set-mode("text"); } }
             Rectangle { width: 9px; Rectangle { width: 1px; height: 20px; background: #2F3540; } }
             Text {
@@ -280,7 +279,7 @@ export component SnipWindow inherits Window {
                 vertical-alignment: center;
             }
             Rectangle { width: 4px; }
-            StageIconButton { icon: SharedIcons.x; label: "Cancel (Esc)"; clicked => { root.cancel(); } }
+            StageIconButton { icon: Icons.x; label: "Cancel (Esc)"; clicked => { root.cancel(); } }
         }
     }
 }
@@ -335,7 +334,7 @@ export component RecBar inherits Window {
             Text { text: root.what; color: #9AA4B2; font-size: 11px; overflow: elide; }
         }
         Rectangle { horizontal-stretch: 1; }
-        StageIconButton { icon: SharedIcons.trash; label: "Discard"; clicked => { root.discard(); } }
+        StageIconButton { icon: Icons.trash; label: "Discard"; clicked => { root.discard(); } }
         Rectangle {
             width: 76px;
             border-radius: 6px;
@@ -362,7 +361,7 @@ export component Tray inherits SystemTrayIcon {
     callback voice();
     callback quit();
 
-    icon: @image-url("../assets/icons/logo-color.svg");
+    icon: @image-url("../assets/logo/logo_color.svg");
     tooltip: recording ? "Rimelight Media: recording" : "Rimelight Media";
     title: "Rimelight Media";
     clicked => { root.open(); }

@@ -5,10 +5,10 @@ edition = "2024"
 license = "MIT"
 publish = false
 description = "Rimelight Media: pictures, video, music, screenshots and screen recording in one small app"
-default-run = "media_desktop"
+default-run = "rimelight-media"
 
 [[bin]]
-name = "media_desktop"
+name = "rimelight-media"
 path = "src/main.rs"
 
 # Same rule as rimelight-space: no unsafe code, except the audited modules that talk to Windows (src/capture/camera.rs; the Win32 calls are in rimelight_platform)

@@ -2,7 +2,7 @@
 /target/
 **/*.rs.bk
 
-# ── FFmpeg (fetched per-machine by apps/rimelight-media/tools/get-ffmpeg.ps1) ─
+# ── FFmpeg (fetched per-machine by `cargo xtask ffmpeg`) ─
 ffmpeg/
 **/ffmpeg/
 

@@ -33,25 +33,25 @@ static CATEGORIES: [(&str, &[&str]); 4] = [
 const KIND_ICONS: [(&str, &str, &str, &str); 4] = [
     (
         "picture",
-        include_str!("../assets/icons/image.svg"),
+        include_str!("../../../packages/ui/rimelight_ui/assets/icons/image.svg"),
         "#7DD3FC",
         "#0284C7",
     ),
     (
         "video",
-        include_str!("../assets/icons/video.svg"),
+        include_str!("../../../packages/ui/rimelight_ui/assets/icons/video.svg"),
         "#C4B5FD",
         "#7C3AED",
     ),
     (
         "music",
-        include_str!("../assets/icons/music.svg"),
+        include_str!("../../../packages/ui/rimelight_ui/assets/icons/music.svg"),
         "#FDA4AF",
         "#E11D48",
     ),
     (
         "text",
-        include_str!("../assets/icons/type.svg"),
+        include_str!("../../../packages/ui/rimelight_ui/assets/icons/type.svg"),
         "#86EFAC",
         "#16A34A",
     ),
@@ -223,9 +223,8 @@ pub fn current_exe() -> PathBuf {
 }
 
 fn icon_path() -> PathBuf {
-    crate::prefs::data_dir().join("rimelight-media.ico")
+    crate::prefs::data_dir().join("logo_color.ico")
 }
-
 /// Writes the app icon (the logo) as an .ico file, for file types and shortcuts.
 pub fn write_icon(path: &Path) -> bool {
     crate::picture::logo(256).is_some_and(|pic| write_picture_icon(path, pic))

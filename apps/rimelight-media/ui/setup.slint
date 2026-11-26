@@ -1,7 +1,7 @@
 // Shown once, right after the installer finishes: the install options (the installer itself has no option pages).
 import { Tokens } from "@rimelight_design/tokens.slint";
+import { Brand } from "brand.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons } from "icons.slint";
 import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
 import { Switch } from "@rimelight_ui/components/switch.slint";
 
@@ -26,7 +26,7 @@ export component SetupWindow inherits Window {
     callback finish();
 
     title: "Rimelight Media setup";
-    icon: Icons.logo;
+    icon: Brand.logo;
     width: 520px;
     height: layout.preferred-height;
     background: Tokens.surface-base;
@@ -40,7 +40,7 @@ export component SetupWindow inherits Window {
             spacing: Tokens.space-3;
             Rectangle {
                 width: 40px;
-                Image { source: Icons.logo; width: 40px; height: 40px; }
+                Image { source: Brand.logo; width: 40px; height: 40px; }
             }
             VerticalLayout {
                 alignment: center;

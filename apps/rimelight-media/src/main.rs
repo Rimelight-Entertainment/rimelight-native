@@ -4,7 +4,7 @@
 //! - `rimelight-media [file]`: open a file (how Windows starts it for a default app).
 //! - `--background`: start in the tray with the global keys and no window (start-with-Windows entry).
 //! - `--snip region|window|screen`: start a snip at once.
-//! - `--write-icon <file.ico>`: write the app icon and exit (used by tools/pack.ps1).
+//! - `--write-icon <file.ico>`: write the app icon and exit (used by `cargo xtask media pack`).
 //! - `--screenshot <file.png>`: open the window without focus, behind other windows, draw about 120 frames, save the
 //!   window's picture and exit (used by automated checks).
 

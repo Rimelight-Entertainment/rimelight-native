@@ -53,7 +53,7 @@ flowchart TD
 
 ### Architecture Highlights
 - **Engine & GUI:** Rust 2024 paired with **Slint** for low-memory, GPU-accelerated interface rendering.
-- **FFmpeg Integration:** Custom trimmed LGPL FFmpeg build (approx. 17 MB DLLs) managed via `tools/get-ffmpeg.ps1`. Decodes H.264, HEVC, AV1, VP9, MP3, FLAC, AAC, WAV, OGG, Opus without requiring external codecs.
+- **FFmpeg Integration:** Custom trimmed LGPL FFmpeg build (approx. 17 MB DLLs) fetched by `cargo xtask ffmpeg` into the workspace's `ffmpeg/current`. Decodes H.264, HEVC, AV1, VP9, MP3, FLAC, AAC, WAV, OGG, Opus without requiring external codecs.
 - **Installer & Auto-Updates:** Packaged with **Velopack**. Installs per-user (`%LOCALAPPDATA%\RimelightMedia`) without UAC prompts and automatically updates in the background.
 
 ---

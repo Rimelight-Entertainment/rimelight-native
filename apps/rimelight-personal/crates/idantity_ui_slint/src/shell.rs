@@ -20,7 +20,7 @@ use rimelight_ui_kit::toast::{Record, Toast, ToastQueue, Tone, sync_model, take_
 use slint::{ComponentHandle as _, Model as _, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::generated::{
-    FocusState, IdantityShell, NavIcons, OverviewState, PaletteRow, SidebarItem, SidebarKind,
+    FocusState, IdantityShell, Icons, OverviewState, PaletteRow, SidebarItem, SidebarKind,
     SubTab, ToastEntry, ToastTone, TodosState,
 };
 use crate::pages::{
@@ -225,7 +225,7 @@ fn to_item(ui: &IdantityShell, entry: &NavEntry) -> SidebarItem {
         icon: if entry.heading {
             Default::default()
         } else {
-            ui.global::<NavIcons>().invoke_icon_for(entry.icon.into())
+            ui.global::<Icons>().invoke_icon_for(entry.icon.into())
         },
         kind: if entry.heading {
             SidebarKind::Heading

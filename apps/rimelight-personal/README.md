@@ -73,8 +73,6 @@ rimelight-personal/
 └── PLAN.md                      # Feature porting progress matrix & decision log
 ```
 
----
+## License
 
-## 5. License
-
-Proprietary. Copyright (c) 2026 Rimelight Entertainment / Daniel Marchi. All rights reserved.
+MIT License. See [LICENSE.md](LICENSE.md) for more details.

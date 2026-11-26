@@ -1,6 +1,7 @@
 mod clean;
 mod docs;
 mod ffmpeg;
+mod media;
 mod release;
 mod screenshot;
 mod targets;
@@ -18,8 +19,9 @@ commands:
   lint            static checks (stub: prints checks not yet implemented)
   screenshot      capture PNGs to check a UI change: windows | shell/<state> | gallery-all | android (see `cargo xtask screenshot`)
   docs ia         regenerate the route table in PLAN.md section 6.5
-  ffmpeg          fetch the pinned FFmpeg build video playback links against (Windows, once per machine)
-  release pack    build and package the desktop app with Velopack (Windows; see `cargo xtask release`)
+  ffmpeg          fetch the pinned FFmpeg build the apps link against into ffmpeg/current (Windows, once per machine)
+  release pack    build and package Rimelight Space with Velopack (Windows; see `cargo xtask release`)
+  media pack      build and package Rimelight Media with Velopack, --install to set it up here (see `cargo xtask media`)
   db              not implemented";
 
 /// Checks that `lint` will run once they are implemented (PLAN.md section 10.1).
@@ -70,6 +72,7 @@ fn main() -> ExitCode {
         ["docs", rest @ ..] => docs::run(rest),
         ["ffmpeg", rest @ ..] => ffmpeg::run(rest),
         ["release", rest @ ..] => release::run(rest),
+        ["media", rest @ ..] => media::run(rest),
         ["db"] => not_implemented("db"),
         _ => {
             eprintln!("{USAGE}");

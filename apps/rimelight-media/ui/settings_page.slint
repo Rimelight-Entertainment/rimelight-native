@@ -1,8 +1,8 @@
 // Settings: default apps, install, background keys, capture folders and sound sources, appearance, about.
 import { ScrollView, AboutSlint } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
 import { SwitchRow } from "@rimelight_ui/components/switch.slint";
 import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
 import { Card } from "@rimelight_ui/components/card.slint";
@@ -137,7 +137,7 @@ export component SettingsPage inherits Rectangle {
                                 spacing: Tokens.space-2;
                                 alignment: start;
                                 if Settings.installed: Button { text: "Check for updates"; variant: ButtonVariant.primary; clicked => { Settings.check-updates(); } }
-                                Button { text: "Releases"; leading-icon: SharedIcons.external-link; clicked => { Settings.open-releases(); } }
+                                Button { text: "Releases"; leading-icon: Icons.external-link; clicked => { Settings.open-releases(); } }
                             }
                             if Settings.update-state != "": Text { text: Settings.update-state; color: Tokens.text-muted; font-size: Type.caption.size; wrap: word-wrap; }
                             Rectangle { height: 1px; background: Tokens.border-subtle; }
@@ -146,7 +146,7 @@ export component SettingsPage inherits Rectangle {
                                 alignment: start;
                                 Button {
                                     text: "Set as default app";
-                                    leading-icon: SharedIcons.external-link;
+                                    leading-icon: Icons.external-link;
                                     clicked => { Settings.open-default-settings(); }
                                 }
                             }
@@ -160,9 +160,9 @@ export component SettingsPage inherits Rectangle {
                         spacing: Tokens.space-2;
                         alignment: start;
                         // Theme values: 0 light, 1 dark, 2 system (stored in the prefs; the order here is the display order).
-                        Button { text: "System"; leading-icon: SharedIcons.monitor; variant: Settings.theme == 2 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 2; Settings.changed(); } }
-                        Button { text: "Light"; leading-icon: SharedIcons.sun; variant: Settings.theme == 0 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 0; Settings.changed(); } }
-                        Button { text: "Dark"; leading-icon: SharedIcons.moon; variant: Settings.theme == 1 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 1; Settings.changed(); } }
+                        Button { text: "System"; leading-icon: Icons.monitor; variant: Settings.theme == 2 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 2; Settings.changed(); } }
+                        Button { text: "Light"; leading-icon: Icons.sun; variant: Settings.theme == 0 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 0; Settings.changed(); } }
+                        Button { text: "Dark"; leading-icon: Icons.moon; variant: Settings.theme == 1 ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Settings.theme = 1; Settings.changed(); } }
                     }
                 }
 

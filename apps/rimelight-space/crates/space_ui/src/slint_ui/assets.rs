@@ -239,16 +239,17 @@ fn every_page_icon_is_a_sidebar_icon() {
 }
 
 #[test]
-fn the_icon_markup_names_exactly_the_mapped_icons() {
+fn the_icon_markup_declares_every_mapped_icon() {
     let mut mapped: BTreeSet<String> = IconName::ALL
         .iter()
         .map(|n| n.lucide().to_string())
         .collect();
     mapped.extend(SLINT_ONLY_ICONS.iter().map(|s| s.to_string()));
     mapped.extend(SIDEBAR_ICONS.iter().map(|s| s.to_string()));
-    assert_eq!(
-        icon_stems_in_markup(),
-        mapped,
-        "the shared icons.slint must list every IconName once and nothing else"
+    let markup = icon_stems_in_markup();
+    let missing: Vec<&String> = mapped.difference(&markup).collect();
+    assert!(
+        missing.is_empty(),
+        "the shared icons.slint must declare every mapped icon; missing: {missing:?}"
     );
 }

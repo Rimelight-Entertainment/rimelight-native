@@ -42,4 +42,4 @@ Packages in `packages/` are consumed by all apps as local path dependencies — 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT License. See [LICENSE.md](LICENSE.md) for more details.

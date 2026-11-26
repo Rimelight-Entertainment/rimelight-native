@@ -98,7 +98,7 @@ pub fn refresh(app: &Rc<App>) {
     s.set_install_state(
         match &version {
             Some(v) => format!("Version {v}"),
-            None => format!("Not installed: this is a build from source (version {}). Install it with RimelightMedia-win-Setup.exe from the releases page, or tools/pack.ps1 for a local installer.", env!("CARGO_PKG_VERSION")),
+            None => format!("Not installed: this is a build from source (version {}). Install it with RimelightMedia-win-Setup.exe from the releases page, or `cargo xtask media pack --install` from the source tree.", env!("CARGO_PKG_VERSION")),
         }
         .into(),
     );

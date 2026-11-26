@@ -1,10 +1,9 @@
 // The picture viewer and editor: zoom and pan, folder browsing, crop, rotate, flip, resize and markup.
 import { LineEdit, ScrollView } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
 import { MediaTokens } from "media-tokens.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
 import { StageIconButton, StatusBar, EmptyState, ToolButton } from "widgets.slint";
 import { Slider } from "@rimelight_ui/components/slider.slint";
 import { Button, ButtonSize, ButtonVariant } from "@rimelight_ui/components/button.slint";
@@ -158,19 +157,19 @@ export component ImagePage inherits Rectangle {
         // Main toolbar, the same on every tab: file actions on the left, edit tools on the right. Nothing is hidden
         // when no picture is open; the buttons that need one are disabled. Hidden in full screen.
         if !Shell.full-screen: ToolbarRow {
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.folder-open; label: "Open a file (Ctrl+O)"; tooltip: "Open a file (Ctrl+O)"; clicked => { Shell.open-file(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-open; label: "Open a file (Ctrl+O)"; tooltip: "Open a file (Ctrl+O)"; clicked => { Shell.open-file(); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.folder-search; label: "Show in folder"; tooltip: "Show in folder"; enabled: Viewer.can-share; clicked => { Viewer.open-folder(); } }
             ToolDivider { }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save; label: "Save (Ctrl+S)"; tooltip: "Save (Ctrl+S)"; enabled: root.has-pic && (Viewer.dirty || Viewer.canvas); clicked => { Viewer.save(); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.save-as; label: "Save as (Ctrl+Shift+S)"; tooltip: "Save as (Ctrl+Shift+S)"; enabled: root.has-pic; clicked => { Viewer.save-as(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.copy; label: "Copy (Ctrl+C)"; tooltip: "Copy (Ctrl+C)"; enabled: root.has-pic; clicked => { Viewer.copy(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.copy; label: "Copy (Ctrl+C)"; tooltip: "Copy (Ctrl+C)"; enabled: root.has-pic; clicked => { Viewer.copy(); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.printer; label: "Print (Ctrl+P)"; tooltip: "Print (Ctrl+P)"; enabled: root.has-pic && !Viewer.canvas; clicked => { Viewer.print(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.share-2; label: "Share"; tooltip: "Share"; enabled: Viewer.can-share; clicked => { Viewer.share(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.share-2; label: "Share"; tooltip: "Share"; enabled: Viewer.can-share; clicked => { Viewer.share(); } }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.undo-2; label: "Undo (Ctrl+Z)"; tooltip: "Undo (Ctrl+Z)"; enabled: Viewer.can-undo; clicked => { Viewer.undo(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.redo-2; label: "Redo (Ctrl+Y)"; tooltip: "Redo (Ctrl+Y)"; enabled: Viewer.can-redo; clicked => { Viewer.redo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.undo-2; label: "Undo (Ctrl+Z)"; tooltip: "Undo (Ctrl+Z)"; enabled: Viewer.can-undo; clicked => { Viewer.undo(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.redo-2; label: "Redo (Ctrl+Y)"; tooltip: "Redo (Ctrl+Y)"; enabled: Viewer.can-redo; clicked => { Viewer.redo(); } }
             // On a canvas the X closes it back to the empty tab (after the in-app question when it has changes).
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: Viewer.canvas ? "Close canvas (discard)" : "Discard changes"; tooltip: Viewer.canvas ? "Close canvas (discard)" : "Discard changes"; enabled: Viewer.dirty || Viewer.canvas; clicked => { Viewer.revert(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.x; label: Viewer.canvas ? "Close canvas (discard)" : "Discard changes"; tooltip: Viewer.canvas ? "Close canvas (discard)" : "Discard changes"; enabled: Viewer.dirty || Viewer.canvas; clicked => { Viewer.revert(); } }
             Rectangle { horizontal-stretch: 1; }
             // The canvas size: "1920 × 1080" opens the size flyout (below the bar).
             if Viewer.canvas: Rectangle {
@@ -196,18 +195,18 @@ export component ImagePage inherits Rectangle {
                     }
                 }
             }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.rotate-cw; label: "Rotate (R)"; tooltip: "Rotate (R)"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.rotate(); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.flip-horizontal-2; label: "Flip left-right"; tooltip: "Flip left-right"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.flip(true); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.flip-vertical-2; label: "Flip upside down"; tooltip: "Flip upside down"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.flip(false); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.rotate-cw; label: "Rotate (R)"; tooltip: "Rotate (R)"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.rotate(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.flip-horizontal-2; label: "Flip left-right"; tooltip: "Flip left-right"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.flip(true); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.flip-vertical-2; label: "Flip upside down"; tooltip: "Flip upside down"; enabled: root.has-pic && !Viewer.comparing; clicked => { Viewer.flip(false); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.crop; label: "Crop (C)"; tooltip: "Crop (C)"; enabled: root.has-pic && !Viewer.comparing; selected: Viewer.mode == "crop"; ghost-toggle: true; clicked => { Viewer.set-mode(Viewer.mode == "crop" ? "" : "crop"); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.pencil; label: "Draw (M)"; tooltip: "Draw (M)"; enabled: root.has-pic && !Viewer.comparing; selected: Viewer.mode == "markup"; ghost-toggle: true; clicked => { Viewer.set-mode(Viewer.mode == "markup" ? "" : "markup"); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.pencil; label: "Draw (M)"; tooltip: "Draw (M)"; enabled: root.has-pic && !Viewer.comparing; selected: Viewer.mode == "markup"; ghost-toggle: true; clicked => { Viewer.set-mode(Viewer.mode == "markup" ? "" : "markup"); } }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.resize; label: "Resize"; tooltip: "Resize"; enabled: root.has-pic && !Viewer.comparing; selected: Viewer.mode == "resize"; ghost-toggle: true; clicked => { Viewer.set-mode(Viewer.mode == "resize" ? "" : "resize"); } }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.trash; label: "Delete (Del)"; tooltip: "Delete (Del)"; enabled: root.has-pic && !Viewer.canvas; clicked => { Viewer.delete-current(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.trash; label: "Delete (Del)"; tooltip: "Delete (Del)"; enabled: root.has-pic && !Viewer.canvas; clicked => { Viewer.delete-current(); } }
             if Shell.recording || Viewer.info-name != "": ToolDivider { }
-            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.square-stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
             // Closes the picture back to the empty tab (shown only when one is open).
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.x; label: "Close the picture"; tooltip: "Close the picture"; enabled: Viewer.info-name != ""; clicked => { Shell.close-tab(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.x; label: "Close the picture"; tooltip: "Close the picture"; enabled: Viewer.info-name != ""; clicked => { Shell.close-tab(); } }
         }
 
         // The edit in progress (crop, draw, resize), under the toolbar. Markup takes two rows: the tools and the
@@ -260,7 +259,7 @@ export component ImagePage inherits Rectangle {
             Text { text: "px"; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
             // The proportions lock: when on, typing one side sets the other.
             ToolButton { tooltip-placement: TooltipPlacement.bottom;
-                icon: @image-url("../assets/icons/lock.svg");
+                icon: Icons.lock;
                 label: Viewer.resize-keep ? "Proportions locked" : "Proportions free"; tooltip: Viewer.resize-keep ? "Proportions locked" : "Proportions free";
                 selected: Viewer.resize-keep; ghost-toggle: true;
                 clicked => { Viewer.resize-keep = !Viewer.resize-keep; }
@@ -279,26 +278,26 @@ export component ImagePage inherits Rectangle {
             cancel => { Viewer.set-mode(""); }
             confirm => { Viewer.apply-marks(); }
             // The hand pans the view (drag with the left button; the middle button pans in every tool).
-            ToolButton { icon: SharedIcons.hand; label: "Hand (drag to pan the view)"; tooltip: "Hand (drag to pan the view)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 11; ghost-toggle: true; clicked => { Viewer.set-tool(11); } }
+            ToolButton { icon: Icons.hand; label: "Hand (drag to pan the view)"; tooltip: "Hand (drag to pan the view)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 11; ghost-toggle: true; clicked => { Viewer.set-tool(11); } }
             ToolDivider { }
-            ToolButton { icon: SharedIcons.pencil; label: "Pen"; tooltip: "Pen"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 0; ghost-toggle: true; clicked => { Viewer.set-tool(0); } }
+            ToolButton { icon: Icons.pencil; label: "Pen"; tooltip: "Pen"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 0; ghost-toggle: true; clicked => { Viewer.set-tool(0); } }
             ToolButton { icon: Icons.highlighter; label: "Highlighter"; tooltip: "Highlighter"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 1; ghost-toggle: true; clicked => { Viewer.set-tool(1); } }
-            ToolButton { icon: SharedIcons.move-up-right; label: "Arrow"; tooltip: "Arrow"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 2; ghost-toggle: true; clicked => { Viewer.set-tool(2); } }
-            ToolButton { icon: SharedIcons.square; label: "Box"; tooltip: "Box"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 3; ghost-toggle: true; clicked => { Viewer.set-tool(3); } }
-            ToolButton { icon: SharedIcons.circle; label: "Ellipse"; tooltip: "Ellipse"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 6; ghost-toggle: true; clicked => { Viewer.set-tool(6); } }
-            ToolButton { icon: SharedIcons.minus; label: "Line"; tooltip: "Line"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 7; ghost-toggle: true; clicked => { Viewer.set-tool(7); } }
-            ToolButton { icon: SharedIcons.type; label: "Text"; tooltip: "Text"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 4; ghost-toggle: true; clicked => { Viewer.set-tool(4); } }
-            ToolButton { icon: SharedIcons.eraser; label: Viewer.pixel-eraser ? "Pixel eraser: paints out markup ink only" : "Object eraser: click a mark to remove it"; tooltip: Viewer.pixel-eraser ? "Pixel eraser: paints out markup ink only" : "Object eraser: click a mark to remove it"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 5; ghost-toggle: true; clicked => { Viewer.set-tool(5); } }
+            ToolButton { icon: Icons.move-up-right; label: "Arrow"; tooltip: "Arrow"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 2; ghost-toggle: true; clicked => { Viewer.set-tool(2); } }
+            ToolButton { icon: Icons.square; label: "Box"; tooltip: "Box"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 3; ghost-toggle: true; clicked => { Viewer.set-tool(3); } }
+            ToolButton { icon: Icons.circle; label: "Ellipse"; tooltip: "Ellipse"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 6; ghost-toggle: true; clicked => { Viewer.set-tool(6); } }
+            ToolButton { icon: Icons.minus; label: "Line"; tooltip: "Line"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 7; ghost-toggle: true; clicked => { Viewer.set-tool(7); } }
+            ToolButton { icon: Icons.type; label: "Text"; tooltip: "Text"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 4; ghost-toggle: true; clicked => { Viewer.set-tool(4); } }
+            ToolButton { icon: Icons.eraser; label: Viewer.pixel-eraser ? "Pixel eraser: paints out markup ink only" : "Object eraser: click a mark to remove it"; tooltip: Viewer.pixel-eraser ? "Pixel eraser: paints out markup ink only" : "Object eraser: click a mark to remove it"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 5; ghost-toggle: true; clicked => { Viewer.set-tool(5); } }
             // The eraser's mode: whole marks, or a pixel eraser that paints out only the ink.
             if Viewer.tool == 5: Button { text: "Object"; variant: Viewer.pixel-eraser ? ButtonVariant.ghost : ButtonVariant.secondary; clicked => { Viewer.pixel-eraser = false; } }
             if Viewer.tool == 5: Button { text: "Pixel"; variant: Viewer.pixel-eraser ? ButtonVariant.secondary : ButtonVariant.ghost; clicked => { Viewer.pixel-eraser = true; } }
             ToolDivider { }
             ToolButton { icon: Icons.brush; label: "Fill the box or ellipse with the colour"; tooltip: "Fill the box or ellipse with the colour"; tooltip-placement: TooltipPlacement.top; selected: Viewer.fill-shape; ghost-toggle: true; enabled: Viewer.tool == 3 || Viewer.tool == 6; clicked => { Viewer.fill-shape = !Viewer.fill-shape; } }
             ToolDivider { }
-            ToolButton { icon: SharedIcons.pipette; label: "Eyedropper (take a colour from the picture)"; tooltip: "Eyedropper (take a colour from the picture)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 8; ghost-toggle: true; clicked => { Viewer.set-tool(8); } }
+            ToolButton { icon: Icons.pipette; label: "Eyedropper (take a colour from the picture)"; tooltip: "Eyedropper (take a colour from the picture)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 8; ghost-toggle: true; clicked => { Viewer.set-tool(8); } }
             ToolButton { icon: Icons.paint-bucket; label: "Paint bucket (fill an area)"; tooltip: "Paint bucket (fill an area)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 9; ghost-toggle: true; clicked => { Viewer.set-tool(9); } }
             // The select tool also picks a mark and drags it (what the Move tool did), so moves stay here.
-            ToolButton { icon: Icons.select-rect; label: "Select (drag out a selection, or drag a mark)"; tooltip: "Select (drag out a selection, or drag a mark)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 10; ghost-toggle: true; clicked => { Viewer.set-tool(10); } }
+            ToolButton { icon: Icons.square-dashed; label: "Select (drag out a selection, or drag a mark)"; tooltip: "Select (drag out a selection, or drag a mark)"; tooltip-placement: TooltipPlacement.top; selected: Viewer.tool == 10; ghost-toggle: true; clicked => { Viewer.set-tool(10); } }
             ToolDivider { }
             // Thickness, 1 to 40 px: the slider and its label centred on the row, the label hugging its text.
             Rectangle {
@@ -319,7 +318,7 @@ export component ImagePage inherits Rectangle {
             }
             Text { text: round(Viewer.ink-width) + " px"; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.trash; label: "Clear all marks"; tooltip: "Clear all marks"; enabled: Viewer.marks.length > 0; clicked => { Viewer.clear-marks(); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.trash; label: "Clear all marks"; tooltip: "Clear all marks"; enabled: Viewer.marks.length > 0; clicked => { Viewer.clear-marks(); } }
         }
         // The second markup row: the colours, the custom colour, and the selection actions.
         if Viewer.mode == "markup" && !Shell.full-screen: Rectangle {
@@ -808,7 +807,7 @@ export component ImagePage inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     size: 44px;
                     icon-size: MediaTokens.icon-large;
-                    icon: SharedIcons.chevron-left;
+                    icon: Icons.chevron-left;
                     label: "Previous (Left)";
                     background: #00000060;
                     clicked => { Viewer.prev(); }
@@ -818,7 +817,7 @@ export component ImagePage inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     size: 44px;
                     icon-size: MediaTokens.icon-large;
-                    icon: SharedIcons.chevron-right;
+                    icon: Icons.chevron-right;
                     label: "Next (Right)";
                     background: #00000060;
                     clicked => { Viewer.next(); }
@@ -921,7 +920,7 @@ export component ImagePage inherits Rectangle {
                             border-width: 1px;
                             border-color: #FFFFFF;
                             background: t.selected ? Tokens.accent-fill : (check-ta.has-hover ? #000000B0 : #00000080);
-                            if t.selected: Image { source: SharedIcons.check; width: 12px; height: 12px; colorize: #FFFFFF; x: 3px; y: 3px; }
+                            if t.selected: Image { source: Icons.check; width: 12px; height: 12px; colorize: #FFFFFF; x: 3px; y: 3px; }
                             check-ta := TouchArea {
                                 mouse-cursor: pointer;
                                 clicked => { Viewer.thumb-clicked(i, true); }
@@ -940,9 +939,9 @@ export component ImagePage inherits Rectangle {
             if root.has-pic: HorizontalLayout {
                 height: 28px;
                 spacing: 6px;
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.info; label: "Details (I)"; tooltip: "Details (I)"; selected: Viewer.show-info; ghost-toggle: true; enabled: !Viewer.canvas; clicked => { Viewer.toggle-info(); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.info; label: "Details (I)"; tooltip: "Details (I)"; selected: Viewer.show-info; ghost-toggle: true; enabled: !Viewer.canvas; clicked => { Viewer.toggle-info(); } }
                 ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.film; label: "Filmstrip"; tooltip: "Filmstrip"; selected: Viewer.filmstrip; ghost-toggle: true; enabled: !Viewer.canvas; clicked => { Viewer.toggle-filmstrip(); } }
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Viewer.slideshow-on ? SharedIcons.pause : SharedIcons.play; label: "Slideshow (S)"; tooltip: "Slideshow (S)"; selected: Viewer.slideshow-on; ghost-toggle: true; enabled: root.has-pic && !Viewer.canvas; clicked => { Viewer.toggle-slideshow(); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Viewer.slideshow-on ? Icons.pause : Icons.play; label: "Slideshow (S)"; tooltip: "Slideshow (S)"; selected: Viewer.slideshow-on; ghost-toggle: true; enabled: root.has-pic && !Viewer.canvas; clicked => { Viewer.toggle-slideshow(); } }
             }
             Text { text: root.has-pic ? Viewer.facts-text : ""; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
             if Viewer.position != "": Text { text: Viewer.position; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
@@ -950,9 +949,9 @@ export component ImagePage inherits Rectangle {
             if Viewer.animated: HorizontalLayout {
                 height: 28px;
                 spacing: 6px;
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.chevron-left; label: "Previous frame (,)"; tooltip: "Previous frame (,)"; clicked => { Viewer.anim-step(-1); } }
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Viewer.anim-playing ? SharedIcons.pause : SharedIcons.play; label: Viewer.anim-playing ? "Pause (Space)" : "Play (Space)"; tooltip: Viewer.anim-playing ? "Pause (Space)" : "Play (Space)"; clicked => { Viewer.anim-toggle(); } }
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.chevron-right; label: "Next frame (.)"; tooltip: "Next frame (.)"; clicked => { Viewer.anim-step(1); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.chevron-left; label: "Previous frame (,)"; tooltip: "Previous frame (,)"; clicked => { Viewer.anim-step(-1); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Viewer.anim-playing ? Icons.pause : Icons.play; label: Viewer.anim-playing ? "Pause (Space)" : "Play (Space)"; tooltip: Viewer.anim-playing ? "Pause (Space)" : "Play (Space)"; clicked => { Viewer.anim-toggle(); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.chevron-right; label: "Next frame (.)"; tooltip: "Next frame (.)"; clicked => { Viewer.anim-step(1); } }
             }
             if Viewer.animated: Text { text: Viewer.frame-text; color: Tokens.text-muted; font-size: Type.caption.size; vertical-alignment: center; }
             if Viewer.animated: ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.camera; label: "Save this frame as PNG"; tooltip: "Save this frame as PNG"; clicked => { Viewer.save-frame(); } }
@@ -961,7 +960,7 @@ export component ImagePage inherits Rectangle {
                 height: 28px;
                 spacing: 6px;
                 ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.fit; label: "Fit to window (0)"; tooltip: "Fit to window (0)"; selected: Viewer.fit; ghost-toggle: true; clicked => { Viewer.fit = true; Viewer.pan-x = 0; Viewer.pan-y = 0; } }
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.zoom-out; label: "Zoom out (-)"; tooltip: "Zoom out (-)"; clicked => { root.zoom-to(root.cur-scale / 1.25); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.zoom-out; label: "Zoom out (-)"; tooltip: "Zoom out (-)"; clicked => { root.zoom-to(root.cur-scale / 1.25); } }
             }
             if root.has-pic: Text {
                 text: round(root.cur-scale * 100) + "%";
@@ -988,7 +987,7 @@ export component ImagePage inherits Rectangle {
             if root.has-pic: HorizontalLayout {
                 height: 28px;
                 spacing: 6px;
-                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: SharedIcons.zoom-in; label: "Zoom in (+)"; tooltip: "Zoom in (+)"; clicked => { root.zoom-to(root.cur-scale * 1.25); } }
+                ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.zoom-in; label: "Zoom in (+)"; tooltip: "Zoom in (+)"; clicked => { root.zoom-to(root.cur-scale * 1.25); } }
                 ToolButton { tooltip-placement: TooltipPlacement.bottom; size: ButtonSize.sm; icon: Icons.fullscreen; label: "Full screen (F11)"; tooltip: "Full screen (F11)"; clicked => { Shell.toggle-full-screen(); } }
             }
         }

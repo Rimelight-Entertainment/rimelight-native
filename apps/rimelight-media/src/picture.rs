@@ -24,5 +24,5 @@ pub fn copy_to_clipboard(pic: &Picture) -> Result<(), String> {
 
 /// The app icon (the logo drawn at `size`), for the places that need pixels: the .ico file at install.
 pub fn logo(size: u32) -> Option<Picture> {
-    render_svg_square(include_bytes!("../assets/icons/logo-color.svg"), size)
+    render_svg_square(include_bytes!("../assets/logo/logo_color.svg"), size)
 }

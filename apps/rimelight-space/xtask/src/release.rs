@@ -90,7 +90,8 @@ fn parse(args: &[&str]) -> Result<Options, String> {
 
 /// `version = "x.y.z"` under `[workspace.package]` in the root Cargo.toml.
 fn workspace_version() -> Result<String, String> {
-    let manifest = repo_root().join("Cargo.toml");
+    // The workspace manifest is at the monorepo root, not in apps/rimelight-space (where `repo_root` points).
+    let manifest = crate::ffmpeg::workspace_root().join("Cargo.toml");
     let text =
         fs::read_to_string(&manifest).map_err(|e| format!("read {}: {e}", manifest.display()))?;
     version_from_manifest(&text).ok_or_else(|| {

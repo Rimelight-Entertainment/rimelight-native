@@ -2,10 +2,9 @@
 // the live preview in the middle with the shutter and the last capture's thumbnail on the right, and the resolution and
 // save folder in the status bar. With no camera, the preview shows "No camera found" and a Check again button.
 import { ComboBox } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
 import { StatusBar, ToolButton } from "widgets.slint";
 import { Slider } from "@rimelight_ui/components/slider.slint";
 import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
@@ -35,7 +34,7 @@ export component CameraPage inherits Rectangle {
             }
             ToolDivider { }
             ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.camera; label: "Photo"; tooltip: "Photo"; enabled: !Camera.recording; selected: !Camera.video-mode; ghost-toggle: true; clicked => { Camera.set-video(false); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.video; label: "Video"; tooltip: "Video"; enabled: !Camera.recording; selected: Camera.video-mode; ghost-toggle: true; clicked => { Camera.set-video(true); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.video; label: "Video"; tooltip: "Video"; enabled: !Camera.recording; selected: Camera.video-mode; ghost-toggle: true; clicked => { Camera.set-video(true); } }
             ToolDivider { }
             // The delay: a slider over the four presets (it snaps to the nearest one), then the preset buttons.
             HorizontalLayout {
@@ -67,11 +66,11 @@ export component CameraPage inherits Rectangle {
                 }
             }
             ToolDivider { }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.flip-horizontal-2; label: "Mirror"; tooltip: "Mirror"; selected: Camera.mirror; ghost-toggle: true; clicked => { Camera.set-mirror(!Camera.mirror); } }
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.grid; label: "Grid"; tooltip: "Grid"; selected: Camera.grid; ghost-toggle: true; clicked => { Camera.set-grid(!Camera.grid); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.flip-horizontal-2; label: "Mirror"; tooltip: "Mirror"; selected: Camera.mirror; ghost-toggle: true; clicked => { Camera.set-mirror(!Camera.mirror); } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.grid-3x3; label: "Grid"; tooltip: "Grid"; selected: Camera.grid; ghost-toggle: true; clicked => { Camera.set-grid(!Camera.grid); } }
             Rectangle { horizontal-stretch: 1; }
             if Shell.recording: ToolDivider { }
-            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.square-stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
         }
 
         // The preview, and the shutter with the thumbnail on the right.
@@ -192,7 +191,7 @@ export component CameraPage inherits Rectangle {
                             background: Camera.video-mode ? Tokens.extension-media-record : #FFFFFF;
                             Image {
                                 visible: Camera.recording;
-                                source: Icons.stop;
+                                source: Icons.square-stop;
                                 width: 30px;
                                 height: 30px;
                                 x: (parent.width - self.width) / 2;
@@ -229,7 +228,7 @@ export component CameraPage inherits Rectangle {
                             height: Tokens.icon-medium;
                             x: (parent.width - self.width) / 2;
                             y: (parent.height - self.height) / 2;
-                            source: SharedIcons.image;
+                            source: Icons.image;
                             colorize: Tokens.text-muted;
                         }
                         thumb-ta := TouchArea {

@@ -1,6 +1,7 @@
-//! `cargo xtask ffmpeg`: fetches the pinned FFmpeg build that video playback links against (CV-V.2, decision 0046)
-//! into `<target dir>/ffmpeg/current` (the import libraries, headers and DLLs). The shared ffmpeg-sys-next (rimelight-rs
-//! `vendor/`) finds it there and copies the DLLs next to the built programs. Run it once per machine, and again when the pin changes.
+//! `cargo xtask ffmpeg`: fetches the pinned FFmpeg build that the apps link against (CV-V.2, decision 0046) into
+//! `ffmpeg/current` at the workspace root (the import libraries, headers and DLLs). `.cargo/config.toml` sets `FFMPEG_DIR`
+//! to that folder for every app, and the vendored ffmpeg-sys-next copies the DLLs next to the built programs. Run it once
+//! per machine, and again when the pin changes. Media packaging (`cargo xtask media pack`) fetches it too when missing.
 //!
 //! Windows only for now (video plays on Windows first). It uses the `curl.exe` and `tar.exe` that Windows ships and
 //! PowerShell's `Get-FileHash`, so xtask needs no extra crates.
@@ -30,16 +31,8 @@ pub fn run(args: &[&str]) -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
-    let root = target_dir().join("ffmpeg");
-    let current = root.join("current");
-    let stamp = current.join("PINNED_RELEASE.txt");
-    let wanted = format!("{RELEASE}/{ASSET}");
-    if fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == wanted) {
-        println!("xtask ffmpeg: {ASSET} is already in {}", current.display());
-        return ExitCode::SUCCESS;
-    }
-    match fetch(&root, &current, &stamp, &wanted) {
-        Ok(()) => {
+    match ensure() {
+        Ok(current) => {
             println!("xtask ffmpeg: {ASSET} is in {}", current.display());
             ExitCode::SUCCESS
         }
@@ -48,6 +41,20 @@ pub fn run(args: &[&str]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// The FFmpeg folder the apps link against (`ffmpeg/current` at the workspace root). Fetches the pinned build when that
+/// folder does not hold it yet, and returns the folder. Windows only.
+pub fn ensure() -> Result<PathBuf, String> {
+    let root = workspace_root().join("ffmpeg");
+    let current = root.join("current");
+    let stamp = current.join("PINNED_RELEASE.txt");
+    let wanted = format!("{RELEASE}/{ASSET}");
+    if fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == wanted) {
+        return Ok(current);
+    }
+    fetch(&root, &current, &stamp, &wanted)?;
+    Ok(current)
 }
 
 fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), String> {
@@ -124,14 +131,11 @@ fn sha256_of(path: &Path) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_lowercase())
 }
 
-/// `CARGO_TARGET_DIR` (the shared target folder, see AGENTS.md), else `target/` in the workspace.
-fn target_dir() -> PathBuf {
-    std::env::var_os("CARGO_TARGET_DIR").map_or_else(
-        || {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .map_or_else(|| PathBuf::from("target"), |p| p.join("target"))
-        },
-        PathBuf::from,
-    )
+/// The monorepo root (the folder holding the workspace `Cargo.toml`): this crate is `apps/rimelight-space/xtask`.
+pub fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
 }

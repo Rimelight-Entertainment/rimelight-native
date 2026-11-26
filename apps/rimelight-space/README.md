@@ -73,6 +73,4 @@ rimelight-space/
 
 ## License
 
-Proprietary. Copyright (c) 2026 Rimelight Entertainment. All rights reserved.
-
-See the `LICENSE.md` file for more details.
+MIT License. See [LICENSE.md](LICENSE.md) for more details.

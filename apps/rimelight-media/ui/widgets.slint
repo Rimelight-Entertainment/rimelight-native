@@ -10,10 +10,9 @@
 // - StatusBar: a left text, a centre text and a free row of children (the shared StatusBar is the shell's job and zoom bar).
 // - ShortcutsCtl: the open flag of Media's shortcut list.
 import { ScrollView } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
 import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
 import { IconButton } from "@rimelight_ui/components/icon-button.slint";
 import { Tooltip, TooltipPlacement } from "@rimelight_ui/components/tooltip.slint";
@@ -180,7 +179,7 @@ export component StatusBar inherits Rectangle {
         x: root.width - self.width - Tokens.space-2;
         y: (root.height - self.height) / 2;
         size: ButtonSize.sm;
-        icon: SharedIcons.keyboard;
+        icon: Icons.keyboard;
         label: "Keyboard shortcuts (Ctrl+?)";
         tooltip: "Keyboard shortcuts (Ctrl+?)";
         clicked => { ShortcutsCtl.open = true; }
@@ -219,10 +218,10 @@ export component EmptyState inherits Rectangle {
     property <color> muted: root.on-stage ? #9AA4B2 : Tokens.text-muted;
     // The file-kind tiles of Media: the header tile and the Recent rows use these.
     property <FileKindStyles> file-kinds: {
-        picture: { top-colour: #7DD3FC, bottom-colour: #0284C7, glyph: SharedIcons.image, styled: true },
-        video: { top-colour: #C4B5FD, bottom-colour: #7C3AED, glyph: SharedIcons.video, styled: true },
+        picture: { top-colour: #7DD3FC, bottom-colour: #0284C7, glyph: Icons.image, styled: true },
+        video: { top-colour: #C4B5FD, bottom-colour: #7C3AED, glyph: Icons.video, styled: true },
         music: { top-colour: #FDA4AF, bottom-colour: #E11D48, glyph: Icons.music, styled: true },
-        text: { top-colour: #86EFAC, bottom-colour: #16A34A, glyph: SharedIcons.type, styled: true },
+        text: { top-colour: #86EFAC, bottom-colour: #16A34A, glyph: Icons.type, styled: true },
     };
     property <FileKindStyle> icon-style: root.icon-kind == "picture" ? root.file-kinds.picture
         : root.icon-kind == "video" ? root.file-kinds.video
@@ -286,7 +285,7 @@ export component EmptyState inherits Rectangle {
                             Button {
                                 text: root.open-text;
                                 variant: ButtonVariant.primary;
-                                leading-icon: SharedIcons.folder-open;
+                                leading-icon: Icons.folder-open;
                                 clicked => { root.open(); }
                             }
                             if root.new-text != "": Button {

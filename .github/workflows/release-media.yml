@@ -18,8 +18,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # The Velopack CLI version. Keep in step with apps/rimelight-media/tools/pack.ps1 ($vpkVersion).
-  VPK_VERSION: "1.2.161"
 
 jobs:
   windows:
@@ -31,19 +29,18 @@ jobs:
       - name: Install toolchain from rust-toolchain.toml
         run: rustup show
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3 (Node 24)
-      - name: Install vpk (Velopack CLI)
-        run: dotnet tool install --global vpk --version $env:VPK_VERSION
+      - name: Install vpk (Velopack CLI, the version xtask packs with)
+        run: dotnet tool install --global vpk --version $(cargo xtask media vpk-version)
         shell: pwsh
       - name: Fetch the previous release (for small delta updates)
         working-directory: apps/rimelight-media
         run: vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --outputDir releases
         continue-on-error: true # the first release has nothing to fetch
       - name: Build and pack
-        working-directory: apps/rimelight-media
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^media-v', ''
-          ./tools/pack.ps1 -Version $version -Repo "${{ github.repository }}"
+          cargo xtask media pack --version $version --repo "${{ github.repository }}"
       - name: Publish the GitHub release
         working-directory: apps/rimelight-media
         run: >

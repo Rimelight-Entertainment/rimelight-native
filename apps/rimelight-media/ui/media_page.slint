@@ -1,10 +1,9 @@
 // The video and music player: the top trim row, the waveform track and seek bar, one control row, and the shared
 // StatusBar at the bottom (file facts on the left, full screen on the right).
 import { ScrollView } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
 import { Choice, StageIconButton, StatusBar, ToolButton } from "widgets.slint";
 import { Slider } from "@rimelight_ui/components/slider.slint";
 import { Button, ButtonSize, ButtonVariant } from "@rimelight_ui/components/button.slint";
@@ -31,7 +30,7 @@ component TrackRow inherits Rectangle {
         spacing: Tokens.space-2;
         Rectangle {
             width: Tokens.icon-small;
-            if root.selected: Image { source: @image-url("../assets/icons/check.svg"); width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
+            if root.selected: Image { source: Icons.check; width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
         }
         VerticalLayout {
             alignment: center;
@@ -599,15 +598,15 @@ export component MediaPage inherits Rectangle {
                     HorizontalLayout {
                         spacing: Tokens.space-2;
                         // Previous and Next: the other files in the playlist (disabled at either end).
-                        StageIconButton { icon: SharedIcons.chevron-left; label: "Previous file"; enabled: Player.has-prev; clicked => { Player.play-prev(); } }
-                        StageIconButton { icon: SharedIcons.chevron-right; label: "Next file"; enabled: Player.has-next; clicked => { Player.play-next(); } }
+                        StageIconButton { icon: Icons.chevron-left; label: "Previous file"; enabled: Player.has-prev; clicked => { Player.play-prev(); } }
+                        StageIconButton { icon: Icons.chevron-right; label: "Next file"; enabled: Player.has-next; clicked => { Player.play-next(); } }
                         StageIconButton {
-                            icon: Player.playing ? SharedIcons.pause : SharedIcons.play;
+                            icon: Player.playing ? Icons.pause : Icons.play;
                             label: Player.playing ? "Pause (Space)" : "Play (Space)";
                             clicked => { Player.toggle-play(); }
                         }
-                        StageIconButton { icon: SharedIcons.undo-2; label: "Back 10 s (Left)"; clicked => { Player.skip(-10); } }
-                        StageIconButton { icon: SharedIcons.redo-2; label: "Forward 10 s (Right)"; clicked => { Player.skip(10); } }
+                        StageIconButton { icon: Icons.undo-2; label: "Back 10 s (Left)"; clicked => { Player.skip(-10); } }
+                        StageIconButton { icon: Icons.redo-2; label: "Forward 10 s (Right)"; clicked => { Player.skip(10); } }
                         Text {
                             text: Player.time-text;
                             color: Tokens.extension-media-text-on-stage;
@@ -620,7 +619,7 @@ export component MediaPage inherits Rectangle {
                     HorizontalLayout {
                         spacing: Tokens.space-2;
                         StageIconButton {
-                            icon: Player.muted || Player.volume == 0 ? SharedIcons.volume-x : SharedIcons.volume-2;
+                            icon: Player.muted || Player.volume == 0 ? Icons.volume-x : Icons.volume-2;
                             label: "Mute (M)";
                             clicked => { Player.toggle-mute(); }
                         }
@@ -657,7 +656,7 @@ export component MediaPage inherits Rectangle {
                         }
                         ToolDivider { }
                         audio-btn := StageIconButton {
-                            icon: SharedIcons.languages;
+                            icon: Icons.languages;
                             label: "Audio track";
                             enabled: Player.audio-tracks.length > 0;
                             clicked => { audio-popup.show(); }
@@ -674,7 +673,7 @@ export component MediaPage inherits Rectangle {
                             width: Tokens.size-control-md;
                             height: Tokens.size-control-md;
                             StageIconButton {
-                                icon: SharedIcons.repeat;
+                                icon: Icons.repeat;
                                 label: Player.loop-mode == 0 ? "Repeat: off" : Player.loop-mode == 1 ? "Repeat: once" : "Repeat: forever";
                                 active: Player.loop-mode > 0;
                                 clicked => { Player.toggle-loop(); }
@@ -706,7 +705,7 @@ export component MediaPage inherits Rectangle {
                     spacing: 6px;
                     ToolButton { tooltip-placement: TooltipPlacement.bottom;
                         size: ButtonSize.sm;
-                        icon: SharedIcons.layers;
+                        icon: Icons.layers;
                         label: "Playlist"; tooltip: "Playlist";
                         selected: Player.playlist-on; ghost-toggle: true;
                         enabled: Player.playlist.length > 1;
@@ -714,7 +713,7 @@ export component MediaPage inherits Rectangle {
                     }
                     ToolButton { tooltip-placement: TooltipPlacement.bottom;
                         size: ButtonSize.sm;
-                        icon: SharedIcons.info;
+                        icon: Icons.info;
                         label: "Details (I)"; tooltip: "Details (I)";
                         selected: Player.show-info; ghost-toggle: true;
                         clicked => { Player.toggle-info(); }
@@ -730,7 +729,7 @@ export component MediaPage inherits Rectangle {
                 }
                 ToolButton { tooltip-placement: TooltipPlacement.bottom;
                     size: ButtonSize.sm;
-                    icon: SharedIcons.maximize;
+                    icon: Icons.maximize;
                     label: "Full screen (F)"; tooltip: "Full screen (F)";
                     selected: Shell.full-screen; ghost-toggle: true;
                     clicked => { Shell.toggle-full-screen(); }

@@ -42,7 +42,7 @@ component FocusCard inherits Card {
         Button {
             horizontal-stretch: 1;
             text: "Work";
-            leading-icon: @image-url("icons/timer.svg");
+            leading-icon: Icons.timer;
             variant: root.mode == FocusMode.work ? ButtonVariant.primary : ButtonVariant.secondary;
             size: ButtonSize.md;
             clicked => { root.mode-requested(FocusMode.work); }
@@ -50,7 +50,7 @@ component FocusCard inherits Card {
         Button {
             horizontal-stretch: 1;
             text: "Short";
-            leading-icon: @image-url("icons/timer.svg");
+            leading-icon: Icons.timer;
             variant: root.mode == FocusMode.short ? ButtonVariant.primary : ButtonVariant.secondary;
             size: ButtonSize.md;
             clicked => { root.mode-requested(FocusMode.short); }
@@ -58,7 +58,7 @@ component FocusCard inherits Card {
         Button {
             horizontal-stretch: 1;
             text: "Long";
-            leading-icon: @image-url("icons/timer.svg");
+            leading-icon: Icons.timer;
             variant: root.mode == FocusMode.long ? ButtonVariant.primary : ButtonVariant.secondary;
             size: ButtonSize.md;
             clicked => { root.mode-requested(FocusMode.long); }
@@ -94,7 +94,7 @@ component FocusCard inherits Card {
         Button {
             horizontal-stretch: 1;
             text: root.running ? "Pause Timer" : "Start Focus";
-            leading-icon: @image-url("icons/timer.svg");
+            leading-icon: Icons.timer;
             variant: ButtonVariant.primary;
             size: ButtonSize.md;
             clicked => { root.toggle-requested(); }
@@ -102,7 +102,7 @@ component FocusCard inherits Card {
         Button {
             horizontal-stretch: 1;
             text: "Reset";
-            leading-icon: @image-url("icons/timer.svg");
+            leading-icon: Icons.timer;
             variant: ButtonVariant.secondary;
             size: ButtonSize.md;
             clicked => { root.reset-requested(); }
@@ -170,7 +170,7 @@ component MetronomeCard inherits Card {
 
     Button {
         text: root.running ? "Stop Metronome" : "Start Metronome";
-        leading-icon: @image-url("icons/timer.svg");
+        leading-icon: Icons.timer;
         variant: ButtonVariant.primary;
         size: ButtonSize.md;
         clicked => { root.toggle-requested(); }

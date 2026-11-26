@@ -1,6 +1,6 @@
 // Home: the same layout as the empty tabs (toolbar, the shared EmptyState with Open a file and Recent, status bar).
 import { Tokens } from "@rimelight_design/tokens.slint";
-import { Icons } from "icons.slint";
+import { Brand } from "brand.slint";
 import { StatusBar, EmptyState } from "widgets.slint";
 import { ToolbarRow } from "@rimelight_ui/components/toolbar.slint";
 import { Shell } from "state.slint";
@@ -13,7 +13,7 @@ export component HomePage inherits Rectangle {
         ToolbarRow { }
         EmptyState {
             vertical-stretch: 1;
-            icon: Icons.app-icon;
+            icon: Brand.app-icon;
             icon-full-colour: true;
             title: "Open a file";
             hint: "Drag and drop an image, audio, video, or text file to open it, or select below.";

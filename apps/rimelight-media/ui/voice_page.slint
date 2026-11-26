@@ -1,10 +1,9 @@
 // Voice recorder, like Windows' Sound Recorder: the microphone, the format and the input gain in the top bar, the record
 // button with pause and markers, a level meter, and the list of takes with play, rename, delete and show in folder.
 import { ScrollView, ComboBox, LineEdit } from "std-widgets.slint";
+import { Icons } from "@rimelight_ui/icons.slint";
 import { Tokens } from "@rimelight_design/tokens.slint";
 import { Type } from "@rimelight_ui/typography.slint";
-import { Icons as SharedIcons } from "@rimelight_ui/icons.slint";
-import { Icons } from "icons.slint";
 import { StatusBar, ToolButton } from "widgets.slint";
 import { Slider } from "@rimelight_ui/components/slider.slint";
 import { Button, ButtonVariant } from "@rimelight_ui/components/button.slint";
@@ -20,7 +19,7 @@ export component VoicePage inherits Rectangle {
         // Options: the microphone, the format and the input gain (-12 dB to +24 dB, shown as a 0..1 slider).
         // A compact left-aligned group: each label sits next to its control, and the spacer takes the rest.
         ToolbarRow {
-            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: SharedIcons.mic; label: "Microphone"; tooltip: "Microphone"; clicked => { } }
+            ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.mic; label: "Microphone"; tooltip: "Microphone"; clicked => { } }
             HorizontalLayout {
                 spacing: Tokens.space-2;
                 alignment: start;
@@ -73,7 +72,7 @@ export component VoicePage inherits Rectangle {
             }
             Rectangle { horizontal-stretch: 1; }
             if Shell.recording: ToolDivider { }
-            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
+            if Shell.recording: ToolButton { tooltip-placement: TooltipPlacement.bottom; icon: Icons.square-stop; label: "Stop recording"; tooltip: "Stop recording"; clicked => { Shell.stop-recording(); } }
         }
 
         // The recorder and the takes, centred in the middle.
@@ -106,7 +105,7 @@ export component VoicePage inherits Rectangle {
                                         border-width: 3px;
                                         border-color: Tokens.extension-media-record;
                                         Image {
-                                            source: Voice.recording ? Icons.stop : SharedIcons.mic;
+                                            source: Voice.recording ? Icons.square-stop : Icons.mic;
                                             width: 40px;
                                             height: 40px;
                                             x: (parent.width - self.width) / 2;
@@ -185,7 +184,7 @@ export component VoicePage inherits Rectangle {
                         HorizontalLayout {
                             Text { text: "Recordings"; color: Tokens.text-primary; font-size: Type.heading.size; font-weight: 600; vertical-alignment: center; }
                             Rectangle { }
-                            Button { text: "Open folder"; variant: ButtonVariant.ghost; leading-icon: SharedIcons.folder-open; clicked => { Voice.open-folder(); } }
+                            Button { text: "Open folder"; variant: ButtonVariant.ghost; leading-icon: Icons.folder-open; clicked => { Voice.open-folder(); } }
                         }
                         if Voice.takes.length == 0: Text { text: "No recordings yet."; color: Tokens.text-muted; font-size: Type.body.size; }
                         if Voice.takes.length > 0: Card {
@@ -202,7 +201,7 @@ export component VoicePage inherits Rectangle {
                                             spacing: Tokens.space-3;
                                             Rectangle {
                                                 width: Tokens.icon-medium;
-                                                Image { source: SharedIcons.play; width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
+                                                Image { source: Icons.play; width: Tokens.icon-small; height: Tokens.icon-small; colorize: Tokens.accent-text; }
                                             }
                                             VerticalLayout {
                                                 alignment: center;

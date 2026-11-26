@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() {
     // The shared markup: @rimelight_design/tokens.slint and @rimelight_ui/... (typography, icons, components). Each library path is the crate's UI_DIR, as in rimelight-space. The fluent style stays for the
@@ -18,7 +18,6 @@ fn main() {
         .with_style("fluent".into())
         .with_library_paths(libraries);
     slint_build::compile_with_config("ui/app.slint", config).expect("the Slint markup compiles");
-    copy_ffmpeg_dlls();
     delay_load_ffmpeg();
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         println!("cargo:rerun-if-changed=app.rc");
@@ -59,65 +58,18 @@ pub const SHIPPED: &[&str] = &[
     "swscale-",
 ];
 
-/// Returns the FFmpeg directory: `FFMPEG_DIR`, which `.cargo/config.toml` sets to the workspace's `ffmpeg/current`.
-/// It is fetched by `cargo xtask ffmpeg`, not here, so a build never downloads anything.
-fn ffmpeg_dir() -> Option<PathBuf> {
-    // On non-Windows FFmpeg isn't needed; stub.rs compiles instead.
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
-        return None;
-    }
-    let dir = PathBuf::from(std::env::var_os("FFMPEG_DIR").unwrap_or_default());
-    if dir.join("lib").exists() {
-        return Some(dir);
-    }
-    println!(
-        "cargo:warning=FFmpeg is not in {}; run `cargo xtask ffmpeg` once on this machine",
-        dir.display()
-    );
-    None
-}
-
-/// Puts the FFmpeg DLLs the app uses next to rimelight-media.exe (the profile folder), so the built app starts when run
-/// directly and `cargo xtask media pack` finds them. (The shared ffmpeg-sys-next build script in rimelight-rs copies the linked DLLs
-/// next to the exe too; the same files, so this copy is harmless.)
-fn copy_ffmpeg_dlls() {
-    println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
-    let Some(dir) = ffmpeg_dir() else { return };
-    let bin = dir.join("bin");
-    // A new FFmpeg (`cargo xtask ffmpeg`) must replace the DLLs next to the exe.
-    println!("cargo:rerun-if-changed={}", bin.display());
-    let out = PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default());
-    let profile = std::env::var("PROFILE").unwrap_or_else(|_| "debug".into());
-    let Some(target) = out
-        .ancestors()
-        .find(|a| a.file_name().is_some_and(|n| n == profile.as_str()))
-    else {
-        return;
-    };
-    let Ok(entries) = std::fs::read_dir(&bin) else {
-        println!("cargo:warning=FFmpeg is missing: run `cargo xtask ffmpeg`");
-        return;
-    };
-    for e in entries.flatten() {
-        let p = e.path();
-        let name = e.file_name().to_string_lossy().to_ascii_lowercase();
-        if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("dll"))
-            && SHIPPED.iter().any(|s| name.starts_with(s))
-        {
-            copy_if_changed(&p, &target.join(e.file_name()));
-        }
-    }
-}
-
 /// On MSVC the FFmpeg DLLs are delay-loaded: the process starts without them and Windows loads each one at its first
 /// call (most sessions never open a video or a sound file). The names come from the same bin folder as the copies.
 /// The exe folder stays on the default search path, so no SetDllDirectory is needed.
+/// `DEP_FFMPEG_FFMPEG_DIR` is the FFmpeg folder the ffmpeg-sys-next build script found (`ffmpeg/current`).
 fn delay_load_ffmpeg() {
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("msvc") {
         return;
     }
     println!("cargo:rustc-link-lib=delayimp");
-    let Some(dir) = ffmpeg_dir() else { return };
+    let Some(dir) = std::env::var_os("DEP_FFMPEG_FFMPEG_DIR").map(PathBuf::from) else {
+        return;
+    };
     let Ok(entries) = std::fs::read_dir(dir.join("bin")) else {
         return;
     };
@@ -127,12 +79,5 @@ fn delay_load_ffmpeg() {
         if lower.ends_with(".dll") && SHIPPED.iter().any(|s| lower.starts_with(s)) {
             println!("cargo:rustc-link-arg-bins=/DELAYLOAD:{name}");
         }
-    }
-}
-
-fn copy_if_changed(from: &Path, to: &Path) {
-    let same = matches!((std::fs::metadata(from), std::fs::metadata(to)), (Ok(a), Ok(b)) if a.len() == b.len());
-    if !same && let Err(e) = std::fs::copy(from, to) {
-        println!("cargo:warning=could not copy {}: {e}", from.display());
     }
 }

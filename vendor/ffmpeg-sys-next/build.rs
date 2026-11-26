@@ -7,16 +7,15 @@
 //! - `<target>.cfg`: every `cargo:` line upstream printed except linking (cfg flags, check-cfg lines and the
 //!   `DEP_FFMPEG_*` metadata `ffmpeg-next` reads), printed again here.
 //!
-//! Linking: the FFmpeg import libraries and DLLs come from the pinned FFmpeg build in `<folder>/current`, where
-//! `<folder>` is `FFMPEG_DIR` when it is set, else the first `ffmpeg/` folder above `OUT_DIR` or above this crate
-//! (an app's `ffmpeg/current` in its repo, or `<target dir>/ffmpeg/current`). Each app fetches it with its own
-//! command (see the search order below).
+//! Linking: the FFmpeg build is `ffmpeg/current` at the workspace root, the folder that holds `ffmpeg-pin.txt`
+//! (the pin: which release to fetch, and the only place its version is written). `cargo xtask ffmpeg` fills the folder.
 //! Only `avutil` and the libraries whose cargo feature is on are linked, so an app without `device` or `filter`
 //! does not need avdevice or avfilter. The DLLs of those libraries are copied into the profile folder
 //! (`target/debug` or `target/release`), next to the app's exe, so it starts when run directly; that folder is also
 //! reported as a native search path, because cargo puts search paths inside the profile folder (and only those) on
 //! `PATH` for `cargo run` and `cargo test`. Test binaries live in per-unit folders under `build/`, so this is how
-//! they find the DLLs.
+//! they find the DLLs. The folder is also published as the `ffmpeg_dir` metadata (`DEP_FFMPEG_FFMPEG_DIR` for
+//! dependents), so an app can find the DLLs without a second copy of this rule.
 //! A missing FFmpeg folder is only a warning: `cargo check` and clippy do not link.
 //!
 //! Recording the files again (new FFmpeg version or a new target): build upstream ffmpeg-sys-next once with
@@ -25,10 +24,6 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// The pinned FFmpeg build, `<release>/<asset>`, as `tools/ffmpeg/pin.txt` records it (`release` and `asset` lines).
-/// A pin change updates this constant, `pin.txt`, and each app's fetch command together.
-const PIN: &str = "ffmpeg-n9.0.2-r1/rimelight-ffmpeg-n9.0.2-r1-win64-lgpl-shared.zip";
 
 /// The libraries upstream links, in its order.
 const LIBS: &[&str] = &[
@@ -46,7 +41,6 @@ fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("set by cargo"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("set by cargo"));
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
 
     let bindings = manifest.join("bindings").join(format!("{target}.rs"));
     let cfg = manifest.join("bindings").join(format!("{target}.cfg"));
@@ -74,17 +68,17 @@ fn main() {
         })
         .collect();
 
-    match ffmpeg_dir(&out_dir, &manifest) {
+    match ffmpeg_dir(&manifest) {
         Some(dir) => {
             check_pin(&dir);
+            println!("cargo:ffmpeg_dir={}", dir.display());
             println!("cargo:rustc-link-search=native={}", dir.join("lib").display());
             if let Some(profile) = copy_dlls(&dir.join("bin"), &out_dir, &linked) {
                 println!("cargo:rustc-link-search=native={}", profile.display());
             }
         }
         None => println!(
-            "cargo:warning=FFmpeg is not set up: run your app's FFmpeg fetch (Space: `cargo xtask ffmpeg`; Media: \
-             `tools/get-ffmpeg.ps1`); check and clippy work without it"
+            "cargo:warning=FFmpeg is not set up: run `cargo xtask ffmpeg`; check and clippy work without it"
         ),
     }
     for lib in &linked {
@@ -92,28 +86,31 @@ fn main() {
     }
 }
 
-/// The FFmpeg folder (the one holding `lib/`, `bin/`): `FFMPEG_DIR` if set, else the first `ffmpeg/current` found
-/// above `OUT_DIR` (the target folder, or an app's repo when the target folder sits inside it) or above this crate.
-fn ffmpeg_dir(out_dir: &Path, manifest: &Path) -> Option<PathBuf> {
-    if let Some(dir) = env::var_os("FFMPEG_DIR") {
-        let dir = PathBuf::from(dir);
-        return dir.join("lib").is_dir().then_some(dir);
-    }
-    out_dir
-        .ancestors()
-        .chain(manifest.ancestors())
-        .map(|a| a.join("ffmpeg").join("current"))
-        .find(|candidate| candidate.join("lib").is_dir())
+/// The workspace root: the nearest folder above this crate that holds `ffmpeg-pin.txt`.
+fn workspace_root(manifest: &Path) -> Option<PathBuf> {
+    manifest.ancestors().find(|a| a.join("ffmpeg-pin.txt").is_file()).map(Path::to_path_buf)
 }
 
-/// Warns when the folder was fetched for another pin than `PIN` (`PINNED_RELEASE.txt`, written by the fetch command).
+/// The FFmpeg folder (the one holding `lib/`, `bin/`): `ffmpeg/current` at the workspace root, when it has `lib/`.
+fn ffmpeg_dir(manifest: &Path) -> Option<PathBuf> {
+    let dir = workspace_root(manifest)?.join("ffmpeg").join("current");
+    dir.join("lib").is_dir().then_some(dir)
+}
+
+/// Warns when the folder was fetched for another release than `ffmpeg-pin.txt` names (`PINNED_RELEASE.txt`, written
+/// by `cargo xtask ffmpeg`).
 fn check_pin(dir: &Path) {
     let Ok(found) = fs::read_to_string(dir.join("PINNED_RELEASE.txt")) else { return };
     let found = found.trim();
-    if found != PIN {
+    let Some(pin) = workspace_root(dir).and_then(|root| fs::read_to_string(root.join("ffmpeg-pin.txt")).ok()) else {
+        return;
+    };
+    let release = pin.lines().find_map(|l| l.strip_prefix("release=")).unwrap_or_default();
+    let asset = pin.lines().find_map(|l| l.strip_prefix("asset=")).unwrap_or_default();
+    let wanted = format!("{release}/{asset}");
+    if found != wanted {
         println!(
-            "cargo:warning=the FFmpeg folder {} holds {found}, but this build expects {PIN}; re-fetch it (your app's \
-             FFmpeg fetch command)",
+            "cargo:warning=the FFmpeg folder {} holds {found}, but ffmpeg-pin.txt names {wanted}; run `cargo xtask ffmpeg`",
             dir.display()
         );
     }

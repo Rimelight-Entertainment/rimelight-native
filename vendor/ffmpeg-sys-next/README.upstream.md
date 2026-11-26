@@ -52,9 +52,11 @@ changes are all in `build.rs` and `bindings/`; the crate's doc comment explains 
 - **DLL copy.** The DLLs of the linked libraries are copied next to the built programs (the profile folder, found as
   the parent of the nearest `build` folder above `OUT_DIR`, so it works for both Cargo layouts), and that folder is
   added as a native search path so `cargo run` and `cargo test` find them.
-- **FFmpeg folder.** `FFMPEG_DIR` when set, else the first `ffmpeg/current` above `OUT_DIR` or above this crate. Each
-  app fetches its build there: Space with `cargo xtask ffmpeg` (into the target folder), Media with
-  `tools/get-ffmpeg.ps1`.
-- **Pin check.** `PIN` in `build.rs` names the FFmpeg build this crate expects. If the folder's `PINNED_RELEASE.txt`
-  says otherwise, the build warns and the folder should be fetched again.
+- **FFmpeg folder.** `ffmpeg/current` at the workspace root: the nearest folder above this crate that holds
+  `ffmpeg-pin.txt`. There is no override variable. Fetch it with `cargo xtask ffmpeg` (both apps use the same folder).
+- **Pin check.** `ffmpeg-pin.txt` names the FFmpeg build the apps expect (`release=` and `asset=`, the only place the
+  version is written). If the folder's `PINNED_RELEASE.txt` says otherwise, the build warns and the folder should be
+  fetched again.
+- **Metadata.** The folder is published as `ffmpeg_dir`, so dependents read `DEP_FFMPEG_FFMPEG_DIR` (Media's
+  delay-loading does this) instead of repeating the rule.
 - **Warning, not error, without FFmpeg.** A missing folder prints a warning; `cargo check` and clippy still work.

@@ -1,7 +1,8 @@
 //! `cargo xtask ffmpeg`: fetches the pinned FFmpeg build that the apps link against (CV-V.2, decision 0046) into
-//! `ffmpeg/current` at the workspace root (the import libraries, headers and DLLs). `.cargo/config.toml` sets `FFMPEG_DIR`
-//! to that folder for every app, and the vendored ffmpeg-sys-next copies the DLLs next to the built programs. Run it once
-//! per machine, and again when the pin changes. Media packaging (`cargo xtask media pack`) fetches it too when missing.
+//! `ffmpeg/current` at the workspace root (the import libraries, headers and DLLs). The pin is `ffmpeg-pin.txt` at the
+//! workspace root, the only place its version is written; the vendored ffmpeg-sys-next build script reads the same file
+//! and copies the DLLs next to the built programs. Run it once per machine, and again when the pin changes. Media
+//! packaging (`cargo xtask media pack`) fetches it too when missing.
 //!
 //! Windows only for now (video plays on Windows first). It uses the `curl.exe` and `tar.exe` that Windows ships and
 //! PowerShell's `Get-FileHash`, so xtask needs no extra crates.
@@ -10,15 +11,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-/// The pinned build: the trimmed LGPL FFmpeg 9.0 for win64 shared by the Rimelight apps (rimelight-rs
-/// `tools/ffmpeg`, options in `tools/ffmpeg/options.txt`). Keep these in step with rimelight-rs `tools/ffmpeg/pin.txt`
-/// and the `PIN` in its `vendor/ffmpeg-sys-next/build.rs`, which warns on a mismatch.
-const RELEASE: &str = "ffmpeg-n9.0.2-r1";
-const ASSET: &str = "rimelight-ffmpeg-n9.0.2-r1-win64-lgpl-shared.zip";
-const SHA256: &str = "013136dbfe3ae75d6f2eadcd6bec35f7a2fc49d2163996f01625ef5a912d0de0";
+/// The pin file: `release=`, `asset=` and `sha256=` lines. Read at compile time, so xtask and the build scripts agree.
+const PIN: &str = include_str!("../../../../ffmpeg-pin.txt");
 /// Where the asset is published (still rimelight-media's release, until rimelight-rs publishes its own).
-const URL_BASE: &str =
-    "https://github.com/Rimelight-Entertainment/rimelight-media/releases/download";
+const URL_BASE: &str = "https://github.com/Rimelight-Entertainment/rimelight-media/releases/download";
+
+/// The value of one `key=` line of the pin file.
+fn pin(key: &str) -> &'static str {
+    PIN.lines()
+        .find_map(|line| line.strip_prefix(key))
+        .unwrap_or_else(|| panic!("ffmpeg-pin.txt has no `{key}` line"))
+}
 
 pub fn run(args: &[&str]) -> ExitCode {
     if !args.is_empty() {
@@ -33,7 +36,7 @@ pub fn run(args: &[&str]) -> ExitCode {
     }
     match ensure() {
         Ok(current) => {
-            println!("xtask ffmpeg: {ASSET} is in {}", current.display());
+            println!("xtask ffmpeg: {} is in {}", pin("asset="), current.display());
             ExitCode::SUCCESS
         }
         Err(err) => {
@@ -49,7 +52,7 @@ pub fn ensure() -> Result<PathBuf, String> {
     let root = workspace_root().join("ffmpeg");
     let current = root.join("current");
     let stamp = current.join("PINNED_RELEASE.txt");
-    let wanted = format!("{RELEASE}/{ASSET}");
+    let wanted = format!("{}/{}", pin("release="), pin("asset="));
     if fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == wanted) {
         return Ok(current);
     }
@@ -58,10 +61,11 @@ pub fn ensure() -> Result<PathBuf, String> {
 }
 
 fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), String> {
+    let asset = pin("asset=");
     let dl = root.join("dl");
     fs::create_dir_all(&dl).map_err(|e| format!("create {}: {e}", dl.display()))?;
-    let zip = dl.join(ASSET);
-    let url = format!("{URL_BASE}/{RELEASE}/{ASSET}");
+    let zip = dl.join(asset);
+    let url = format!("{URL_BASE}/{}/{asset}", pin("release="));
     println!("==> downloading {url}");
     let status = Command::new("curl.exe")
         .args([
@@ -77,14 +81,15 @@ fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), 
         .map_err(|e| format!("curl.exe could not start: {e}"))?;
     if !status.success() {
         return Err(format!(
-            "the download failed ({status}); check the pin against rimelight-rs `tools/ffmpeg/pin.txt`"
+            "the download failed ({status}); check the pin in ffmpeg-pin.txt"
         ));
     }
     let hash = sha256_of(&zip)?;
-    if !hash.eq_ignore_ascii_case(SHA256) {
+    let expected = pin("sha256=");
+    if !hash.eq_ignore_ascii_case(expected) {
         let _ = fs::remove_file(&zip);
         return Err(format!(
-            "{ASSET} has SHA-256 {hash}, expected {SHA256}; the file was removed"
+            "{asset} has SHA-256 {hash}, expected {expected}; the file was removed"
         ));
     }
     let unpack = dl.join("unpack");
@@ -99,7 +104,7 @@ fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), 
         .status()
         .map_err(|e| format!("tar.exe could not start: {e}"))?;
     if !status.success() {
-        return Err(format!("unpacking {ASSET} failed ({status})"));
+        return Err(format!("unpacking {asset} failed ({status})"));
     }
     // The zip holds one folder named like the asset.
     let inner = fs::read_dir(&unpack)

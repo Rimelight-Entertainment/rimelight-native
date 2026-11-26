@@ -4958,6 +4958,7 @@ dependencies = [
  "cpal",
  "embed-resource",
  "ffmpeg-next",
+ "ffmpeg-sys-next",
  "global-hotkey",
  "image",
  "pulldown-cmark",

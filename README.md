@@ -1,6 +1,6 @@
 ﻿# rimelight-native
 
-Rimelight Rust monorepo — apps and shared packages.
+The monorepository for native rust-based apps and packages by Rimelight Entertainment
 
 ## Structure
 
@@ -25,20 +25,6 @@ packages/
 vendor/
   ffmpeg-sys-next/      ← FFmpeg bindings (checked in; no clang/headers needed)
 ```
-
-## Getting started
-
-```sh
-# Build a specific app
-cargo build -p rimelight-media
-
-# Run the component gallery
-cargo run -p rimelight_gallery
-```
-
-## Shared packages
-
-Packages in `packages/` are consumed by all apps as local path dependencies — no git tags or network required after cloning this repo.
 
 ## License
 

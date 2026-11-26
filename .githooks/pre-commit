@@ -1,43 +1,13 @@
 #!/bin/sh
-# Pre-commit check for Rust, Slint and Cargo changes. Docs-only commits return at once.
-# Steps: (1) cargo fmt --all -- --check, (2) cargo clippy --workspace --all-targets -- -D warnings.
-# Always the whole workspace (decision 0043): one dependency build shared with the gate and the agent test command.
-# Dry run: RIMELIGHT_HOOK_DRY=1 prints the commands without running them.
-# Override the staged list: RIMELIGHT_HOOK_FILES="a b c" (dry runs and tests only).
-# Never bypass this hook with git commit --no-verify (AGENTS.md).
-# Reads no stdin.
+cd "$(git rev-parse --show-toplevel)" || exit 1
 
-root=$(git rev-parse --show-toplevel) || { echo "pre-commit: not inside a git work tree" >&2; exit 1; }
-cd "$root" || exit 1
+# Only check when Rust, Slint or Cargo files are staged.
+git diff --cached --name-only --diff-filter=ACMR \
+  | grep -qE '\.(rs|slint)$|(^|/)(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml)$|^\.cargo/config\.toml$' \
+  || exit 0
 
-plan=$(node "$root/.githooks/staged-check.js" < /dev/null) || {
-  echo "pre-commit: could not read the staged files (message above). Commit blocked." >&2
-  exit 1
-}
+echo "pre-commit: cargo fmt --all -- --check"
+cargo fmt --all -- --check || { echo "pre-commit: run cargo fmt --all, then recommit" >&2; exit 1; }
 
-if [ "$plan" = "skip" ]; then
-  if [ "${RIMELIGHT_HOOK_DRY:-0}" = "1" ]; then
-    echo "pre-commit (dry run): nothing relevant staged, would exit 0 at once"
-  fi
-  exit 0
-fi
-
-if [ "${RIMELIGHT_HOOK_DRY:-0}" = "1" ]; then
-  echo "pre-commit (dry run): would run: cargo fmt --all -- --check"
-  echo "pre-commit (dry run): would run: cargo clippy --workspace --all-targets -- -D warnings"
-  exit 0
-fi
-
-echo "pre-commit: step 1/2: cargo fmt --all -- --check"
-cargo fmt --all -- --check || {
-  echo "pre-commit: FAILED at step 1/2 (cargo fmt --all -- --check). Run cargo fmt --all, then recommit." >&2
-  exit 1
-}
-
-echo "pre-commit: step 2/2: cargo clippy --workspace --all-targets -- -D warnings"
-cargo clippy --workspace --all-targets -- -D warnings || {
-  echo "pre-commit: FAILED at step 2/2 (clippy). Fix the warnings, then recommit." >&2
-  exit 1
-}
-
-exit 0
+echo "pre-commit: cargo clippy --workspace --all-targets -- -D warnings"
+cargo clippy --workspace --all-targets -- -D warnings || { echo "pre-commit: fix clippy warnings, then recommit" >&2; exit 1; }

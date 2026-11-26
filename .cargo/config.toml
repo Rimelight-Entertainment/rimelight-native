@@ -1,9 +1,6 @@
 [registry]
 global-min-publish-age = "1 day"
 
-[env]
-FFMPEG_DIR = { value = "ffmpeg/current", relative = true, force = true }
-
 [alias]
 xtask = "run --package xtask --"
 

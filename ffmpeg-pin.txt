@@ -1,0 +1,5 @@
+# The FFmpeg build every Rimelight app links against (CV-V.2, decision 0046). The only place the version lives:
+# `cargo xtask ffmpeg` fetches it into ffmpeg/current, and the vendored ffmpeg-sys-next build script reads this file.
+release=ffmpeg-n9.0.2-r1
+asset=rimelight-ffmpeg-n9.0.2-r1-win64-lgpl-shared.zip
+sha256=013136dbfe3ae75d6f2eadcd6bec35f7a2fc49d2163996f01625ef5a912d0de0

@@ -42,6 +42,5 @@
 
 ## 3. Immediate Next Steps
 
-1. **Benchmarking Suite:** Run `tools/bench.ps1` to confirm memory footprint remains < 60 MB under typical workloads.
-2. **Release Tagging:** Push next release tag (`v0.X.X`) to trigger GitHub Actions Velopack installer build.
-3. **File Associations:** Validate default Windows application registration for HEIC and AVIF files.
+1. **Release Tagging:** Push next release tag (`v0.X.X`) to trigger GitHub Actions Velopack installer build.
+2. **File Associations:** Validate default Windows application registration for HEIC and AVIF files.

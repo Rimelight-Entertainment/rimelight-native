@@ -11,8 +11,5 @@
 *.jar binary
 *.mp4 binary
 
-# Git LFS (rimelight-media raw camera samples)
-apps/rimelight-media/samples/raw/** filter=lfs diff=lfs merge=lfs -text
-
 # Generated FFmpeg bindings (CV-V.2): hidden from diffs and language stats.
 vendor/ffmpeg-sys-next/bindings/** linguist-generated=true -diff

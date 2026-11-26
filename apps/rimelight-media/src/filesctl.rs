@@ -369,7 +369,7 @@ fn type_label(name: &str, is_dir: bool) -> &'static str {
     if archive::format_of(path).is_some() {
         return "Archive";
     }
-    match files::kind_of(path) {
+    match files::open_kind(path) {
         Some(Kind::Image) => "Picture",
         Some(Kind::Video) => "Video",
         Some(Kind::Audio) => "Audio",

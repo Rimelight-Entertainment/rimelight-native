@@ -54,9 +54,6 @@ cargo run
 
 # 3. Build & install local release package via Velopack
 powershell -ExecutionPolicy Bypass -File tools/pack.ps1 -Install
-
-# 4. Run resource benchmarks
-powershell -ExecutionPolicy Bypass -File tools/bench.ps1
 ```
 
 ---

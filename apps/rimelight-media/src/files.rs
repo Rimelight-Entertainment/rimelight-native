@@ -28,7 +28,8 @@ pub const SUBTITLE_EXTS: &[&str] = &["srt", "vtt", "ass", "ssa"];
 /// Plain text the Text tab edits (Notepad's job): notes, Markdown, JSON and config or log files.
 pub const TEXT_EXTS: &[&str] = &[
     "txt", "md", "markdown", "json", "toml", "yaml", "yml", "ini", "cfg", "conf", "log", "csv",
-    "xml", "env", "text", "rs", "js", "ts", "html", "css", "bat", "ps1", "sh",
+    "xml", "env", "text", "rs", "js", "mjs", "cjs", "jsx", "ts", "tsx", "html", "css", "bat", "ps1",
+    "sh",
 ];
 
 pub fn ext_of(path: &Path) -> String {
@@ -51,6 +52,35 @@ pub fn kind_of(path: &Path) -> Option<Kind> {
         Some(Kind::Text)
     } else {
         None
+    }
+}
+
+/// What a file opens as: its extension when it has a known one, else text when its first bytes read as text. Reads the
+/// file, so use it when opening one file, not for every file in a listing (`kind_of` is the listing's cheap check).
+pub fn open_kind(path: &Path) -> Option<Kind> {
+    kind_of(path).or_else(|| (path.is_file() && looks_like_text(path)).then_some(Kind::Text))
+}
+
+/// True when the first 8 KB have no NUL byte and are valid UTF-8 (a character cut off at the end of the read is fine).
+/// Covers dotfiles such as `.gitattributes`, extensionless files and any unknown text format.
+pub fn looks_like_text(path: &Path) -> bool {
+    use std::io::Read;
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut head = [0u8; 8192];
+    let Ok(n) = file.read(&mut head) else {
+        return false;
+    };
+    let full = n == head.len();
+    let head = &head[..n];
+    if head.contains(&0) {
+        return false;
+    }
+    match std::str::from_utf8(head) {
+        Ok(_) => true,
+        // Only a full read can end in the middle of a character; a short file that ends so is invalid.
+        Err(e) => full && e.error_len().is_none(),
     }
 }
 
@@ -226,9 +256,33 @@ mod tests {
         assert_eq!(kind_of(Path::new("x.mkv")), Some(Kind::Video));
         assert_eq!(kind_of(Path::new("x.flac")), Some(Kind::Audio));
         assert_eq!(kind_of(Path::new("x.txt")), Some(Kind::Text));
+        assert_eq!(kind_of(Path::new("App.tsx")), Some(Kind::Text));
+        assert_eq!(kind_of(Path::new("App.JSX")), Some(Kind::Text));
         assert_eq!(kind_of(Path::new("x.exe")), None);
         assert_eq!(clock(75_000), "1:15");
         assert_eq!(clock(3_723_000), "1:02:03");
+    }
+
+    #[test]
+    fn unknown_names_open_by_content() {
+        let dir = std::env::temp_dir().join(format!("rimelight-media-kind-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let text = dir.join(".gitattributes");
+        let empty = dir.join("Dockerfile");
+        let binary = dir.join("blob.unknown");
+        let bad_utf8 = dir.join("latin1.unknown");
+        std::fs::write(&text, "* text=auto eol=lf\n").unwrap();
+        std::fs::write(&empty, "").unwrap();
+        std::fs::write(&binary, [0x89, 0x50, 0x00, 0x47]).unwrap();
+        std::fs::write(&bad_utf8, [0x63, 0x61, 0x66, 0xE9]).unwrap();
+        assert_eq!(kind_of(&text), None, "listing check stays extension-only");
+        assert_eq!(open_kind(&text), Some(Kind::Text));
+        assert_eq!(open_kind(&empty), Some(Kind::Text));
+        assert_eq!(open_kind(&binary), None);
+        assert_eq!(open_kind(&bad_utf8), None);
+        assert_eq!(open_kind(&dir.join("missing")), None);
+        assert_eq!(open_kind(Path::new("x.mkv")), Some(Kind::Video));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

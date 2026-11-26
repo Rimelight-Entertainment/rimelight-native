@@ -442,7 +442,7 @@ pub fn open_many(app: &Rc<App>, paths: &[PathBuf]) {
 }
 
 pub fn open_path(app: &Rc<App>, path: &Path) {
-    match files::kind_of(path) {
+    match files::open_kind(path) {
         Some(Kind::Image) => viewer::open(app, path),
         Some(Kind::Text) => textctl::open(app, path),
         Some(Kind::Video | Kind::Audio) => mediactl::open(app, path),

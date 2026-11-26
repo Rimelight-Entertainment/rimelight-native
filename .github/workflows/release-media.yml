@@ -1,7 +1,7 @@
 name: Release Rimelight Media
 
 # Pushing a version tag such as media-v0.3.0 builds the Windows installer and update package and publishes them as a GitHub release.
-# The tag version (without `media-v`) must equal `version` in apps/rimelight-media/Cargo.toml.
+# The tag version (without `media-v`) must equal `version` in apps/rimelight-media/apps/desktop/Cargo.toml.
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
         run: dotnet tool install --global vpk --version $(cargo xtask media vpk-version)
         shell: pwsh
       - name: Fetch the previous release (for small delta updates)
-        working-directory: apps/rimelight-media
+        working-directory: apps/rimelight-media/apps/desktop
         run: vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --outputDir releases
         continue-on-error: true # the first release has nothing to fetch
       - name: Build and pack
@@ -42,7 +42,7 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^media-v', ''
           cargo xtask media pack --version $version --repo "${{ github.repository }}"
       - name: Publish the GitHub release
-        working-directory: apps/rimelight-media
+        working-directory: apps/rimelight-media/apps/desktop
         run: >
           vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
           --token "${{ secrets.GITHUB_TOKEN }}" --publish

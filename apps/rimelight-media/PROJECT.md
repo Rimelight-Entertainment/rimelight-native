@@ -1,17 +1,10 @@
 # Rimelight Media — Project Specification
 
-> **Status:** Single Source of Truth & Authoritative Technical Manual  
-> **Type:** High-Performance Unified Media Application for Windows  
-> **Primary Technology:** Rust 2024 | Slint | Trimmed LGPL FFmpeg | Velopack  
-> **Footprint:** ~30 MB installed, zero runtime dependencies.
-
----
-
 ## 1. High-Level Vision & Scope
 
 **Rimelight Media** is a compact, ultra-fast Windows utility and media player designed to replace bloated default and third-party desktop tools. It combines viewing, playing, markup, editing, screen capture, camera capture, and text editing into a single lightweight ~30 MB native binary.
 
-### Applications Replaced
+### 1.1 Applications Replaced
 
 | Windows / 3rd-Party App | Rimelight Media Replacement |
 |---|---|
@@ -23,9 +16,7 @@
 | **Sound Recorder** | Microphone Voice & Audio Recorder |
 | **Paint / MS Paint 3D** | Vector & Raster Canvas Studio |
 
----
-
-## 2. Technical Architecture
+## 1.2 Technical Architecture
 
 ```mermaid
 flowchart TD
@@ -51,12 +42,10 @@ flowchart TD
     Core --> Distribution
 ```
 
-### Architecture Highlights
+### 1.3 Architecture Highlights
 - **Engine & GUI:** Rust 2024 paired with **Slint** for low-memory, GPU-accelerated interface rendering.
 - **FFmpeg Integration:** Custom trimmed LGPL FFmpeg build (approx. 17 MB DLLs) fetched by `cargo xtask ffmpeg` into the workspace's `ffmpeg/current`. Decodes H.264, HEVC, AV1, VP9, MP3, FLAC, AAC, WAV, OGG, Opus without requiring external codecs.
 - **Installer & Auto-Updates:** Packaged with **Velopack**. Installs per-user (`%LOCALAPPDATA%\RimelightMedia`) without UAC prompts and automatically updates in the background.
-
----
 
 ## 3. Comprehensive Feature Catalog
 
@@ -95,8 +84,6 @@ flowchart TD
 - **Webcam Tool:** Capture stills and video from any connected webcam with mirror, grid, and timer modes (saved to `Pictures\Camera Roll`).
 - **Voice Recorder:** Selectable microphone input, pause/resume recording, audio waveform markers, and direct export to M4A, WAV, or FLAC.
 
----
-
 ## 4. Keyboard Shortcuts
 
 | Context | Shortcut | Action |
@@ -119,17 +106,9 @@ flowchart TD
 | **Text** | `Ctrl + S` / `Ctrl + Shift + S` | Save / Save As |
 | | `Ctrl + F` | Find and Replace |
 
----
-
 ## Status
 
-> **Current Milestone:** Windows Desktop Shell & Codec Stabilization  
-> **Target Alignment:** Mirrors the architecture and features defined in PROJECT.md.  
-> **Status:** Live Feature Maturity Matrix & Verification Tracker.
-
----
-
-### 1. Feature Completion Matrix
+### Feature Completion
 
 | Module | Feature | Status | Implementation Details & Next Steps |
 |---|---|---|---|
@@ -150,20 +129,3 @@ flowchart TD
 | **Camera** | Webcam Stills & Video | ✅ Done | Camera roll integration, grid, timer, and resolution selection. |
 | **Voice** | Voice Recorder | ✅ Done | Microphone recording to M4A/WAV/FLAC with waveform markers. |
 | **Installer** | Velopack Auto-Update | ✅ Done | Per-user setup, background delta updates, file associations. |
-
----
-
-### 2. Active Verification Checklist (Owner PC)
-
-- [ ] **Details Panels:** Test Audio, Video, and Text inspector panels for layout accuracy and responsiveness.
-- [ ] **Playlists (Audio/Video):** Verify queue persistence and shuffle/repeat modes across long sessions.
-- [ ] **Image Slideshow:** Verify transition timings and memory cleanup during folder traversal.
-- [ ] **Files Tab:** Verify navigation and context menu actions in the integrated folder browser.
-- [ ] **Round 3 Fixes:** Verify high-DPI scaling on 4K displays and multi-monitor snip coordinates.
-
----
-
-### 3. Immediate Next Steps
-
-1. **Release Tagging:** Push next release tag (`v0.X.X`) to trigger GitHub Actions Velopack installer build.
-2. **File Associations:** Validate default Windows application registration for HEIC and AVIF files.

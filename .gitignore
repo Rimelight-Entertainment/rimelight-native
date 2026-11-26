@@ -70,6 +70,6 @@ logs/
 .cache/
 
 # ── Samples: tracked explicitly (rimelight-media) ─────────────────────────────
-# All sample files are plain git files (see apps/rimelight-media/samples/README.md).
-!apps/rimelight-media/samples/
-!apps/rimelight-media/samples/**
+# All sample files are plain git files (see apps/rimelight-media/apps/desktop/samples/README.md).
+!apps/rimelight-media/apps/desktop/samples/
+!apps/rimelight-media/apps/desktop/samples/**

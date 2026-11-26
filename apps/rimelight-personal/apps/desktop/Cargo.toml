@@ -34,3 +34,5 @@ slint.workspace = true
 
 [target.'cfg(windows)'.build-dependencies]
 slint-build.workspace = true
+# The app icon and version information inside the exe (app.rc), compiled with the Windows SDK's rc.exe.
+embed-resource = "3"

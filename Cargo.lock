@@ -6039,6 +6039,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "personal_desktop"
 version = "0.1.0"
 dependencies = [
+ "embed-resource",
  "rimelight_personal_nav",
  "rimelight_personal_ui_slint",
  "rimelight_platform",
@@ -8323,6 +8324,7 @@ dependencies = [
 name = "space_desktop"
 version = "0.1.0"
 dependencies = [
+ "embed-resource",
  "global-hotkey",
  "rimelight_platform",
  "rimelight_update",

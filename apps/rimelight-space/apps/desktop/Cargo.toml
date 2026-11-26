@@ -33,3 +33,7 @@ global-hotkey = "0.7"
 [target.'cfg(windows)'.dependencies]
 rimelight_update = { workspace = true }
 space_update_slint = { path = "../../crates/space_update_slint" }
+
+# Windows only: the app icon and version information inside the exe (app.rc, build.rs), compiled with the Windows SDK's rc.exe.
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3"

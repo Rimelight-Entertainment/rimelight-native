@@ -19,6 +19,13 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            // The shared launcher icons (mipmap-*) live in the app-root assets folder, not in this module.
+            res.srcDirs("../../../../assets/android")
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false

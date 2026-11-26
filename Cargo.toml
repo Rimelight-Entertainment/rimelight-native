@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     # Apps
-    "apps/rimelight-media",
+    "apps/rimelight-media/apps/*",
     "apps/rimelight-space/apps/*",
     "apps/rimelight-space/areas/*",
     "apps/rimelight-space/backend/*",

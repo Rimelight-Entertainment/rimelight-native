@@ -1,0 +1,29 @@
+// Embedded in space_desktop.exe by build.rs: the app icon (shortcuts, taskbar) and the version information Windows
+// shows as the app's name (Task Manager, Properties > Details). The version is passed in by build.rs.
+1 ICON "../../assets/logo/logo_color.ico"
+
+1 VERSIONINFO
+FILEVERSION APP_VERSION_COMMAS
+PRODUCTVERSION APP_VERSION_COMMAS
+FILEOS 0x40004L
+FILETYPE 0x1L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Rimelight Entertainment"
+            VALUE "FileDescription", "Rimelight Space"
+            VALUE "FileVersion", APP_VERSION_TEXT
+            VALUE "InternalName", "space_desktop"
+            VALUE "OriginalFilename", "space_desktop.exe"
+            VALUE "ProductName", "Rimelight Space"
+            VALUE "ProductVersion", APP_VERSION_TEXT
+            VALUE "LegalCopyright", "Rimelight Entertainment"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

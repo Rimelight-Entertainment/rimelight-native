@@ -1,5 +1,5 @@
 //! `cargo xtask media pack`: builds Rimelight Media in release mode and packs it with Velopack's `vpk`, the way
-//! `cargo xtask release pack` packs Space. The output folder (`apps/rimelight-media/releases`) is what the release workflow
+//! `cargo xtask release pack` packs Space. The output folder (`apps/rimelight-media/apps/desktop/releases`) is what the release workflow
 //! uploads to GitHub. `--install` also installs the packed setup on this PC.
 //!
 //! Windows only for now, like `cargo xtask ffmpeg` (which it runs first when the FFmpeg folder is missing). `vpk` must be on
@@ -16,7 +16,7 @@ const VPK_VERSION: &str = "1.2.161";
 const PACK_ID: &str = "RimelightMedia";
 const TITLE: &str = "Rimelight Media";
 const AUTHORS: &str = "Rimelight Entertainment";
-/// The app's exe, as `apps/rimelight-media/Cargo.toml` names its binary. Installed copies look for this name.
+/// The app's exe, as `apps/rimelight-media/apps/desktop/Cargo.toml` names its binary. Installed copies look for this name.
 const MAIN_EXE: &str = "rimelight-media.exe";
 const PACKAGE: &str = "media_desktop";
 /// The GitHub repository the build bakes in, so installed copies update from its releases (`option_env!` in the app).
@@ -28,7 +28,7 @@ const USAGE: &str = "\
 usage: cargo xtask media pack [--version <x.y.z>] [--repo <owner/name>] [--install]
        cargo xtask media vpk-version
 
-  --version     the version to pack; must equal the version in apps/rimelight-media/Cargo.toml (the default)
+  --version     the version to pack; must equal the version in apps/rimelight-media/apps/desktop/Cargo.toml (the default)
   --repo        the GitHub repository baked into the build (default: $RIMELIGHT_MEDIA_REPO; none means no update checks)
   --install     install the packed setup on this PC (silent)
   vpk-version   print the Velopack CLI version the release workflow must install";
@@ -98,7 +98,7 @@ fn pack(args: &[&str]) -> Result<(), String> {
     let version = options.version.clone().unwrap_or_else(|| cargo_version.clone());
     if version != cargo_version {
         return Err(format!(
-            "version {version} doesn't match apps/rimelight-media/Cargo.toml ({cargo_version}); bump it first"
+            "version {version} doesn't match apps/rimelight-media/apps/desktop/Cargo.toml ({cargo_version}); bump it first"
         ));
     }
 
@@ -239,7 +239,7 @@ fn megabytes(path: &Path) -> Result<String, String> {
     Ok(format!("{:.1}", bytes as f64 / 1_048_576.0))
 }
 
-/// `version` under `[package]` in apps/rimelight-media/Cargo.toml.
+/// `version` under `[package]` in apps/rimelight-media/apps/desktop/Cargo.toml.
 fn cargo_version() -> Result<String, String> {
     let manifest = media_dir().join("Cargo.toml");
     let text = fs::read_to_string(&manifest)
@@ -265,6 +265,8 @@ fn media_dir() -> PathBuf {
     crate::ffmpeg::workspace_root()
         .join("apps")
         .join("rimelight-media")
+        .join("apps")
+        .join("desktop")
 }
 
 /// `CARGO_TARGET_DIR` when set (the shared target folder, see AGENTS.md), else `target/` in the workspace.

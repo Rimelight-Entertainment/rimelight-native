@@ -9369,7 +9369,6 @@ dependencies = [
  "rimelight_ui_kit",
  "slint",
  "slint-interpreter",
- "spin_on",
 ]
 
 [[package]]

@@ -8,8 +8,13 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::pin;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::task::{Context, Poll, Wake, Waker};
+use std::thread::{self, Thread};
 use std::time::{Duration, SystemTime};
 
 use rimelight_ui_kit::table;
@@ -157,7 +162,7 @@ pub fn compile(app_dir: Option<&Path>) -> Result<CompilationResult, String> {
     libraries.insert(APP_LIBRARY.to_string(), stories);
     let mut compiler = Compiler::default();
     compiler.set_library_paths(libraries);
-    let result = spin_on::spin_on(compiler.build_from_path(dev_slint()));
+    let result = block_on(compiler.build_from_path(dev_slint()));
     if result.has_errors() {
         let lines: Vec<String> = result
             .diagnostics()
@@ -167,6 +172,28 @@ pub fn compile(app_dir: Option<&Path>) -> Result<CompilationResult, String> {
         return Err(lines.join("\n"));
     }
     Ok(result)
+}
+
+/// Wakes the thread that is blocked in [`block_on`].
+struct ThreadWaker(Thread);
+
+impl Wake for ThreadWaker {
+    fn wake(self: Arc<Self>) {
+        self.0.unpark();
+    }
+}
+
+/// Runs a future to completion on the current thread. The compile future only needs the thread to park between polls.
+fn block_on<F: Future>(future: F) -> F::Output {
+    let waker = Waker::from(Arc::new(ThreadWaker(thread::current())));
+    let mut context = Context::from_waker(&waker);
+    let mut future = pin!(future);
+    loop {
+        match future.as_mut().poll(&mut context) {
+            Poll::Ready(output) => return output,
+            Poll::Pending => thread::park(),
+        }
+    }
 }
 
 fn set(ui: &ComponentInstance, name: &str, value: Value) {

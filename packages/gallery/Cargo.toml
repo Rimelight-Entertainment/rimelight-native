@@ -27,4 +27,3 @@ slint-interpreter = { workspace = true }
 # The headless platform for captures and the interpreter tests (software renderer, no native window).
 i-slint-backend-testing = { workspace = true, features = ["renderer-software"] }
 image = { workspace = true }
-spin_on = { workspace = true }

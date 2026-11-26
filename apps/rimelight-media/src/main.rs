@@ -145,7 +145,7 @@ fn parse() -> Result<Args, String> {
     Ok(args)
 }
 
-/// Developer check of the engine without the window (set RIMELIGHT_MEDIA_SELFTEST to a folder holding sample.mkv): trims the
+/// Developer check of the engine without the window (set RIMELIGHT_MEDIA_SELFTEST to the samples folder, which holds sample.mkv and the codec clips): trims the
 /// sample, grabs the screen and records the screen with the computer's sound for two seconds.
 fn selftest(dir: &std::path::Path) -> ExitCode {
     let mut ok = true;
@@ -199,9 +199,21 @@ fn selftest(dir: &std::path::Path) -> ExitCode {
             println!("speed: failed: {e}")
         }
     }
-    // Every file in codecs/: video gives a frame, sound gives decoded samples.
-    let mut codec_files: Vec<_> = std::fs::read_dir(dir.join("codecs"))
-        .map(|rd| rd.flatten().map(|e| e.path()).collect())
+    // Every media file in the folder: video gives a frame, sound gives decoded samples.
+    const MEDIA_EXTENSIONS: &[&str] = &[
+        "mkv", "mp4", "mov", "avi", "mpg", "ogv", "wmv", "webm", "ac3", "flac", "m4a", "ogg", "opus", "wav", "wma", "mp3",
+    ];
+    let mut codec_files: Vec<_> = std::fs::read_dir(dir)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.extension()
+                        .and_then(|x| x.to_str())
+                        .is_some_and(|x| MEDIA_EXTENSIONS.contains(&x.to_ascii_lowercase().as_str()))
+                })
+                .collect()
+        })
         .unwrap_or_default();
     codec_files.sort();
     for f in codec_files {

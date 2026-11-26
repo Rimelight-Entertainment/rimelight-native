@@ -2,18 +2,14 @@
 global-min-publish-age = "1 day"
 
 [env]
-# Shared trimmed FFmpeg build, fetched by `cargo xtask ffmpeg` (media packaging fetches it too). Every app links it from here.
 FFMPEG_DIR = { value = "ffmpeg/current", relative = true, force = true }
 
 [alias]
 xtask = "run --package xtask --"
 
-# getrandom 0.3 on wasm32-unknown-unknown needs its JS backend selected by this cfg.
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
 
-# Link with the LLVM linker shipped in the toolchain: much faster than MSVC link.exe for Slint apps.
-# Static CRT (+crt-static) avoids requiring the Visual C++ Redistributable on Windows.
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
 rustflags = ["-C", "target-feature=+crt-static"]

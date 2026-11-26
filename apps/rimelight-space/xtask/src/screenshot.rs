@@ -1,4 +1,4 @@
-//! `cargo xtask screenshot`: capture PNGs to check a UI change (PLAN.md section 10.2, decision 0006).
+//! `cargo xtask screenshot`: capture PNGs to check a UI change (PROJECT.md section 10.2, decision 0006).
 //!
 //! - `windows`: builds the example or binary (`--screenshot` flag, `Window::render_to_image`), runs it, and
 //!   validates the PNG. `--bin` with `--story` targets the gallery (`space_gallery`, P0.15).

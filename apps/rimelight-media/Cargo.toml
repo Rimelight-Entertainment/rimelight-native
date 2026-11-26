@@ -18,17 +18,11 @@ future_incompatible = { level = "deny", priority = -1 }
 unsafe_code = "deny"
 
 [dependencies]
-# Shared packages — now local path deps via the root workspace.
 rimelight_ui_kit = { workspace = true }
-# Video and sound: the FFmpeg + cpal engine with subtitles, speed and trimming.
 rimelight_media = { workspace = true, features = ["slint"] }
-# Pictures: decode (with RAW and HEIF), thumbnails, animation, edits, markup and saving.
 rimelight_picture = { workspace = true, features = ["raw", "heif"] }
-# OS calls shared with Rimelight Space.
 rimelight_platform = { workspace = true }
-# Self-update from GitHub Releases with Velopack.
 rimelight_update = { workspace = true }
-# The window and every screen. Femtovg draws on the GPU; the software renderer is the fallback.
 slint = { version = "=1.18.1", default-features = false, features = [
     "std",
     "backend-winit",

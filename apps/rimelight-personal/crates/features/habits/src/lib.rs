@@ -12,10 +12,10 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use idantity_core::habits::{HabitAction, HabitData};
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::habits::{HabitAction, HabitData};
+use rimelight_personal_core::{ApiClient, ApiError};
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_habits`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_habits`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Month names, January first, as the web's month tabs and the egui page list them.
@@ -593,7 +593,7 @@ fn civil_from_days(z: i64) -> (i32, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use idantity_core::habits::{Habit, HabitCategory, HabitYear};
+    use rimelight_personal_core::habits::{Habit, HabitCategory, HabitYear};
 
     /// Records each call and answers at once: the tracker `data`, or the next scripted failure.
     #[derive(Default)]

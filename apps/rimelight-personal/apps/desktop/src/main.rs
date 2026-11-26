@@ -1,23 +1,23 @@
-//! The idantity desktop app: a thin entry. The window, sign-in and every page are in `idantity_ui_slint`.
+//! The Rimelight Personal desktop app: a thin entry. The window, sign-in and every page are in `rimelight_personal_ui_slint`.
 //!
-//! Run: `cargo run -p idantity_desktop`.
+//! Run: `cargo run -p personal_desktop`.
 //!
 //! Flags (all optional):
 //! - `--route <path>`: the page shown at start, a concrete path such as `/finances/bills` (default `/`).
 //! - `--theme <light|dark|system>`: the theme (default system).
 //!
 //! Installed Windows copies (Velopack) check for a newer version before the window opens and update first. The log file is
-//! `%LOCALAPPDATA%\idantity\desktop.log`.
+//! `%LOCALAPPDATA%\rimelight-personal\desktop.log`.
 
 // Release builds are GUI apps: no console window. Debug builds keep the console for `cargo run` logs.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::process::ExitCode;
 
-use idantity_nav::parse;
+use rimelight_personal_nav::parse;
 use rimelight_ui_kit::theme::Mode;
 
-const TOOL: &str = "idantity_desktop";
+const TOOL: &str = "personal_desktop";
 
 // Installer hooks, the start-up update check and the forced-update watcher (Windows installed copies only).
 #[cfg(windows)]
@@ -74,7 +74,7 @@ fn main() -> ExitCode {
         update::watch();
     }
 
-    match idantity_ui_slint::shell::run(&route, mode) {
+    match rimelight_personal_ui_slint::shell::run(&route, mode) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{TOOL}: {e}");
@@ -83,14 +83,14 @@ fn main() -> ExitCode {
     }
 }
 
-/// Sends the log lines (`rimelight_platform::log_line`) to `%LOCALAPPDATA%\idantity\desktop.log`. Without the folder, the
+/// Sends the log lines (`rimelight_platform::log_line`) to `%LOCALAPPDATA%\rimelight-personal\desktop.log`. Without the folder, the
 /// lines are dropped.
 #[cfg(windows)]
 fn set_log_file() {
     let Some(local) = std::env::var_os("LOCALAPPDATA") else {
         return;
     };
-    let folder = std::path::PathBuf::from(local).join("idantity");
+    let folder = std::path::PathBuf::from(local).join("Rimelight Personal");
     if std::fs::create_dir_all(&folder).is_ok() {
         rimelight_platform::set_log_file(folder.join("desktop.log"));
     }

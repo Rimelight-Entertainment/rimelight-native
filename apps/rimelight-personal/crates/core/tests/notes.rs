@@ -1,8 +1,8 @@
 //! Notes wire format, checked against responses captured from the local backend
 //! (`fixtures/notes_list.raw`, `fixtures/note_create.raw`).
 
-use idantity_core::ApiError;
-use idantity_core::notes::{
+use rimelight_personal_core::ApiError;
+use rimelight_personal_core::notes::{
     NewNote, NoteBatch, NoteBatchAction, NotePatch, decode_note, decode_notes,
 };
 use serde_json::json;

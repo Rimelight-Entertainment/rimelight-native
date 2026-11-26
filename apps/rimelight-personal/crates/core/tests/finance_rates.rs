@@ -1,5 +1,5 @@
-use idantity_core::finance::decode_finances;
-use idantity_core::rates::{Rates, convert_to_brl};
+use rimelight_personal_core::finance::decode_finances;
+use rimelight_personal_core::rates::{Rates, convert_to_brl};
 
 fn rates(json: &str) -> Rates {
     serde_json::from_str(json).expect("fixture rates decode")

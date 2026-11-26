@@ -1,5 +1,5 @@
 [package]
-name = "idantity-web"
+name = "rimelight-personal-web"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
-# The same Slint app shell as apps/desktop (idantity_ui_slint). Built for the browser with `trunk build --release` from this
+# The same Slint app shell as apps/desktop (rimelight_personal_ui_slint). Built for the browser with `trunk build --release` from this
 # folder (index.html names the bin). No eframe, no crates/app.
 [dependencies]
-idantity_ui_slint.workspace = true
+rimelight_personal_ui_slint.workspace = true
 rimelight_ui_kit.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

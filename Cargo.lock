@@ -3835,193 +3835,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "913a7d294ad056474749152107309fdee3ec17d2482d1ab70fdc61a81c64b9a3"
 
 [[package]]
-name = "idantity-web"
-version = "0.1.0"
-dependencies = [
- "idantity_ui_slint",
- "rimelight_ui_kit",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "idantity_core"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "crypto_box",
- "ehttp",
- "getrandom 0.3.4",
- "jiff",
- "js-sys",
- "keyring",
- "open",
- "serde",
- "serde_json",
- "web-sys",
-]
-
-[[package]]
-name = "idantity_feature_finances"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_focus"
-version = "0.1.0"
-dependencies = [
- "rimelight_sound",
-]
-
-[[package]]
-name = "idantity_feature_habits"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_health"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
- "jiff",
- "js-sys",
- "rimelight_platform",
- "rimelight_sound",
- "web-time",
-]
-
-[[package]]
-name = "idantity_feature_housing"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_inbox"
-version = "0.1.0"
-dependencies = [
- "ehttp",
- "idantity_core",
- "jiff",
- "js-sys",
- "rimelight_picture",
- "rimelight_platform",
- "web-time",
-]
-
-[[package]]
-name = "idantity_feature_music"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
- "rimelight_platform",
- "rimelight_sound",
-]
-
-[[package]]
-name = "idantity_feature_notebooks"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_notes"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_overview"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
-]
-
-[[package]]
-name = "idantity_feature_projects"
-version = "0.1.0"
-dependencies = [
- "ehttp",
- "idantity_core",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "idantity_feature_storage"
-version = "0.1.0"
-dependencies = [
- "ehttp",
- "idantity_core",
- "rimelight_media",
- "rimelight_picture",
-]
-
-[[package]]
-name = "idantity_feature_todos"
-version = "0.1.0"
-dependencies = [
- "ehttp",
- "idantity_core",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "idantity_feature_watchlist"
-version = "0.1.0"
-dependencies = [
- "idantity_core",
- "rimelight_platform",
- "rimelight_ui_kit",
-]
-
-[[package]]
-name = "idantity_nav"
-version = "0.1.0"
-
-[[package]]
-name = "idantity_ui_slint"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "i-slint-backend-testing",
- "idantity_core",
- "idantity_feature_finances",
- "idantity_feature_focus",
- "idantity_feature_habits",
- "idantity_feature_health",
- "idantity_feature_housing",
- "idantity_feature_inbox",
- "idantity_feature_music",
- "idantity_feature_notebooks",
- "idantity_feature_notes",
- "idantity_feature_overview",
- "idantity_feature_projects",
- "idantity_feature_storage",
- "idantity_feature_todos",
- "idantity_feature_watchlist",
- "idantity_nav",
- "open",
- "rimelight_design",
- "rimelight_media",
- "rimelight_picture",
- "rimelight_platform",
- "rimelight_shell",
- "rimelight_ui",
- "rimelight_ui_kit",
- "slint",
- "slint-build",
- "web-sys",
-]
-
-[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6225,8 +6038,8 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "personal_desktop"
 version = "0.1.0"
 dependencies = [
- "idantity_nav",
- "idantity_ui_slint",
+ "rimelight_personal_nav",
+ "rimelight_personal_ui_slint",
  "rimelight_platform",
  "rimelight_ui_kit",
  "rimelight_update",
@@ -7157,6 +6970,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rimelight-personal-web"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_ui_slint",
+ "rimelight_ui_kit",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "rimelight_android"
 version = "0.1.0"
 dependencies = [
@@ -7218,6 +7040,184 @@ dependencies = [
  "cpal",
  "ffmpeg-next",
  "slint",
+]
+
+[[package]]
+name = "rimelight_personal_core"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "crypto_box",
+ "ehttp",
+ "getrandom 0.3.4",
+ "jiff",
+ "js-sys",
+ "keyring",
+ "open",
+ "serde",
+ "serde_json",
+ "web-sys",
+]
+
+[[package]]
+name = "rimelight_personal_feature_finances"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_focus"
+version = "0.1.0"
+dependencies = [
+ "rimelight_sound",
+]
+
+[[package]]
+name = "rimelight_personal_feature_habits"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_health"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "js-sys",
+ "rimelight_personal_core",
+ "rimelight_platform",
+ "rimelight_sound",
+ "web-time",
+]
+
+[[package]]
+name = "rimelight_personal_feature_housing"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_inbox"
+version = "0.1.0"
+dependencies = [
+ "ehttp",
+ "jiff",
+ "js-sys",
+ "rimelight_personal_core",
+ "rimelight_picture",
+ "rimelight_platform",
+ "web-time",
+]
+
+[[package]]
+name = "rimelight_personal_feature_music"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+ "rimelight_platform",
+ "rimelight_sound",
+]
+
+[[package]]
+name = "rimelight_personal_feature_notebooks"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_notes"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_overview"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+]
+
+[[package]]
+name = "rimelight_personal_feature_projects"
+version = "0.1.0"
+dependencies = [
+ "ehttp",
+ "rimelight_personal_core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "rimelight_personal_feature_storage"
+version = "0.1.0"
+dependencies = [
+ "ehttp",
+ "rimelight_media",
+ "rimelight_personal_core",
+ "rimelight_picture",
+]
+
+[[package]]
+name = "rimelight_personal_feature_todos"
+version = "0.1.0"
+dependencies = [
+ "ehttp",
+ "rimelight_personal_core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "rimelight_personal_feature_watchlist"
+version = "0.1.0"
+dependencies = [
+ "rimelight_personal_core",
+ "rimelight_platform",
+ "rimelight_ui_kit",
+]
+
+[[package]]
+name = "rimelight_personal_nav"
+version = "0.1.0"
+
+[[package]]
+name = "rimelight_personal_ui_slint"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "i-slint-backend-testing",
+ "open",
+ "rimelight_design",
+ "rimelight_media",
+ "rimelight_personal_core",
+ "rimelight_personal_feature_finances",
+ "rimelight_personal_feature_focus",
+ "rimelight_personal_feature_habits",
+ "rimelight_personal_feature_health",
+ "rimelight_personal_feature_housing",
+ "rimelight_personal_feature_inbox",
+ "rimelight_personal_feature_music",
+ "rimelight_personal_feature_notebooks",
+ "rimelight_personal_feature_notes",
+ "rimelight_personal_feature_overview",
+ "rimelight_personal_feature_projects",
+ "rimelight_personal_feature_storage",
+ "rimelight_personal_feature_todos",
+ "rimelight_personal_feature_watchlist",
+ "rimelight_personal_nav",
+ "rimelight_picture",
+ "rimelight_platform",
+ "rimelight_shell",
+ "rimelight_ui",
+ "rimelight_ui_kit",
+ "slint",
+ "slint-build",
+ "web-sys",
 ]
 
 [[package]]

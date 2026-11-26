@@ -1,0 +1,192 @@
+// The Health route: the feature's HealthPage fed by HealthState, which the Rust glue (src/pages/health.rs) fills.
+import { HealthPage, HealthSetRow, HealthExerciseRow, HealthExerciseDay, HealthStretchRow, HealthRoutine, HealthStageRow, HealthHistoryBar, HealthMetricRow } from "@rimelight_personal_feature_health/health.slint";
+import { CalendarDay } from "@rimelight_ui/components/calendar-grid.slint";
+import { ChartPoint } from "@rimelight_ui/components/chart.slint";
+
+export { HealthSetRow, HealthExerciseRow, HealthExerciseDay, HealthStretchRow, HealthRoutine, HealthStageRow, HealthHistoryBar, HealthMetricRow } from "@rimelight_personal_feature_health/health.slint";
+
+export global HealthState {
+    in-out property <int> section: 0;
+    in-out property <bool> loading;
+    in-out property <string> error;
+    in-out property <string> notice;
+    in-out property <[string]> protocols;
+    in-out property <int> protocol: 0;
+    in-out property <string> custom-hours;
+    in-out property <bool> custom-start-on;
+    in-out property <[CalendarDay]> start-days;
+    in-out property <[string]> weekday-labels;
+    in-out property <string> start-title;
+    in-out property <string> start-label;
+    in-out property <int> start-hour;
+    in-out property <int> start-minute;
+    in-out property <bool> has-active;
+    in-out property <string> active-id;
+    in-out property <string> active-started;
+    in-out property <string> active-elapsed;
+    in-out property <string> active-goal;
+    in-out property <float> active-progress;
+    in-out property <string> active-stage;
+    in-out property <string> active-stage-description;
+    in-out property <[HealthStageRow]> stages;
+    in-out property <[HealthHistoryBar]> history;
+    in-out property <int> workout-tab: 0;
+    in-out property <[HealthExerciseDay]> exercise-days;
+    in-out property <[HealthRoutine]> routines;
+    in-out property <string> rest-remaining;
+    in-out property <bool> runner-active;
+    in-out property <string> runner-routine;
+    in-out property <string> runner-current;
+    in-out property <string> runner-remaining;
+    in-out property <string> runner-step;
+    in-out property <bool> runner-paused;
+    in-out property <bool> runner-finished;
+    in-out property <float> runner-progress;
+    in-out property <string> new-day-name;
+    in-out property <string> new-exercise-name;
+    in-out property <string> new-routine-name;
+    in-out property <string> new-stretch-name;
+    in-out property <string> new-stretch-duration;
+    in-out property <[string]> years;
+    in-out property <string> year;
+    in-out property <[HealthMetricRow]> metrics;
+    in-out property <string> weight-unit;
+    in-out property <string> weight-gap;
+    in-out property <string> body-fat-gap;
+    in-out property <string> goal-current-weight;
+    in-out property <string> goal-target-weight;
+    in-out property <string> goal-current-body-fat;
+    in-out property <string> goal-target-body-fat;
+    in-out property <string> goal-unit;
+    in-out property <string> chart-metric-name;
+    in-out property <[ChartPoint]> chart;
+    in-out property <string> new-metric-name;
+    in-out property <string> new-metric-unit: "cm";
+    in-out property <string> new-metric-target;
+
+    callback dismiss-requested();
+    callback protocol-requested(int);
+    callback custom-hours-changed(string);
+    callback custom-start-toggled(bool);
+    callback pick-start-day-requested(int);
+    callback step-start-month-requested(int);
+    callback start-time-requested(int, int);
+    callback chart-metric-requested(string);
+    callback start-fast-requested();
+    callback end-fast-requested(string);
+    callback workout-tab-requested(int);
+    callback add-day-requested(string);
+    callback delete-day-requested(string);
+    callback add-exercise-requested(string, string);
+    callback delete-exercise-requested(string, string);
+    callback exercise-notes-changed(string, string, string);
+    callback add-set-requested(string, string);
+    callback delete-set-requested(string, string, string);
+    callback set-field-changed(string, string, string, int, string);
+    callback toggle-set-requested(string, string, string);
+    callback add-routine-requested(string);
+    callback delete-routine-requested(string);
+    callback add-stretch-requested(string, string, string);
+    callback delete-stretch-requested(string, string);
+    callback start-routine-requested(string);
+    callback routine-command-requested(string);
+    callback year-requested(string);
+    callback cell-changed(string, int, string);
+    callback add-metric-requested(string, string, string);
+    callback remove-metric-requested(string);
+    callback goals-requested(string, string, string, string, string);
+}
+
+export component HealthRoute inherits Rectangle {
+    HealthPage {
+        section: HealthState.section;
+        loading: HealthState.loading;
+        error: HealthState.error;
+        notice: HealthState.notice;
+        protocols: HealthState.protocols;
+        protocol: HealthState.protocol;
+        custom-hours <=> HealthState.custom-hours;
+        custom-start-on <=> HealthState.custom-start-on;
+        start-days: HealthState.start-days;
+        weekday-labels: HealthState.weekday-labels;
+        start-title: HealthState.start-title;
+        start-label: HealthState.start-label;
+        start-hour: HealthState.start-hour;
+        start-minute: HealthState.start-minute;
+        has-active: HealthState.has-active;
+        active-id: HealthState.active-id;
+        active-started: HealthState.active-started;
+        active-elapsed: HealthState.active-elapsed;
+        active-goal: HealthState.active-goal;
+        active-progress: HealthState.active-progress;
+        active-stage: HealthState.active-stage;
+        active-stage-description: HealthState.active-stage-description;
+        stages: HealthState.stages;
+        history: HealthState.history;
+        workout-tab: HealthState.workout-tab;
+        exercise-days: HealthState.exercise-days;
+        routines: HealthState.routines;
+        rest-remaining: HealthState.rest-remaining;
+        runner-active: HealthState.runner-active;
+        runner-routine: HealthState.runner-routine;
+        runner-current: HealthState.runner-current;
+        runner-remaining: HealthState.runner-remaining;
+        runner-step: HealthState.runner-step;
+        runner-paused: HealthState.runner-paused;
+        runner-finished: HealthState.runner-finished;
+        runner-progress: HealthState.runner-progress;
+        new-day-name <=> HealthState.new-day-name;
+        new-exercise-name <=> HealthState.new-exercise-name;
+        new-routine-name <=> HealthState.new-routine-name;
+        new-stretch-name <=> HealthState.new-stretch-name;
+        new-stretch-duration <=> HealthState.new-stretch-duration;
+        years: HealthState.years;
+        year: HealthState.year;
+        metrics: HealthState.metrics;
+        weight-unit: HealthState.weight-unit;
+        weight-gap: HealthState.weight-gap;
+        body-fat-gap: HealthState.body-fat-gap;
+        goal-current-weight <=> HealthState.goal-current-weight;
+        goal-target-weight <=> HealthState.goal-target-weight;
+        goal-current-body-fat <=> HealthState.goal-current-body-fat;
+        goal-target-body-fat <=> HealthState.goal-target-body-fat;
+        goal-unit <=> HealthState.goal-unit;
+        chart-metric-name: HealthState.chart-metric-name;
+        chart: HealthState.chart;
+        new-metric-name <=> HealthState.new-metric-name;
+        new-metric-unit <=> HealthState.new-metric-unit;
+        new-metric-target <=> HealthState.new-metric-target;
+
+        dismiss-requested() => { HealthState.dismiss-requested(); }
+        protocol-requested(i) => { HealthState.protocol-requested(i); }
+        custom-hours-changed(t) => { HealthState.custom-hours-changed(t); }
+        custom-start-toggled(on) => { HealthState.custom-start-toggled(on); }
+        pick-start-day-requested(i) => { HealthState.pick-start-day-requested(i); }
+        step-start-month-requested(d) => { HealthState.step-start-month-requested(d); }
+        start-time-requested(h, m) => { HealthState.start-time-requested(h, m); }
+        chart-metric-requested(id) => { HealthState.chart-metric-requested(id); }
+        start-fast-requested() => { HealthState.start-fast-requested(); }
+        end-fast-requested(id) => { HealthState.end-fast-requested(id); }
+        workout-tab-requested(i) => { HealthState.workout-tab-requested(i); }
+        add-day-requested(n) => { HealthState.add-day-requested(n); }
+        delete-day-requested(id) => { HealthState.delete-day-requested(id); }
+        add-exercise-requested(cat, n) => { HealthState.add-exercise-requested(cat, n); }
+        delete-exercise-requested(cat, ex) => { HealthState.delete-exercise-requested(cat, ex); }
+        exercise-notes-changed(cat, ex, t) => { HealthState.exercise-notes-changed(cat, ex, t); }
+        add-set-requested(cat, ex) => { HealthState.add-set-requested(cat, ex); }
+        delete-set-requested(cat, ex, set) => { HealthState.delete-set-requested(cat, ex, set); }
+        set-field-changed(cat, ex, set, field, t) => { HealthState.set-field-changed(cat, ex, set, field, t); }
+        toggle-set-requested(cat, ex, set) => { HealthState.toggle-set-requested(cat, ex, set); }
+        add-routine-requested(n) => { HealthState.add-routine-requested(n); }
+        delete-routine-requested(id) => { HealthState.delete-routine-requested(id); }
+        add-stretch-requested(cat, n, d) => { HealthState.add-stretch-requested(cat, n, d); }
+        delete-stretch-requested(cat, id) => { HealthState.delete-stretch-requested(cat, id); }
+        start-routine-requested(cat) => { HealthState.start-routine-requested(cat); }
+        routine-command-requested(c) => { HealthState.routine-command-requested(c); }
+        year-requested(y) => { HealthState.year-requested(y); }
+        cell-changed(metric, month, t) => { HealthState.cell-changed(metric, month, t); }
+        add-metric-requested(n, u, t) => { HealthState.add-metric-requested(n, u, t); }
+        remove-metric-requested(id) => { HealthState.remove-metric-requested(id); }
+        goals-requested(u, cw, tw, cbf, tbf) => { HealthState.goals-requested(u, cw, tw, cbf, tbf); }
+    }
+}

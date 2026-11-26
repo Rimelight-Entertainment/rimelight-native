@@ -10,8 +10,8 @@ members = [
     "apps/rimelight-space/xtask",
     "apps/rimelight-personal/apps/*",
     "apps/rimelight-personal/crates/core",
-    "apps/rimelight-personal/crates/idantity_nav",
-    "apps/rimelight-personal/crates/idantity_ui_slint",
+    "apps/rimelight-personal/crates/rimelight_personal_nav",
+    "apps/rimelight-personal/crates/rimelight_personal_ui_slint",
     "apps/rimelight-personal/crates/features/*",
 
     # Packages
@@ -54,23 +54,23 @@ rimelight_gallery       = { package = "ui_gallery", path = "packages/gallery" }
 ehttp = "0.7.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-idantity_core              = { path = "apps/rimelight-personal/crates/core" }
-idantity_nav               = { path = "apps/rimelight-personal/crates/idantity_nav" }
-idantity_ui_slint          = { path = "apps/rimelight-personal/crates/idantity_ui_slint" }
-idantity_feature_overview  = { path = "apps/rimelight-personal/crates/features/overview" }
-idantity_feature_todos     = { path = "apps/rimelight-personal/crates/features/todos" }
-idantity_feature_focus     = { path = "apps/rimelight-personal/crates/features/focus" }
-idantity_feature_notes     = { path = "apps/rimelight-personal/crates/features/notes" }
-idantity_feature_habits    = { path = "apps/rimelight-personal/crates/features/habits" }
-idantity_feature_watchlist = { path = "apps/rimelight-personal/crates/features/watchlist" }
-idantity_feature_music     = { path = "apps/rimelight-personal/crates/features/music" }
-idantity_feature_notebooks = { path = "apps/rimelight-personal/crates/features/notebooks" }
-idantity_feature_projects  = { path = "apps/rimelight-personal/crates/features/projects" }
-idantity_feature_finances  = { path = "apps/rimelight-personal/crates/features/finances" }
-idantity_feature_housing   = { path = "apps/rimelight-personal/crates/features/housing" }
-idantity_feature_health    = { path = "apps/rimelight-personal/crates/features/health" }
-idantity_feature_inbox     = { path = "apps/rimelight-personal/crates/features/inbox" }
-idantity_feature_storage   = { path = "apps/rimelight-personal/crates/features/storage" }
+rimelight_personal_core              = { path = "apps/rimelight-personal/crates/core" }
+rimelight_personal_nav               = { path = "apps/rimelight-personal/crates/rimelight_personal_nav" }
+rimelight_personal_ui_slint          = { path = "apps/rimelight-personal/crates/rimelight_personal_ui_slint" }
+rimelight_personal_feature_overview  = { path = "apps/rimelight-personal/crates/features/overview" }
+rimelight_personal_feature_todos     = { path = "apps/rimelight-personal/crates/features/todos" }
+rimelight_personal_feature_focus     = { path = "apps/rimelight-personal/crates/features/focus" }
+rimelight_personal_feature_notes     = { path = "apps/rimelight-personal/crates/features/notes" }
+rimelight_personal_feature_habits    = { path = "apps/rimelight-personal/crates/features/habits" }
+rimelight_personal_feature_watchlist = { path = "apps/rimelight-personal/crates/features/watchlist" }
+rimelight_personal_feature_music     = { path = "apps/rimelight-personal/crates/features/music" }
+rimelight_personal_feature_notebooks = { path = "apps/rimelight-personal/crates/features/notebooks" }
+rimelight_personal_feature_projects  = { path = "apps/rimelight-personal/crates/features/projects" }
+rimelight_personal_feature_finances  = { path = "apps/rimelight-personal/crates/features/finances" }
+rimelight_personal_feature_housing   = { path = "apps/rimelight-personal/crates/features/housing" }
+rimelight_personal_feature_health    = { path = "apps/rimelight-personal/crates/features/health" }
+rimelight_personal_feature_inbox     = { path = "apps/rimelight-personal/crates/features/inbox" }
+rimelight_personal_feature_storage   = { path = "apps/rimelight-personal/crates/features/storage" }
 
 [workspace.lints.rust]
 future_incompatible = { level = "deny", priority = -1 }

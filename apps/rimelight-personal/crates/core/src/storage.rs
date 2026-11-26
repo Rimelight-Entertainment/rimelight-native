@@ -76,7 +76,7 @@ pub struct UploadFile<'a> {
     pub bytes: &'a [u8],
 }
 
-const BOUNDARY: &str = "idantity-storage-boundary";
+const BOUNDARY: &str = "rimelight-personal-storage-boundary";
 
 pub fn decode_files(bytes: &[u8]) -> Result<Vec<StorageFile>, ApiError> {
     serde_json::from_slice::<FileList>(bytes)
@@ -383,7 +383,7 @@ mod tests {
         assert!(body.contains(
             "name=\"file\"; filename=\"a%22b.txt\"\r\nContent-Type: text/plain\r\n\r\nhi\r\n"
         ));
-        assert!(body.ends_with("--idantity-storage-boundary--\r\n"));
+        assert!(body.ends_with("--rimelight-personal-storage-boundary--\r\n"));
     }
 
     #[test]

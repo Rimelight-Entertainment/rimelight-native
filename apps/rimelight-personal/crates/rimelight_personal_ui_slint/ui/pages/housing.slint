@@ -1,0 +1,72 @@
+// The Housing route: the feature's HousingPage fed by HousingState, which the Rust glue (src/pages/housing.rs) fills.
+import { HousingPage, HousingStat, HousingRow, HousingSection, HousingChip, HousingField } from "@rimelight_personal_feature_housing/housing.slint";
+
+export { HousingStat, HousingRow, HousingSection, HousingChip, HousingField } from "@rimelight_personal_feature_housing/housing.slint";
+
+export global HousingState {
+    in-out property <string> tab: "pets";
+    in-out property <bool> loading;
+    in-out property <string> error;
+    in-out property <string> search;
+    in-out property <[HousingStat]> stats;
+    in-out property <[HousingChip]> chips;
+    in-out property <[HousingSection]> sections;
+    in-out property <bool> form-open;
+    in-out property <string> form-title;
+    in-out property <string> form-submit;
+    in-out property <string> form-error;
+    in-out property <[HousingField]> form-fields;
+    in-out property <string> confirm-message;
+
+    callback tab-requested(string);
+    callback refresh-requested();
+    callback search-changed(string);
+    callback chip-requested(string, string);
+    callback field-changed(string, string);
+    callback date-picked(string, int);
+    callback date-stepped(string, int);
+    callback submit-requested();
+    callback cancel-requested();
+    callback row-primary-requested(string);
+    callback row-secondary-requested(string);
+    callback row-edit-requested(string);
+    callback row-delete-requested(string);
+    callback section-delete-requested(string);
+    callback confirm-requested(bool);
+    callback dismiss-error-requested();
+}
+
+export component HousingRoute inherits Rectangle {
+    HousingPage {
+        tab: HousingState.tab;
+        loading: HousingState.loading;
+        error: HousingState.error;
+        search: HousingState.search;
+        stats: HousingState.stats;
+        chips: HousingState.chips;
+        sections: HousingState.sections;
+        form-open: HousingState.form-open;
+        form-title: HousingState.form-title;
+        form-submit: HousingState.form-submit;
+        form-error: HousingState.form-error;
+        form-fields: HousingState.form-fields;
+        confirm-message: HousingState.confirm-message;
+
+        tab-requested(key) => { HousingState.tab-requested(key); }
+        refresh-requested() => { HousingState.refresh-requested(); }
+        search-changed(text) => { HousingState.search-changed(text); }
+        chip-requested(group, value) => { HousingState.chip-requested(group, value); }
+        field-changed(key, value) => { HousingState.field-changed(key, value); }
+        date-picked(key, index) => { HousingState.date-picked(key, index); }
+        date-stepped(key, delta) => { HousingState.date-stepped(key, delta); }
+        submit-requested() => { HousingState.submit-requested(); }
+        cancel-requested() => { HousingState.cancel-requested(); }
+        row-primary-requested(id) => { HousingState.row-primary-requested(id); }
+        row-secondary-requested(id) => { HousingState.row-secondary-requested(id); }
+        row-edit-requested(id) => { HousingState.row-edit-requested(id); }
+        row-delete-requested(id) => { HousingState.row-delete-requested(id); }
+        section-delete-requested(id) => { HousingState.section-delete-requested(id); }
+        confirm-requested(yes) => { HousingState.confirm-requested(yes); }
+        dismiss-error-requested() => { HousingState.dismiss-error-requested(); }
+    }
+}

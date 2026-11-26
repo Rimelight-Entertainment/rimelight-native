@@ -1,5 +1,5 @@
 [package]
-name = "idantity_feature_projects"
+name = "rimelight_personal_feature_projects"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,12 +7,12 @@ license.workspace = true
 publish.workspace = true
 
 # Plain Rust: no slint dependency and no build.rs. The page markup is in ui/projects.slint and is compiled by the shell.
-# There is no projects client in idantity_core, so this crate makes its own HTTP calls (ehttp, as core does).
+# There is no projects client in rimelight_personal_core, so this crate makes its own HTTP calls (ehttp, as core does).
 [lints]
 workspace = true
 
 [dependencies]
-idantity_core.workspace = true
+rimelight_personal_core.workspace = true
 ehttp.workspace = true
 serde.workspace = true
 serde_json.workspace = true

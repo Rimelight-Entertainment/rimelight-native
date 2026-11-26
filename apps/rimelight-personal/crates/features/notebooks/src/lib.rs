@@ -14,11 +14,11 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use idantity_core::local_date;
-use idantity_core::notebooks::{EntryPatch, Notebook, NotebookEntry, NotebookPatch};
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::local_date;
+use rimelight_personal_core::notebooks::{EntryPatch, Notebook, NotebookEntry, NotebookPatch};
+use rimelight_personal_core::{ApiClient, ApiError};
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_notebooks`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_notebooks`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// The answer callback of one API call. It runs on ehttp's worker thread.

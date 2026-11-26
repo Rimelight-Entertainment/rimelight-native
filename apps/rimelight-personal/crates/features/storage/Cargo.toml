@@ -1,5 +1,5 @@
 [package]
-name = "idantity_feature_storage"
+name = "rimelight_personal_feature_storage"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,7 +13,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-idantity_core.workspace = true
+rimelight_personal_core.workspace = true
 ehttp.workspace = true
 rimelight_picture = { workspace = true }
 rimelight_media = { workspace = true }

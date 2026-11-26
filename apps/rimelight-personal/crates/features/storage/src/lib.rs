@@ -13,14 +13,14 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use idantity_core::storage::{
+use rimelight_personal_core::storage::{
     FilePatch, MediaKind, StorageFile, UploadFile, extension_of, join_key, media_kind, mime_for,
     move_filename, normalize_folder, preview_key, rename_filename, sanitize_basename, split_key,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 use rimelight_media::{MediaError, Player, PlayerOptions};
 
-/// The page's Slint markup, for the shell's build script (added as `@idantity_feature_storage`).
+/// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_feature_storage`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Largest side of a card preview, in pixels.
@@ -673,7 +673,7 @@ fn open_audio(path: &Path) -> Result<Player, String> {
 
 /// Writes `bytes` to a temporary file for `rimelight_media`. The name is built from the id and the extension only.
 fn write_temp(id: &str, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
-    let dir = std::env::temp_dir().join("idantity-storage");
+    let dir = std::env::temp_dir().join("rimelight-personal-storage");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let safe_id: String = id
         .chars()
@@ -1475,7 +1475,7 @@ mod tests {
         let fake = Arc::default();
         let c = loaded(&fake);
         c.open_folder("pics");
-        let dir = std::env::temp_dir().join("idantity-storage-test-drop");
+        let dir = std::env::temp_dir().join("rimelight-personal-storage-test-drop");
         std::fs::create_dir_all(&dir).unwrap();
         let real = dir.join("dropped.txt");
         std::fs::write(&real, b"hello").unwrap();

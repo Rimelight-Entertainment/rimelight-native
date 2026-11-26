@@ -2,7 +2,7 @@
 
 The shared Slint block editor (decision 0049, CMS.5; design `rimelight-space/docs/cms-editor-design.md`, sections 2, 3,
 6, 7, 8, 9 and 10). One editor for wiki, docs, blog, franchise content and screenplays, used by Space and later by
-idantity-native.
+rimelight-personal.
 
 ## What is in the crate
 

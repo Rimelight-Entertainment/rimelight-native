@@ -3,7 +3,7 @@
 //!
 //! Plain Rust with no Slint. The controller holds the boards, lists and cards, the active board, and the open
 //! input fields. It calls `/api/projects/cards` through [`ProjectsApi`] and reports each state change as a
-//! [`ProjectsView`]. [`HttpProjects`] is the live client; it lives here because idantity_core has no projects module.
+//! [`ProjectsView`]. [`HttpProjects`] is the live client; it lives here because rimelight_personal_core has no projects module.
 //!
 //! Threading follows the Todos page: calls return at once and answer on a worker thread, the lock is never held
 //! across a call, and `notify` is called after the lock is released.
@@ -15,10 +15,10 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use ehttp::{Headers, Method, Request};
-use idantity_core::ApiError;
+use rimelight_personal_core::ApiError;
 use serde::Deserialize;
 
-/// The page's Slint markup, for the shell's build script (added as `@idantity_feature_projects`).
+/// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_feature_projects`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// The four default columns a new board gets, in order (web `createDefaultLists`).
@@ -100,7 +100,7 @@ pub trait ProjectsApi: Send + Sync {
 /// The live API for `api_base`, signing each request with the session's header.
 pub fn http_api_signed(
     api_base: impl Into<String>,
-    credential: Arc<dyn idantity_core::BearerSource>,
+    credential: Arc<dyn rimelight_personal_core::BearerSource>,
 ) -> Arc<dyn ProjectsApi> {
     Arc::new(HttpProjects {
         base: api_base.into().trim_end_matches('/').to_owned(),
@@ -119,7 +119,7 @@ pub fn http_api(api_base: impl Into<String>) -> Arc<dyn ProjectsApi> {
 pub struct HttpProjects {
     base: String,
     /// The signed-in session's header (Cloudflare Access), added to every request.
-    credential: Option<Arc<dyn idantity_core::BearerSource>>,
+    credential: Option<Arc<dyn rimelight_personal_core::BearerSource>>,
 }
 
 impl HttpProjects {

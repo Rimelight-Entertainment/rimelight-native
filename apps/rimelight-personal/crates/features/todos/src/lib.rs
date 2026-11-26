@@ -12,11 +12,11 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use ehttp::{Headers, Method, Request};
-use idantity_core::ApiError;
-use idantity_core::local_date;
+use rimelight_personal_core::ApiError;
+use rimelight_personal_core::local_date;
 use serde::{Deserialize, Serialize};
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_todos`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_todos`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Categories the quick-create modal offers (the egui port's list).
@@ -82,14 +82,14 @@ pub trait TodoApi: Send + Sync {
 pub struct HttpTodoApi {
     base: String,
     /// The signed-in session's header (Cloudflare Access), added to every request.
-    credential: Option<Arc<dyn idantity_core::BearerSource>>,
+    credential: Option<Arc<dyn rimelight_personal_core::BearerSource>>,
 }
 
 /// The live API for `api_base`.
 /// The live API for `api_base`, signing each request with the session's header.
 pub fn http_api_signed(
     api_base: impl Into<String>,
-    credential: Arc<dyn idantity_core::BearerSource>,
+    credential: Arc<dyn rimelight_personal_core::BearerSource>,
 ) -> Arc<dyn TodoApi> {
     Arc::new(HttpTodoApi {
         base: api_base.into().trim_end_matches('/').to_owned(),

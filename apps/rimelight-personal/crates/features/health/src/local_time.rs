@@ -1,5 +1,5 @@
 //! The viewer's local clock time for an ISO instant. Native builds use jiff with the system zone (as
-//! `idantity_core::local_date` does); the browser build uses `js_sys::Date`, which is also the local zone.
+//! `rimelight_personal_core::local_date` does); the browser build uses `js_sys::Date`, which is also the local zone.
 
 /// Local `(hour, minute)` of an ISO instant or local date-time. `None` when the text does not parse.
 #[cfg(not(target_arch = "wasm32"))]
@@ -28,7 +28,7 @@ pub fn local_hm(value: &str) -> Option<(u32, u32)> {
 
 /// `Nov 22, 10:00 AM`: the en-US form of the web's `toLocaleDateString` with month, day, hour and minute.
 pub fn month_day_time(value: &str) -> Option<String> {
-    let day = idantity_core::local_date::local_day_of(value)?;
+    let day = rimelight_personal_core::local_date::local_day_of(value)?;
     let (hour, minute) = local_hm(value)?;
     let (h12, suffix) = match hour % 12 {
         0 => (12, if hour < 12 { "AM" } else { "PM" }),

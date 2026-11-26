@@ -16,12 +16,12 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use idantity_core::{ApiClient, ApiError, NewNote, Note, NotePatch};
+use rimelight_personal_core::{ApiClient, ApiError, NewNote, Note, NotePatch};
 
-/// The batch actions the page sends. Re-exported so the desktop glue needs no direct `idantity_core` dependency.
-pub use idantity_core::NoteBatchAction;
+/// The batch actions the page sends. Re-exported so the desktop glue needs no direct `rimelight_personal_core` dependency.
+pub use rimelight_personal_core::NoteBatchAction;
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_notes`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_notes`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Solid `COLOR_OPTIONS`, in the same order.

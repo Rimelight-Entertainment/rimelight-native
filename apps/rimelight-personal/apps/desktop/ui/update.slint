@@ -3,7 +3,7 @@
 import { Button, Palette, ProgressIndicator } from "std-widgets.slint";
 
 export component UpdateWindow inherits Window {
-    in property <string> heading: "idantity";
+    in property <string> heading: "Rimelight Personal";
     in property <string> status: "Checking for updates";
     // 0 to 1; a negative value shows an indeterminate bar.
     in property <float> progress: -1;
@@ -11,7 +11,7 @@ export component UpdateWindow inherits Window {
     callback retry();
     callback quit();
 
-    title: "idantity";
+    title: "Rimelight Personal";
     preferred-width: 440px;
     preferred-height: 220px;
     min-width: 440px;

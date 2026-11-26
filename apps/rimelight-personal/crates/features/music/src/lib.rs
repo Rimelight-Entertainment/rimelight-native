@@ -20,13 +20,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use rimelight_sound::{ACCENT_CLICK, CLICK, Tone};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use idantity_core::music::{
+use rimelight_personal_core::music::{
     Attachment, DEFAULT_REPERTOIRE_STATES, Exercise, MusicData, RepertoireItem, RoutineCategory,
     RoutineItem,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_music`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_music`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// The filter value that shows every stage.

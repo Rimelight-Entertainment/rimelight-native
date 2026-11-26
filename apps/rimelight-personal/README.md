@@ -1,7 +1,7 @@
 # Rimelight Personal
 
 > **Native Multiplatform Personal Productivity Suite & Life OS**  
-> Built in Rust 2024 with Slint, powered by Cloudflare D1 + Access. Formerly known as `idantity-native`.
+> Built in Rust 2024 with Slint, powered by Cloudflare D1 + Access. Formerly known as `rimelight-personal`.
 
 ---
 
@@ -63,8 +63,8 @@ rimelight-personal/
 ├── apps/                        # Application entry points (apps/desktop, apps/web)
 ├── crates/
 │   ├── core/                    # API client, offline cache, and domain models
-│   ├── idantity_nav/            # Navigation model and sidebar state
-│   ├── idantity_ui_slint/       # Slint compilation target & shell bindings
+│   ├── rimelight_personal_nav/            # Navigation model and sidebar state
+│   ├── rimelight_personal_ui_slint/       # Slint compilation target & shell bindings
 │   └── features/                # 14 modular domain crates (todos, notes, habits, etc.)
 ├── AGENTS.md                    # Agent operating rules & "build once" constraint
 ├── README.md                    # Project overview & local development guide (this file)

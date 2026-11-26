@@ -1077,7 +1077,7 @@ mod tests {
                 "folder_id": "inbox",
                 "subject": null,
                 "sender": "ana@example.com",
-                "recipient": "daniel@idantity.me",
+                "recipient": "daniel@example.com",
                 "cc": null,
                 "date": "2026-05-10T12:00:00.000Z",
                 "read": 0,
@@ -1201,7 +1201,7 @@ mod tests {
             folder_id: "inbox".into(),
             subject: String::new(),
             sender: "Ana@example.com".into(),
-            recipient: "daniel@idantity.me, bo@example.com".into(),
+            recipient: "daniel@example.com, bo@example.com".into(),
             cc: Some("bo@example.com, Carl@example.com, ana@example.com".into()),
             bcc: None,
             date: String::new(),
@@ -1216,7 +1216,7 @@ mod tests {
             attachments: Vec::new(),
         };
         assert_eq!(
-            reply_all_cc(&email, "daniel@idantity.me"),
+            reply_all_cc(&email, "daniel@example.com"),
             "bo@example.com, Carl@example.com"
         );
     }

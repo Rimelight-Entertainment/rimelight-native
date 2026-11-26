@@ -16,12 +16,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use html::{Block, blocks_for};
-use idantity_core::inbox::{
+use rimelight_personal_core::inbox::{
     AttachmentUpload, Config, DraftBody, DraftSaved, DraftSend, Email, EmailPage, EmailPatch,
     Folder, Mailbox, MailboxSettingsPatch, MailboxSettingsWrite, SearchParams, SendEmail,
     SignatureWrite, attachment_upload, parse_search, reply_all_cc, total_pages,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 use rimelight_picture::{Picture, load_bytes};
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -521,7 +521,7 @@ pub fn write_original(dir: &Path, email: &Email) -> std::io::Result<PathBuf> {
 
 /// The temporary folder for "View original" files.
 pub fn original_dir() -> PathBuf {
-    std::env::temp_dir().join("idantity-inbox")
+    std::env::temp_dir().join("rimelight-personal-inbox")
 }
 
 // ---------------------------------------------------------------------------
@@ -911,7 +911,7 @@ impl State {
                 id: f.id.clone(),
                 label: folder_label(f),
                 unread: f.unread_count,
-                custom: idantity_core::inbox::is_custom_folder(&f.id),
+                custom: rimelight_personal_core::inbox::is_custom_folder(&f.id),
                 selected: f.id == self.folder,
             })
             .collect();
@@ -919,7 +919,7 @@ impl State {
             .iter()
             .map(|(id, label)| ((*id).to_owned(), (*label).to_owned()))
             .collect();
-        for folder in idantity_core::inbox::custom_folders(&self.folders) {
+        for folder in rimelight_personal_core::inbox::custom_folders(&self.folders) {
             move_targets.push((folder.id.clone(), folder_label(folder)));
         }
         let list = self

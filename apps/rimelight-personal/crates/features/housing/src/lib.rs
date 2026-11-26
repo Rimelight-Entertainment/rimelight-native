@@ -14,13 +14,13 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use idantity_core::housing::{
+use rimelight_personal_core::housing::{
     GroceriesData, GroceryAction, GroceryItem, GroceryItemDraft, Pet, PetAction, PetDraft,
     PetHistoryDraft, PetWeightDraft, StockStatus, WishlistDraft, WishlistItem,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 
-/// The page's Slint markup, for the shell's build script (added as `@idantity_housing`).
+/// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_housing`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Care-log types, as the web `PetsManager` offers them.
@@ -445,7 +445,7 @@ struct State {
 }
 
 fn today_string() -> String {
-    let day = idantity_core::local_date::today();
+    let day = rimelight_personal_core::local_date::today();
     format!("{:04}-{:02}-{:02}", day.year, day.month, day.day)
 }
 
@@ -1746,8 +1746,8 @@ fn pet_list_done(me: HousingController) -> ListDone<Vec<Pet>> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use idantity_core::ApiError;
-    use idantity_core::housing::{
+    use rimelight_personal_core::ApiError;
+    use rimelight_personal_core::housing::{
         GroceriesData, GroceryAction, GroceryCategory, GroceryItem, GroceryStore, Pet, PetAction,
         PetHistoryEntry, PetWeightEntry, StockStatus, WishlistDraft, WishlistItem,
     };

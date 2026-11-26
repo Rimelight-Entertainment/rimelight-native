@@ -1,7 +1,7 @@
 # Rimelight Personal — Project Specification
 
 > **Status:** Single Source of Truth & Authoritative Technical Manual  
-> **Project Name:** Rimelight Personal (formerly `idantity-native`)  
+> **Project Name:** Rimelight Personal (formerly `rimelight-personal`)  
 > **Primary Technology:** Rust 2024 (1.100.0) | Slint | Cloudflare D1 + Access | WebAssembly  
 > **Backend Host:** `idantity.me/api/personal` (Cloudflare Worker + D1 Database)
 
@@ -25,8 +25,8 @@
 ```mermaid
 flowchart TD
     subgraph Client["Rimelight Personal Native Client"]
-        Nav["Sidebar & Router (idantity_nav)"]
-        UI["App Shell (idantity_ui_slint, rimelight_shell)"]
+        Nav["Sidebar & Router (rimelight_personal_nav)"]
+        UI["App Shell (rimelight_personal_ui_slint, rimelight_shell)"]
         Features["13 Feature Modules (crates/features/*)"]
         Core["API Client & Local Storage (crates/core)"]
         Nav --> UI
@@ -46,7 +46,7 @@ flowchart TD
 
 ### Core Technologies
 - **Rust Toolchain:** Pinned to `1.100.0` via `rust-toolchain.toml` (2024 edition).
-- **UI Framework:** Slint 1.18.1 compiled via `crates/idantity_ui_slint`.
+- **UI Framework:** Slint 1.18.1 compiled via `crates/rimelight_personal_ui_slint`.
 - **Backend Host:** Hosted within `idantity.me` worker at `/api/personal/*` querying Cloudflare D1 SQLite database with Drizzle ORM migrations.
 - **Authentication:** Cloudflare Access policy validation (`POLICY_AUD` and secret tokens).
 
@@ -121,8 +121,8 @@ rimelight-personal/
 │   └── web/                     # WebAssembly entry point
 ├── crates/
 │   ├── core/                    # API client, SQLite offline cache, and domain types
-│   ├── idantity_nav/            # Navigation model, route definitions, and sidebar state
-│   ├── idantity_ui_slint/       # Slint compilation target and widget glue
+│   ├── rimelight_personal_nav/            # Navigation model, route definitions, and sidebar state
+│   ├── rimelight_personal_ui_slint/       # Slint compilation target and widget glue
 │   └── features/                # 14 modular domain crates
 │       ├── overview/            # Dashboard widgets
 │       ├── todos/               # Task management logic
@@ -147,7 +147,7 @@ rimelight-personal/
 
 ## 5. Development Standards & Conventions
 
-1. **Slint Isolation:** Slint markup compiles exclusively inside `crates/idantity_ui_slint` and feature crates. Components must adhere to tokens in `rimelight_design`.
+1. **Slint Isolation:** Slint markup compiles exclusively inside `crates/rimelight_personal_ui_slint` and feature crates. Components must adhere to tokens in `rimelight_design`.
 2. **Build Discipline:** Adhere strictly to the "build ONCE at the end" rule. Write Rust feature logic across crates in batches before initiating cargo compilation.
 3. **Zero Hardcoded Personal Secrets:** Email addresses and personal identities must be sourced dynamically from authenticated session tokens (`locals.user.email`), never hardcoded in client source.
 
@@ -167,7 +167,7 @@ Rimelight Personal becomes an **open-source app anyone can run on their own Clou
 
 | Decision | Detail |
 |---|---|
-| Open source | The repository becomes public. Today it is the private `idantitydotme/idantity-native`; it moves to a public repo (name in Q1). Its git dependencies `rimelight-rs` and `rimelight` are already public (MIT). |
+| Open source | The repository becomes public. Today it is the private `idantitydotme/rimelight-personal`; it moves to a public repo (name in Q1). Its git dependencies `rimelight-rs` and `rimelight` are already public (MIT). |
 | One install per person | One Cloudflare account / one backend serves one person. No households or shared data. The `userId` column stays, set to the Access identity. |
 | Separate from Rimelight Space | Space's notes, tasks and calendar are for work; Personal is for private life. They may share components through `rimelight-rs`, but they are separate products and neither embeds the other. |
 | Backend leaves idantity.me | `idantity.me/api/personal`, `PERSONAL_BLOB`, `MailboxDO` and the personal D1 tables are removed from idantity.me once the owner's data lives in their own instance (R5). idantity.me goes back to being only the public site and CMS. |
@@ -186,7 +186,7 @@ rimelight-personal/              (public repo)
 ├── crates/
 │   ├── core/                    API client, models, instance config, sign-in (renamed personal_core)
 │   ├── provision/               NEW: Cloudflare API client that sets up and updates a user's backend
-│   ├── nav/, ui_slint/          (renamed from idantity_nav, idantity_ui_slint)
+│   ├── nav/, ui_slint/          (renamed from rimelight_personal_nav, rimelight_personal_ui_slint)
 │   └── features/*               feature crates (renamed personal_feature_*)
 ├── worker/                      NEW: the TypeScript backend (Hono + Drizzle), moved out of idantity.me
 │   ├── src/                     routes, Access check, MailboxDO, email handler
@@ -235,7 +235,7 @@ Steps are batch-sized. Within a batch nothing is built; the batch ends with one 
 - R1.2 Remove owner-specific config: `PERSONAL_OWNER_ID` becomes the Access identity's stable id from the verified JWT; `EMAIL_ADDRESSES`, `DOMAINS`, `SITE_NAME`, `TEAM_DOMAIN`, `POLICY_AUD` become values the app sets at deploy time; drop `CONSTRUCTION_*`, `IMAGES` and `CLOUDFLARE_API_TOKEN` unless a route needs them.
 - R1.3 Add `GET /meta`: backend version, schema version, which optional modules are configured (mail domain, R2).
 - R1.4 Shared types (section 2): response schemas, JSON Schema export, Rust generation, CI drift check.
-- R1.5 Rename: crates `idantity_*` to `personal_*`, keyring service `idantity` to `rimelight-personal`, license from `LicenseRef-Idantity-Proprietary` to the chosen open-source license (Q2), test fixtures from `daniel@idantity.me` to `example.com` addresses.
+- R1.5 Rename: crates `rimelight_personal_*` to `personal_*`, keyring service `idantity` to `rimelight-personal`, license from `LicenseRef-Idantity-Proprietary` to the chosen open-source license (Q2), test fixtures from `daniel@example.com` to `example.com` addresses.
 - R1.6 Rewrite README.md, PROJECT.md and AGENTS.md for the new architecture (self-hosted, `worker/`, setup flow), including contributor instructions for a manual `cf deploy`.
 - R1.7 Before the repo goes public: audit the whole git history for secrets and personal data (tokens, `.dev.vars`, real emails, D1 ids, screenshots with personal data). Rewrite history or start a fresh public repo if anything is found (Q1). Add CONTRIBUTING, issue templates, and CI pinned to commit SHAs (org rule).
 

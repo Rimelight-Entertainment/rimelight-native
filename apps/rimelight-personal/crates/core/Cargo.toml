@@ -1,5 +1,5 @@
 [package]
-name = "idantity_core"
+name = "rimelight_personal_core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

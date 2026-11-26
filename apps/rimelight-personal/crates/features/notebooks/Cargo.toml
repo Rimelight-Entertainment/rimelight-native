@@ -1,5 +1,5 @@
 [package]
-name = "idantity_feature_notebooks"
+name = "rimelight_personal_feature_notebooks"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,4 +11,4 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-idantity_core.workspace = true
+rimelight_personal_core.workspace = true

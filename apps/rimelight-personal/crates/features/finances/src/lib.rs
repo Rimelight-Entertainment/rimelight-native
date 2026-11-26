@@ -15,14 +15,14 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use idantity_core::finance::{
+use rimelight_personal_core::finance::{
     Account, AccountInput, Bill, BillInput, Budget, Debt, DebtInput, FinanceData, FinanceKind,
     PlanInput, PlannedPurchase, Prepaid, Transaction, TransactionInput, TxKind, days_in_month,
     month_key, summarize, upcoming,
 };
-use idantity_core::{ApiClient, ApiError, Rates, convert_to_brl, local_date};
+use rimelight_personal_core::{ApiClient, ApiError, Rates, convert_to_brl, local_date};
 
-/// The page's Slint markup, for the shell's build script (added as `@idantity_finances`).
+/// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_finances`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// Income categories, as the web app's `INCOME_CATEGORIES` lists them.
@@ -101,7 +101,7 @@ impl FinanceApi for ApiClient {
     }
 
     fn rates(&self, on_done: Box<dyn FnOnce(Option<Rates>) + Send>) {
-        idantity_core::fetch_rates(on_done);
+        rimelight_personal_core::fetch_rates(on_done);
     }
 
     fn save_account(&self, id: Option<&str>, input: &AccountInput, on_done: Done) {

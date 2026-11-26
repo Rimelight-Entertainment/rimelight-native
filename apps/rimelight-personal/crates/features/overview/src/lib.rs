@@ -11,13 +11,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use idantity_core::finance::{Account, Bill, FinanceData};
-use idantity_core::local_date::{Day, local_day_of, today, utc_today_iso};
-use idantity_core::{
+use rimelight_personal_core::finance::{Account, Bill, FinanceData};
+use rimelight_personal_core::local_date::{Day, local_day_of, today, utc_today_iso};
+use rimelight_personal_core::{
     ApiClient, ApiError, NewDatedTodo, Note, Rates, Todo, convert_to_brl, fetch_rates,
 };
 
-/// The page's Slint markup, for the shell's build script (added as `@idantity_feature_overview`).
+/// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_feature_overview`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// How many pending tasks the page lists (web `pendingTodos().slice(0, 6)`).

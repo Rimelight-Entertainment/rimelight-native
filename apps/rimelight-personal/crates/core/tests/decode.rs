@@ -1,8 +1,8 @@
 //! Decodes responses captured from the local personal.idantity.me backend.
 //! The fixtures are the source of truth for the wire format.
 
-use idantity_core::ApiError;
-use idantity_core::todo::{decode_ack, decode_todo, decode_todos};
+use rimelight_personal_core::ApiError;
+use rimelight_personal_core::todo::{decode_ack, decode_todo, decode_todos};
 
 const LIST: &[u8] = include_bytes!("fixtures/list.raw");
 const CREATE: &[u8] = include_bytes!("fixtures/create.raw");

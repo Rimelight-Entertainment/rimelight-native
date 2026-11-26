@@ -1,7 +1,7 @@
 //! Unit tests for the inbox controller, against a fake API and a fake shell. No network and no window.
 
 use super::*;
-use idantity_core::inbox::{Attachment, MailboxSettings, Signature};
+use rimelight_personal_core::inbox::{Attachment, MailboxSettings, Signature};
 
 /// Records each call as `name:args` and answers from the seeded data. `fail` makes the writes fail.
 #[derive(Default)]
@@ -61,7 +61,7 @@ impl InboxApi for Arc<Fake> {
         self.record(format!("mailbox:{id}"));
         let mailbox = Mailbox {
             id: id.to_owned(),
-            email: "daniel@idantity.me".to_owned(),
+            email: "daniel@example.com".to_owned(),
             name: "Daniel".to_owned(),
             settings: Some(MailboxSettings {
                 from_name: Some("Daniel".to_owned()),
@@ -242,7 +242,7 @@ fn mail(id: &str, thread: &str, subject: &str, read: bool) -> Email {
         folder_id: "inbox".to_owned(),
         subject: subject.to_owned(),
         sender: "ann@example.com".to_owned(),
-        recipient: "daniel@idantity.me".to_owned(),
+        recipient: "daniel@example.com".to_owned(),
         cc: None,
         bcc: None,
         date: "2026-11-20T10:00:00.000Z".to_owned(),
@@ -259,7 +259,7 @@ fn mail(id: &str, thread: &str, subject: &str, read: bool) -> Email {
 }
 
 fn test_dir() -> PathBuf {
-    std::env::temp_dir().join(format!("idantity-inbox-test-{}", std::process::id()))
+    std::env::temp_dir().join(format!("rimelight-personal-inbox-test-{}", std::process::id()))
 }
 
 /// What setup() returns: the fake API, the fake shell, the controller and the views it published.
@@ -275,7 +275,7 @@ fn setup() -> Setup {
     let fake: Arc<Fake> = Arc::default();
     *fake.mailboxes.lock().unwrap() = vec![Mailbox {
         id: "m1".to_owned(),
-        email: "daniel@idantity.me".to_owned(),
+        email: "daniel@example.com".to_owned(),
         name: "Daniel".to_owned(),
         settings: None,
     }];
@@ -423,7 +423,7 @@ fn creating_a_mailbox_checks_the_prefix_and_sends_the_address() {
     c.submit_create();
     assert!(
         fake.calls()
-            .contains(&"create_mailbox:news@idantity.me:News".to_owned())
+            .contains(&"create_mailbox:news@example.com:News".to_owned())
     );
     assert!(
         c.view().create.is_none(),
@@ -605,7 +605,7 @@ fn view_original_writes_a_safe_copy_and_opens_it() {
     assert_eq!(opened.len(), 1);
     // The plain local path, not a file:/// address: ShellExecuteW opens paths.
     assert!(!opened[0].starts_with("file:"), "{}", opened[0]);
-    assert!(opened[0].contains("idantity-inbox-test"), "{}", opened[0]);
+    assert!(opened[0].contains("rimelight-personal-inbox-test"), "{}", opened[0]);
     let text = std::fs::read_to_string(&opened[0]).unwrap();
     assert!(text.contains("Content-Security-Policy"));
     assert!(!text.contains("<script"));

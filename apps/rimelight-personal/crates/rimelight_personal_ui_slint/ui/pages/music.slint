@@ -1,0 +1,144 @@
+// The Music route. The feature page (MusicPage) owns the markup; this file mirrors its properties and callbacks in the
+// MusicState global, so Rust reaches them as ui.global::<MusicState>(). The row structs are re-exported for the Rust glue.
+import { MusicPage, MusicExerciseRow, MusicAttachmentRow, MusicPieceRow, MusicBlockItemRow, MusicBlockRow, MusicBlockPair, MusicBeatCell } from "@rimelight_personal_feature_music/music.slint";
+import { SelectOption } from "@rimelight_ui/components/select.slint";
+
+export { MusicExerciseRow, MusicAttachmentRow, MusicPieceRow, MusicBlockItemRow, MusicBlockRow, MusicBlockPair, MusicBeatCell } from "@rimelight_personal_feature_music/music.slint";
+
+export global MusicState {
+    in property <bool> loaded;
+    in property <string> notice;
+    in property <string> save-label;
+    in property <int> save-kind;
+    in property <[MusicExerciseRow]> exercises;
+    in property <[MusicPieceRow]> pieces;
+    in property <int> piece-count;
+    in property <[SelectOption]> stage-options;
+    in property <[SelectOption]> filter-options;
+    in property <[MusicBlockRow]> blocks;
+    in property <[MusicBlockPair]> block-pairs;
+    in-out property <float> metronome-bpm;
+    in property <int> metronome-bpm-whole;
+    in property <bool> metronome-running;
+    in property <int> metronome-beats;
+    in property <int> metronome-subdivision;
+    in property <[MusicBeatCell]> metronome-cells;
+    in property <int> metronome-lit;
+    in property <int> metronome-total;
+    in-out property <int> tab;
+    in property <int> studio;
+    in property <int> tab-strip;
+    in property <bool> countdown;
+    in property <string> remaining-text;
+    in-out property <string> search;
+    in-out property <string> status-filter;
+    in property <bool> drag-hovering;
+    // The last list version the glue built the lists for. Rust-only: the glue rebuilds the lists when it changes.
+    in-out property <int> version: 0;
+
+    callback music-tab-requested(int);
+    callback music-dismiss-notice-requested();
+    callback music-exercise-add-requested();
+    callback music-exercise-move-requested(string, bool);
+    callback music-exercise-remove-requested(string);
+    callback music-exercise-check-changed(string, bool);
+    callback music-exercise-name-edited(string, string);
+    callback music-exercise-bpm-edited(string, string);
+    callback music-exercise-target-edited(string, string);
+    callback music-search-edited(string);
+    callback music-filter-picked(string);
+    callback music-piece-add-requested();
+    callback music-piece-expand-requested(string);
+    callback music-piece-remove-requested(string);
+    callback music-piece-title-edited(string, string);
+    callback music-piece-composer-edited(string, string);
+    callback music-piece-status-picked(string, string);
+    callback music-piece-difficulty-requested(string, int);
+    callback music-attachment-open-requested(string);
+    callback music-attachment-remove-requested(string, string);
+    callback music-attachment-pick-requested(string);
+    callback music-block-add-requested();
+    callback music-block-remove-requested(string);
+    callback music-block-name-edited(string, string);
+    callback music-block-item-add-requested(string);
+    callback music-block-item-remove-requested(string, string);
+    callback music-block-item-edited(string, string, string);
+    callback music-block-item-check-changed(string, bool);
+    callback music-metronome-tap-requested();
+    callback music-metronome-toggle-requested();
+    callback music-metronome-bpm-changed(float);
+    callback music-metronome-step-requested(float);
+    callback music-metronome-beats-picked(int);
+    callback music-metronome-subdivision-picked(int);
+    callback music-metronome-beat-cycled(int);
+    callback music-metronome-countdown-changed(bool);
+}
+
+export component MusicRoute inherits VerticalLayout {
+    MusicPage {
+        loaded: MusicState.loaded;
+        notice: MusicState.notice;
+        save-label: MusicState.save-label;
+        save-kind: MusicState.save-kind;
+        exercises: MusicState.exercises;
+        pieces: MusicState.pieces;
+        piece-count: MusicState.piece-count;
+        stage-options: MusicState.stage-options;
+        filter-options: MusicState.filter-options;
+        blocks: MusicState.blocks;
+        block-pairs: MusicState.block-pairs;
+        metronome-bpm <=> MusicState.metronome-bpm;
+        metronome-bpm-whole: MusicState.metronome-bpm-whole;
+        metronome-running: MusicState.metronome-running;
+        metronome-beats: MusicState.metronome-beats;
+        metronome-subdivision: MusicState.metronome-subdivision;
+        metronome-cells: MusicState.metronome-cells;
+        metronome-lit: MusicState.metronome-lit;
+        metronome-total: MusicState.metronome-total;
+        tab <=> MusicState.tab;
+        studio: MusicState.studio;
+        tab-strip: MusicState.tab-strip;
+        countdown: MusicState.countdown;
+        remaining-text: MusicState.remaining-text;
+        search <=> MusicState.search;
+        status-filter <=> MusicState.status-filter;
+        drag-hovering: MusicState.drag-hovering;
+
+        music-tab-requested(index) => { MusicState.music-tab-requested(index); }
+        music-dismiss-notice-requested => { MusicState.music-dismiss-notice-requested(); }
+        music-exercise-add-requested => { MusicState.music-exercise-add-requested(); }
+        music-exercise-move-requested(id, up) => { MusicState.music-exercise-move-requested(id, up); }
+        music-exercise-remove-requested(id) => { MusicState.music-exercise-remove-requested(id); }
+        music-exercise-check-changed(id, done) => { MusicState.music-exercise-check-changed(id, done); }
+        music-exercise-name-edited(id, text) => { MusicState.music-exercise-name-edited(id, text); }
+        music-exercise-bpm-edited(id, text) => { MusicState.music-exercise-bpm-edited(id, text); }
+        music-exercise-target-edited(id, text) => { MusicState.music-exercise-target-edited(id, text); }
+        music-search-edited(text) => { MusicState.music-search-edited(text); }
+        music-filter-picked(filter) => { MusicState.music-filter-picked(filter); }
+        music-piece-add-requested => { MusicState.music-piece-add-requested(); }
+        music-piece-expand-requested(id) => { MusicState.music-piece-expand-requested(id); }
+        music-piece-remove-requested(id) => { MusicState.music-piece-remove-requested(id); }
+        music-piece-title-edited(id, text) => { MusicState.music-piece-title-edited(id, text); }
+        music-piece-composer-edited(id, text) => { MusicState.music-piece-composer-edited(id, text); }
+        music-piece-status-picked(id, status) => { MusicState.music-piece-status-picked(id, status); }
+        music-piece-difficulty-requested(id, value) => { MusicState.music-piece-difficulty-requested(id, value); }
+        music-attachment-open-requested(id) => { MusicState.music-attachment-open-requested(id); }
+        music-attachment-remove-requested(piece, id) => { MusicState.music-attachment-remove-requested(piece, id); }
+        music-attachment-pick-requested(piece) => { MusicState.music-attachment-pick-requested(piece); }
+        music-block-add-requested => { MusicState.music-block-add-requested(); }
+        music-block-remove-requested(id) => { MusicState.music-block-remove-requested(id); }
+        music-block-name-edited(id, text) => { MusicState.music-block-name-edited(id, text); }
+        music-block-item-add-requested(block) => { MusicState.music-block-item-add-requested(block); }
+        music-block-item-remove-requested(block, item) => { MusicState.music-block-item-remove-requested(block, item); }
+        music-block-item-edited(block, item, text) => { MusicState.music-block-item-edited(block, item, text); }
+        music-block-item-check-changed(item, done) => { MusicState.music-block-item-check-changed(item, done); }
+        music-metronome-tap-requested => { MusicState.music-metronome-tap-requested(); }
+        music-metronome-toggle-requested => { MusicState.music-metronome-toggle-requested(); }
+        music-metronome-bpm-changed(bpm) => { MusicState.music-metronome-bpm-changed(bpm); }
+        music-metronome-step-requested(delta) => { MusicState.music-metronome-step-requested(delta); }
+        music-metronome-beats-picked(beats) => { MusicState.music-metronome-beats-picked(beats); }
+        music-metronome-subdivision-picked(index) => { MusicState.music-metronome-subdivision-picked(index); }
+        music-metronome-beat-cycled(index) => { MusicState.music-metronome-beat-cycled(index); }
+        music-metronome-countdown-changed(checked) => { MusicState.music-metronome-countdown-changed(checked); }
+    }
+}

@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use rimelight_sound::{Metronome, Tone, beat_period};
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_focus`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_focus`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 const SECOND: Duration = Duration::from_secs(1);

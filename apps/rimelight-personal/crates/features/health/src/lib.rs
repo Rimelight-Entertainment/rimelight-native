@@ -14,11 +14,11 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use idantity_core::health::{
+use rimelight_personal_core::health::{
     ExerciseSet, FastEntry, Goals, Measurement, MeasurementsData, MonthValue, Reading,
     StretchCategory, StretchItem, WorkoutData, WorkoutExercise, WorkoutExerciseCategory,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 use rimelight_sound::Tone;
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -730,7 +730,7 @@ impl Default for State {
             start_hour: 9,
             start_minute: 0,
             start_month: {
-                let today = idantity_core::local_date::today();
+                let today = rimelight_personal_core::local_date::today();
                 (today.year, today.month)
             },
             workouts: WorkoutData::default(),
@@ -739,7 +739,7 @@ impl Default for State {
             rest_ends: None,
             runner: None,
             measurements: MeasurementsData::default(),
-            year: idantity_core::local_date::today().year,
+            year: rimelight_personal_core::local_date::today().year,
             chart_metric: None,
             last_stage: None,
             announced: None,
@@ -1055,7 +1055,7 @@ pub const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
 
 /// `M/D` for an ISO time, the numeric month and day the web's history bars show (UTC).
 fn month_day_label(iso: &str) -> String {
-    match idantity_core::local_date::local_day_of(iso) {
+    match rimelight_personal_core::local_date::local_day_of(iso) {
         Some(day) => format!("{}/{}", day.month, day.day),
         None => iso.to_owned(),
     }
@@ -1063,7 +1063,7 @@ fn month_day_label(iso: &str) -> String {
 
 /// The 42 cells of the calendar for `month`, Sunday first, and its title.
 fn start_calendar(month: (i32, u32), pick: Option<(i32, u32, u32)>) -> (Vec<CalendarCell>, String) {
-    let today = idantity_core::local_date::today();
+    let today = rimelight_personal_core::local_date::today();
     let cells = (0..42)
         .map(|i| {
             let (y, m, d) = calendar_date_at(month, i);
@@ -2118,7 +2118,7 @@ mod tests {
         assert_eq!(history.len(), 14);
         // Labels are the viewer's local month and day, so the expected text comes from the same local helper.
         let local = |iso: &str| {
-            let day = idantity_core::local_date::local_day_of(iso).expect("valid instant");
+            let day = rimelight_personal_core::local_date::local_day_of(iso).expect("valid instant");
             format!("{}/{}", day.month, day.day)
         };
         assert_eq!(

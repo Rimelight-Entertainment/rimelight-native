@@ -173,7 +173,7 @@ impl SessionStore for MemoryStore {
 }
 
 /// The OS credential store (Windows Credential Manager, macOS Keychain, Linux Secret Service), the same way Rimelight
-/// Space keeps its session. One JSON value under service `idantity`.
+/// Space keeps its session. One JSON value under service `rimelight-personal`.
 #[cfg(all(
     not(target_arch = "wasm32"),
     not(target_os = "android"),
@@ -188,7 +188,7 @@ pub struct KeyringStore;
 ))]
 impl KeyringStore {
     fn entry() -> Result<keyring::Entry, AuthError> {
-        keyring::Entry::new("idantity", "access").map_err(|e| AuthError::Storage(e.to_string()))
+        keyring::Entry::new("rimelight-personal", "access").map_err(|e| AuthError::Storage(e.to_string()))
     }
 }
 

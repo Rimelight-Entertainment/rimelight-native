@@ -1,7 +1,7 @@
 //! Self-update for installed Windows copies. The updater, the feed and the start-up window's logic are the shared crate
-//! `rimelight_update`; this module names the idantity feed and the window and gives `main` its three entry points.
+//! `rimelight_update`; this module names the Rimelight Personal feed and the window and gives `main` its three entry points.
 //!
-//! The feed is not set yet: `IDANTITY_UPDATE_URL` names it (a Velopack HTTP feed). Until it is set, the updater is `None`
+//! The feed is not set yet: `RIMELIGHT_PERSONAL_UPDATE_URL` names it (a Velopack HTTP feed). Until it is set, the updater is `None`
 //! and the gate lets the app start, the same as a copy run from `cargo run`.
 
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use rimelight_update::{Config, DEFAULT_WATCH_INTERVAL, Feed, Updater};
 
 /// The environment variable that names the update feed.
-const FEED_ENV: &str = "IDANTITY_UPDATE_URL";
+const FEED_ENV: &str = "RIMELIGHT_PERSONAL_UPDATE_URL";
 /// The Velopack channel this build is packaged for, and the channel of its minimum-version file.
 const CHANNEL: &str = "stable";
 
@@ -21,7 +21,7 @@ mod generated {
 }
 
 // Defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module.
-rimelight_update::update_window_gate!(generated::UpdateWindow, "idantity");
+rimelight_update::update_window_gate!(generated::UpdateWindow, "Rimelight Personal");
 
 /// Runs the Velopack install, update and uninstall hooks. Must be the first call in `main`.
 pub fn init() {

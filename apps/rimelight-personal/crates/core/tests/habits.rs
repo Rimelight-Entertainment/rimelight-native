@@ -1,8 +1,8 @@
 //! Habits wire format, checked against responses captured from the local backend
 //! (`fixtures/habits_list.raw`) and the Solid client's action keys.
 
-use idantity_core::ApiError;
-use idantity_core::habits::{HabitAction, decode_habits};
+use rimelight_personal_core::ApiError;
+use rimelight_personal_core::habits::{HabitAction, decode_habits};
 use serde_json::json;
 
 const LIST: &[u8] = include_bytes!("fixtures/habits_list.raw");

@@ -11,17 +11,17 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use idantity_core::watchlist::{
+use rimelight_personal_core::watchlist::{
     Category, Item, ItemPatch, Row, Section, Status, WatchlistData, details, rows, to_csv,
 };
-use idantity_core::{ApiClient, ApiError};
+use rimelight_personal_core::{ApiClient, ApiError};
 use rimelight_ui_kit::list::ListModel;
 use rimelight_ui_kit::table::SelectionMode;
 
-/// The add and edit form, as text. Re-exported so the page glue needs no direct `idantity_core` dependency.
-pub use idantity_core::watchlist::Draft;
+/// The add and edit form, as text. Re-exported so the page glue needs no direct `rimelight_personal_core` dependency.
+pub use rimelight_personal_core::watchlist::Draft;
 
-/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@idantity_watchlist`).
+/// The page's Slint markup, for the shell's build script (`apps/desktop/build.rs` adds it as `@rimelight_personal_watchlist`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 
 /// The answer of every call that changes the watchlist: the whole list, as the server returns it.

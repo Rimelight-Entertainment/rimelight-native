@@ -283,7 +283,7 @@ struct UploadResponse {
     key: Option<String>,
 }
 
-const UPLOAD_BOUNDARY: &str = "----idantityMusicUpload8f3c2b1d";
+const UPLOAD_BOUNDARY: &str = "----rimelightPersonalMusicUpload8f3c2b1d";
 
 pub fn decode_music(bytes: &[u8]) -> Result<MusicData, ApiError> {
     let envelope: Envelope =

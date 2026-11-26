@@ -63,7 +63,7 @@ rimelight_sound         = { path = "packages/media/rimelight_sound" }
 rimelight_ui            = { path = "packages/ui/rimelight_ui" }
 rimelight_ui_kit        = { path = "packages/ui/rimelight_ui_kit" }
 rimelight_update        = { path = "packages/rimelight_update" }
-rimelight_gallery       = { path = "packages/gallery" }
+rimelight_gallery       = { package = "ui_gallery", path = "packages/gallery" }
 
 # ── Personal app crates (formerly in apps/rimelight-personal/Cargo.toml) ────
 ehttp = "0.7.3"

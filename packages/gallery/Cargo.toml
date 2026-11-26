@@ -1,5 +1,5 @@
 [package]
-name = "rimelight_gallery"
+name = "ui_gallery"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

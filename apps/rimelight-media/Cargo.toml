@@ -1,5 +1,5 @@
 [package]
-name = "rimelight-media"
+name = "media_desktop"
 version = "0.3.0"
 edition = "2024"
 license = "MIT"

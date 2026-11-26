@@ -3861,19 +3861,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "idantity_desktop"
-version = "0.1.0"
-dependencies = [
- "idantity_nav",
- "idantity_ui_slint",
- "rimelight_platform",
- "rimelight_ui_kit",
- "rimelight_update",
- "slint",
- "slint-build",
-]
-
-[[package]]
 name = "idantity_feature_finances"
 version = "0.1.0"
 dependencies = [
@@ -5150,6 +5137,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ebb8d8732c6a6df3d8f032a82911cfc747e00efb95cc46e8d0acd5b5b88570c"
 
 [[package]]
+name = "media_desktop"
+version = "0.3.0"
+dependencies = [
+ "arboard",
+ "chrono",
+ "cpal",
+ "embed-resource",
+ "ffmpeg-next",
+ "global-hotkey",
+ "image",
+ "pulldown-cmark",
+ "resvg",
+ "rfd",
+ "rimelight_design",
+ "rimelight_media",
+ "rimelight_picture",
+ "rimelight_platform",
+ "rimelight_ui",
+ "rimelight_ui_kit",
+ "rimelight_update",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "slint",
+ "slint-build",
+ "syntect",
+ "two-face",
+ "unrar",
+ "windows",
+ "winreg",
+ "zip 9.8.2",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6201,6 +6222,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "personal_desktop"
+version = "0.1.0"
+dependencies = [
+ "idantity_nav",
+ "idantity_ui_slint",
+ "rimelight_platform",
+ "rimelight_ui_kit",
+ "rimelight_update",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
 name = "petgraph"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7123,40 +7157,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rimelight-media"
-version = "0.3.0"
-dependencies = [
- "arboard",
- "chrono",
- "cpal",
- "embed-resource",
- "ffmpeg-next",
- "global-hotkey",
- "image",
- "pulldown-cmark",
- "resvg",
- "rfd",
- "rimelight_design",
- "rimelight_media",
- "rimelight_picture",
- "rimelight_platform",
- "rimelight_ui",
- "rimelight_ui_kit",
- "rimelight_update",
- "serde",
- "serde_json",
- "sevenz-rust2",
- "slint",
- "slint-build",
- "syntect",
- "two-face",
- "unrar",
- "windows",
- "winreg",
- "zip 9.8.2",
-]
-
-[[package]]
 name = "rimelight_android"
 version = "0.1.0"
 dependencies = [
@@ -7197,21 +7197,6 @@ version = "0.1.0"
 source = "git+https://github.com/Rimelight-Entertainment/rimelight.git?rev=d4420e634ee65c11f1e46666a4a1ccf3f713f653#d4420e634ee65c11f1e46666a4a1ccf3f713f653"
 
 [[package]]
-name = "rimelight_desktop"
-version = "0.1.0"
-dependencies = [
- "global-hotkey",
- "rimelight_platform",
- "rimelight_update",
- "slint",
- "space_area_canvas",
- "space_client",
- "space_nav",
- "space_ui",
- "space_update_slint",
-]
-
-[[package]]
 name = "rimelight_editor"
 version = "0.1.0"
 dependencies = [
@@ -7220,21 +7205,6 @@ dependencies = [
  "parley",
  "rimelight_content",
  "serde_json",
-]
-
-[[package]]
-name = "rimelight_gallery"
-version = "0.1.0"
-dependencies = [
- "i-slint-backend-testing",
- "image",
- "rimelight_design",
- "rimelight_shell",
- "rimelight_ui",
- "rimelight_ui_kit",
- "slint",
- "slint-interpreter",
- "spin_on",
 ]
 
 [[package]]
@@ -8349,6 +8319,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "space_desktop"
+version = "0.1.0"
+dependencies = [
+ "global-hotkey",
+ "rimelight_platform",
+ "rimelight_update",
+ "slint",
+ "space_area_canvas",
+ "space_client",
+ "space_nav",
+ "space_ui",
+ "space_update_slint",
+]
+
+[[package]]
 name = "space_fixtures"
 version = "0.1.0"
 
@@ -8356,8 +8341,8 @@ version = "0.1.0"
 name = "space_gallery"
 version = "0.1.0"
 dependencies = [
- "rimelight_gallery",
  "space_ui",
+ "ui_gallery",
 ]
 
 [[package]]
@@ -9370,6 +9355,21 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "ui_gallery"
+version = "0.1.0"
+dependencies = [
+ "i-slint-backend-testing",
+ "image",
+ "rimelight_design",
+ "rimelight_shell",
+ "rimelight_ui",
+ "rimelight_ui_kit",
+ "slint",
+ "slint-interpreter",
+ "spin_on",
 ]
 
 [[package]]

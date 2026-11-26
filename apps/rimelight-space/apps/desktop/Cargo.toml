@@ -1,5 +1,5 @@
 [package]
-name = "rimelight_desktop"
+name = "space_desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

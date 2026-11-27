@@ -1,20 +1,27 @@
-//! Shared models and HTTP client for the personal API (`/api/personal/...`), the Cloudflare Access sign-in, and FX rates.
+//! Shared models and HTTP client for the personal API, the Cloudflare Access sign-in, and FX rates.
 
 pub mod api;
 pub mod auth;
+pub mod cf_oauth;
+/// The live Cloudflare API client for the setup. Native only.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cloudflare_api;
 pub mod finance;
 pub mod habits;
 pub mod health;
 pub mod housing;
+pub mod instance;
 pub mod inbox;
 pub mod local_date;
 pub mod music;
 pub mod notebooks;
 pub mod notes;
+pub mod provision;
 pub mod projects;
 pub mod rates;
 /// The desktop Access CLI login. Native only: the browser and a worker thread.
 #[cfg(not(target_arch = "wasm32"))]
+pub mod settings;
 pub mod signin;
 pub mod storage;
 pub mod todo;
@@ -23,7 +30,8 @@ pub mod watchlist;
 #[cfg(target_arch = "wasm32")]
 pub mod web_session;
 
-pub use api::{ApiClient, ApiError, DEFAULT_API_BASE};
+pub use api::{ApiClient, ApiError};
+pub use instance::InstanceConfig;
 pub use api::{BearerSource, HeaderToken};
 pub use auth::{ACCESS_HEADER, Auth, AuthError, MemoryStore, SessionStore};
 pub use finance::{Account, Bill, FinanceData};

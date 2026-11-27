@@ -83,7 +83,7 @@ impl NotebookApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn NotebookApi> {
     Arc::new(ApiClient::new(api_base))
 }

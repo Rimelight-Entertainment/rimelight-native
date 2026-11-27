@@ -20,10 +20,11 @@ default = []
 slint = ["dep:slint"]
 
 [dependencies]
-slint = { version = "=1.18.1", default-features = false, features = ["std"], optional = true }
+slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18"], optional = true }
 
 # Windows only: the rest of the crate compiles everywhere through src/stub.rs. Same versions as rimelight-media and
 # rimelight-space. The apps patch ffmpeg-sys-next to the vendored copy (see README.md).
 [target.'cfg(windows)'.dependencies]
 ffmpeg-next = { version = "9.1", default-features = false, features = ["codec", "format", "software-resampling", "software-scaling"] }
 cpal = "0.18"
+

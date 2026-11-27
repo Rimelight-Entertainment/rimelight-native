@@ -73,3 +73,11 @@ logs/
 # All sample files are plain git files (see apps/rimelight-media/apps/desktop/samples/README.md).
 !apps/rimelight-media/apps/desktop/samples/
 !apps/rimelight-media/apps/desktop/samples/**
+
+# Personal release packing (tools/pack-windows.ps1)
+apps/rimelight-personal/stage/
+apps/rimelight-personal/releases/
+apps/rimelight-personal/worker/node_modules/
+
+# Local wrangler state for the Personal Worker
+apps/rimelight-personal/worker/.wrangler/

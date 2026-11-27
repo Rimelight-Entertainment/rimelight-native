@@ -530,9 +530,11 @@ mod tests {
 
     #[test]
     fn a_link_without_text_shows_its_address() {
+        // No paragraph text, so the link is the only block.
         let blocks = blocks_for(r#"<p><a href="https://example.com/x"></a></p>"#);
+        assert_eq!(blocks.len(), 1);
         assert!(
-            matches!(&blocks[1], Block::Link { label, .. } if label == "https://example.com/x")
+            matches!(&blocks[0], Block::Link { label, .. } if label == "https://example.com/x")
         );
     }
 

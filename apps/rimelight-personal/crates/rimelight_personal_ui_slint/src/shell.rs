@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use rimelight_personal_core::{ApiClient, DEFAULT_API_BASE};
+use rimelight_personal_core::{ApiClient, InstanceConfig};
 use rimelight_personal_feature_focus::Stretch;
 use rimelight_personal_feature_todos::{QuickTodoController, QuickTodoView};
 use rimelight_personal_nav::{ASSETS, Link, parse, sections, subtabs, title_for};
@@ -401,9 +401,9 @@ fn toast_tone(tone: Tone) -> ToastTone {
 }
 
 /// Opens the shell window at `start` (a concrete route, already checked with `rimelight_personal_nav::parse`) with the theme `mode`,
-/// and runs the event loop until the window closes. Used by the desktop app and the web app. The API is
-/// `rimelight_personal_core::DEFAULT_API_BASE`, with the signed-in session's bearer token.
-pub fn run(start: &str, mode: Mode) -> Result<(), slint::PlatformError> {
+/// and runs the event loop until the window closes. Used by the desktop app and the web app. The API and the Access
+/// application are `instance`; requests carry the signed-in session's bearer token.
+pub fn run(start: &str, mode: Mode, instance: InstanceConfig) -> Result<(), slint::PlatformError> {
     let ui = RimelightPersonalShell::new()?;
     let entries = nav_entries();
     let items: Vec<SidebarItem> = entries.iter().map(|entry| to_item(&ui, entry)).collect();
@@ -411,13 +411,13 @@ pub fn run(start: &str, mode: Mode) -> Result<(), slint::PlatformError> {
     ui.set_mac_keys(cfg!(target_os = "macos"));
 
     // Sign-in first: the pages' API client carries the bearer token of the session.
-    let auth = session::wire(&ui);
-    let client = ApiClient::new(DEFAULT_API_BASE).with_bearer(auth.session.clone());
+    let auth = session::wire(&ui, instance.clone());
+    let client = ApiClient::new(instance.api_base.clone()).with_bearer(auth.session.clone());
     let api = Arc::new(client);
     // Todos and Projects make their own requests; they carry the same session header.
-    let todo_api = rimelight_personal_feature_todos::http_api_signed(DEFAULT_API_BASE, auth.session.clone());
+    let todo_api = rimelight_personal_feature_todos::http_api_signed(instance.api_base.clone(), auth.session.clone());
     let projects_api =
-        rimelight_personal_feature_projects::http_api_signed(DEFAULT_API_BASE, auth.session.clone());
+        rimelight_personal_feature_projects::http_api_signed(instance.api_base.clone(), auth.session.clone());
 
     theme::set_mode(&ui, mode);
 
@@ -519,6 +519,14 @@ pub fn run(start: &str, mode: Mode) -> Result<(), slint::PlatformError> {
         #[cfg(not(target_arch = "wasm32"))]
         _drops: drops,
     });
+    // After sign-in, the page the user is on loads its data again (the first load happened before the sign-in).
+    {
+        let shell = shell.clone();
+        ui.global::<crate::generated::Session>().on_reload_page(move || {
+            let route = shell.ui.get_route().to_string();
+            shell.navigate(&route);
+        });
+    }
 
     // The route opens at `start`, with its page fetched.
     let start = parse(start).unwrap_or("/");

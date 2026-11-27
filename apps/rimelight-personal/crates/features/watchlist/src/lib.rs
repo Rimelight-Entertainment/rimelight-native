@@ -82,7 +82,7 @@ impl WatchlistApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn WatchlistApi> {
     Arc::new(ApiClient::new(api_base))
 }
@@ -1064,6 +1064,8 @@ mod tests {
     struct Fake {
         calls: Mutex<Vec<String>>,
         fail: Mutex<bool>,
+        /// Answers with Heat still open, so both movies show in the live list (sort and pick tests).
+        both_open: Mutex<bool>,
     }
 
     impl Fake {
@@ -1079,7 +1081,11 @@ mod tests {
             if *self.fail.lock().unwrap() {
                 Err(ApiError::Transport("down".to_owned()))
             } else {
-                Ok(sample())
+                let mut data = sample();
+                if *self.both_open.lock().unwrap() {
+                    data.movies[0].items[1].completed = false;
+                }
+                Ok(data)
             }
         }
     }
@@ -1403,7 +1409,8 @@ mod tests {
 
     #[test]
     fn sort_orders_rows_and_a_second_press_flips_the_order() {
-        let fake = Arc::default();
+        let fake: Arc<Fake> = Arc::default();
+        *fake.both_open.lock().unwrap() = true;
         let (c, _seen) = controller(&fake);
         c.activate("/watchlist");
         assert_eq!(
@@ -1423,8 +1430,8 @@ mod tests {
         c.sort_requested(4);
         assert_eq!(
             titles(&c.view()),
-            vec!["Heat", "Dune"],
-            "unrated sorts as zero, first ascending"
+            vec!["Dune", "Heat"],
+            "a rated cell is a number and sorts before the blank text of an unrated one"
         );
         let sorted: Vec<Option<bool>> = c
             .view()
@@ -1493,7 +1500,8 @@ mod tests {
 
     #[test]
     fn picking_then_the_bulk_actions_act_on_the_selected_rows() {
-        let fake = Arc::default();
+        let fake: Arc<Fake> = Arc::default();
+        *fake.both_open.lock().unwrap() = true;
         let (c, _seen) = controller(&fake);
         c.activate("/watchlist");
 

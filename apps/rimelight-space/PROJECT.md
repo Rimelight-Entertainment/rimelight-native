@@ -1,12 +1,5 @@
 # Rimelight Space — Project Specification
 
-> **Status:** Single Source of Truth & Authoritative Technical Manual  
-> **Type:** Internal Proprietary Enterprise Resource Planning (ERP) Platform  
-> **Primary Technology:** Rust 2024 | Slint 1.18.1 | TypeScript API on the rimelight.com Worker | Loro CRDT  
-> **Target Scale:** 250+ enterprise users, multiplatform native deployment.
-
----
-
 ## 1. High-Level Vision & Scope
 
 **Rimelight Space** is the proprietary, all-in-one Enterprise Resource Planning (ERP) and operational workstation for Rimelight Entertainment. It provides a cohesive native workspace unifying company management, creative production, game development workflows, player support, and personal productivity into a single high-performance Rust application.
@@ -17,8 +10,6 @@
 2. **Real-Time Collaboration (Loro CRDT):** Document, project, and block editing feature character-level real-time co-editing, live cursor presence, and offline resilience powered by **Loro CRDT**.
 3. **Single Source of Truth for Franchise Content:** Rimelight Space is the canonical authoring studio for all CMS content, wiki pages, screenplays, and documentation. Published content feeds directly to `rimelight.com`.
 4. **Unified Operations:** Eliminates fragmented third-party SaaS tools by unifying HR, finance, supply chain, asset tracking, project management, customer relationships, and player support into one unified database and UI.
-
----
 
 ## 2. System Architecture
 

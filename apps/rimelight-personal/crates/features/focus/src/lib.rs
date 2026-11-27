@@ -323,6 +323,10 @@ impl FocusController {
     /// Starts a stretch routine at its first step, not paused. An empty list ends any routine.
     pub fn start_stretches(&self, steps: Vec<Stretch>) {
         self.change(|state| {
+            // An empty routine over no routine is no change: nothing to clear and nothing to start.
+            if steps.is_empty() && state.stretches.is_empty() {
+                return false;
+            }
             state.clear_stretches();
             if let Some(seconds) = steps.first().map(|step| step.seconds) {
                 state.stretch_left = seconds;

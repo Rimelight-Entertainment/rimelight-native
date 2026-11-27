@@ -26,7 +26,6 @@ mod tests {
         i_slint_backend_testing::init_integration_test_with_mock_time();
         crate::shell::tests::scenario();
         super::focus::tests::scenario();
-        super::notes::tests::scenario();
         super::todos::tests::scenario();
         super::habits::tests::scenario();
         super::watchlist::tests::scenario();

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use rimelight_personal_core::auth::{Auth, SessionStore};
-use rimelight_personal_core::{ApiClient, DEFAULT_API_BASE};
+use rimelight_personal_core::{ApiClient, InstanceConfig};
 use slint::ComponentHandle as _;
 
 use crate::generated::{ConnectionState, RimelightPersonalShell, Session, SessionPhase};
@@ -34,8 +34,12 @@ thread_local! {
 }
 
 /// Connects the sign-in screen to the Access session and starts it. Returns the session for the API client.
-pub fn wire(ui: &RimelightPersonalShell) -> Arc<Auth> {
-    let auth = Arc::new(Auth::new(default_store()));
+pub fn wire(ui: &RimelightPersonalShell, instance: InstanceConfig) -> Arc<Auth> {
+    let auth = Arc::new(Auth::new(default_store(), instance));
+    // Load the saved token before any page asks for data, so the first requests already carry it. A store that cannot
+    // be read leaves the user signed out here; `decide` reports the same result again after the server check.
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = auth.restore();
     ui.global::<Session>().set_phase(SessionPhase::Loading);
     start(ui, &auth);
     start_timer(ui, &auth);
@@ -81,7 +85,7 @@ pub fn wire(ui: &RimelightPersonalShell) -> Arc<Auth> {
             #[cfg(target_arch = "wasm32")]
             {
                 let _ =
-                    rimelight_personal_core::web_session::navigate(&rimelight_personal_core::auth::web_logout_url());
+                    rimelight_personal_core::web_session::navigate(&rimelight_personal_core::auth::web_logout_url(&for_sign_out.instance));
             }
         }
     });
@@ -119,7 +123,7 @@ fn start(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
     }
     let weak = ui.as_weak();
     let auth = auth.clone();
-    ApiClient::new(DEFAULT_API_BASE).reachable(move |online| {
+    ApiClient::new(auth.instance.api_base.clone()).reachable(move |online| {
         let _ = weak.upgrade_in_event_loop(move |ui| {
             if online {
                 decide(&ui, &auth);
@@ -148,7 +152,7 @@ fn decide(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
     #[cfg(target_arch = "wasm32")]
     {
         let weak = ui.as_weak();
-        rimelight_personal_core::web_session::probe_cookie_session(move |signed_in| {
+        rimelight_personal_core::web_session::probe_cookie_session(&auth.instance.api_base, move |signed_in| {
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 let session = ui.global::<Session>();
                 session.set_connection(ConnectionState::Connected);
@@ -197,7 +201,7 @@ fn start_timer(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
                 return;
             }
             let weak = ui.as_weak();
-            ApiClient::new(DEFAULT_API_BASE).reachable(move |online| {
+            ApiClient::new(auth.instance.api_base.clone()).reachable(move |online| {
                 let _ = weak.upgrade_in_event_loop(move |ui| {
                     let session = ui.global::<Session>();
                     // A sign-out that happened while the check ran wins.
@@ -224,9 +228,10 @@ fn begin_sign_in(ui: &RimelightPersonalShell, auth: Arc<Auth>) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let weak = ui.as_weak();
+        let instance = auth.instance.clone();
         std::thread::spawn(move || {
             let result: Result<(), rimelight_personal_core::auth::AuthError> =
-                rimelight_personal_core::signin::cli_login(&rimelight_personal_core::signin::open_system_browser)
+                rimelight_personal_core::signin::cli_login(&instance, &rimelight_personal_core::signin::open_system_browser)
                     .and_then(|token| auth.accept_token(token));
             let _ = weak.upgrade_in_event_loop(move |ui| finish_sign_in(&ui, &auth, result));
         });
@@ -234,12 +239,11 @@ fn begin_sign_in(ui: &RimelightPersonalShell, auth: Arc<Auth>) {
 
     #[cfg(target_arch = "wasm32")]
     {
-        drop(auth);
         let page = rimelight_personal_core::web_session::page_address().unwrap_or_default();
+        let login = rimelight_personal_core::auth::web_login_url(&auth.instance, &page);
+        drop(auth);
         // The page leaves for Access; if the browser refuses, the error shows here.
-        if let Err(message) =
-            rimelight_personal_core::web_session::navigate(&rimelight_personal_core::auth::web_login_url(&page))
-        {
+        if let Err(message) = rimelight_personal_core::web_session::navigate(&login) {
             session.set_phase(SessionPhase::SignedOut);
             session.set_error(message.into());
         }
@@ -266,6 +270,7 @@ fn finish_sign_in(
             session.set_error("".into());
             session.set_connection(ConnectionState::Connected);
             session.set_phase(SessionPhase::SignedIn);
+            session.invoke_reload_page();
         }
         Err(e) => {
             session.set_phase(SessionPhase::SignedOut);

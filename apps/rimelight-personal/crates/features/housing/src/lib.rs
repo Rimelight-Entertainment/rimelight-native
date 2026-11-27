@@ -74,7 +74,7 @@ impl HousingApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn HousingApi> {
     Arc::new(ApiClient::new(api_base))
 }
@@ -1193,6 +1193,12 @@ impl HousingController {
                 return false;
             }
         }
+        // A handler that refuses a field sets the form's error synchronously; clear any old one first, then read it.
+        self.change(|s| {
+            if let Some(f) = s.form.as_mut() {
+                f.error = None;
+            }
+        });
         match form.kind {
             FormKind::Pet => self.save_pet(&form),
             FormKind::Care => self.add_care(&form),
@@ -1204,7 +1210,8 @@ impl HousingController {
             FormKind::Store => self.add_store(&form),
             FormKind::Item => self.save_item(&form),
         }
-        true
+        // Accepted unless a handler refused a field. A form that was sent and is still open has no error yet.
+        self.lock().form.as_ref().is_none_or(|f| f.error.is_none())
     }
 
     fn refuse(&self, message: String) {

@@ -1,5 +1,5 @@
 //! Watchlist API client and pure logic. Mirrors `src/components/watchlist/WatchlistManager.tsx`
-//! and `src/api/routes/watchlist.ts` in `personal.idantity.me`, against `/api/watchlist`.
+//! and `src/api/routes/watchlist.ts` in the previous personal backend, against `/api/watchlist`.
 
 use std::fmt::Display;
 

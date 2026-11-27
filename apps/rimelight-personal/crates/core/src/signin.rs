@@ -14,9 +14,8 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
 use crypto_box::aead::Aead;
 use crypto_box::{Nonce, PublicKey, SalsaBox, SecretKey};
 
-use crate::auth::{
-    ACCESS_APP_URL, ACCESS_AUD, APP_ORIGIN, AuthError, TRANSFER_ORIGIN, percent_encode,
-};
+use crate::auth::{AuthError, TRANSFER_ORIGIN, percent_encode};
+use crate::instance::InstanceConfig;
 
 /// How long the user has to finish the login in the browser.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
@@ -31,15 +30,17 @@ const NONCE_LEN: usize = 24;
 
 /// The login URL for a public key (base64url with padding, as cloudflared encodes it). `redirect_url` is the application
 /// URL carrying the same `aud` and `token`, which is what Access checks it against.
-fn login_url(public_key: &str) -> String {
+fn login_url(instance: &InstanceConfig, public_key: &str) -> String {
     let redirect = format!(
-        "{ACCESS_APP_URL}?aud={}&token={}",
-        percent_encode(ACCESS_AUD),
+        "{}?aud={}&token={}",
+        instance.api_base,
+        percent_encode(&instance.access_aud),
         percent_encode(public_key)
     );
     format!(
-        "{APP_ORIGIN}{LOGIN_PATH}?aud={}&edge_token_transfer=true&redirect_url={}&send_org_token=true&token={}",
-        percent_encode(ACCESS_AUD),
+        "{}{LOGIN_PATH}?aud={}&edge_token_transfer=true&redirect_url={}&send_org_token=true&token={}",
+        instance.app_origin(),
+        percent_encode(&instance.access_aud),
         percent_encode(&redirect),
         percent_encode(public_key)
     )
@@ -90,9 +91,12 @@ fn open_transfer(secret: &SecretKey, service_key: &str, body: &str) -> Result<St
 
 /// Runs the CLI login: opens the browser, polls for the token, and returns it. Blocks the calling thread; call it from a
 /// worker thread. `open_browser` is injected so tests open nothing.
-pub fn cli_login(open_browser: &dyn Fn(&str) -> Result<(), String>) -> Result<String, AuthError> {
+pub fn cli_login(
+    instance: &InstanceConfig,
+    open_browser: &dyn Fn(&str) -> Result<(), String>,
+) -> Result<String, AuthError> {
     let (secret, public) = new_key_pair()?;
-    open_browser(&login_url(&public)).map_err(AuthError::Browser)?;
+    open_browser(&login_url(instance, &public)).map_err(AuthError::Browser)?;
 
     let deadline = Instant::now() + LOGIN_TIMEOUT;
     let url = poll_url(&public);
@@ -148,13 +152,18 @@ mod tests {
 
     #[test]
     fn the_login_url_follows_cloudflared() {
-        let url = login_url("KEY=");
-        assert!(url.starts_with("https://idantity.me/cdn-cgi/access/cli?aud="));
+        let instance = InstanceConfig {
+            api_base: "https://app.example.com/api/personal".to_owned(),
+            access_aud: "AUD".to_owned(),
+            access_team_origin: "https://team.example".to_owned(),
+        };
+        let url = login_url(&instance, "KEY=");
+        assert!(url.starts_with("https://app.example.com/cdn-cgi/access/cli?aud=AUD&"));
         assert!(url.contains("&edge_token_transfer=true&"));
         assert!(url.contains("&send_org_token=true&"));
         assert!(url.ends_with("&token=KEY%3D"));
         // The redirect is the application URL (inside the Access app), not "/".
-        assert!(url.contains("redirect_url=https%3A%2F%2Fidantity.me%2Fapi%2Fpersonal%3Faud%3D"));
+        assert!(url.contains("redirect_url=https%3A%2F%2Fapp.example.com%2Fapi%2Fpersonal%3Faud%3DAUD"));
         assert!(!url.contains("redirect_url=%2F&"));
     }
 

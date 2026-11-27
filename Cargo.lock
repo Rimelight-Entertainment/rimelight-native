@@ -6040,6 +6040,7 @@ name = "personal_desktop"
 version = "0.1.0"
 dependencies = [
  "embed-resource",
+ "rimelight_personal_core",
  "rimelight_personal_nav",
  "rimelight_personal_ui_slint",
  "rimelight_platform",
@@ -6047,6 +6048,7 @@ dependencies = [
  "rimelight_update",
  "slint",
  "slint-build",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6975,6 +6977,7 @@ dependencies = [
 name = "rimelight-personal-web"
 version = "0.1.0"
 dependencies = [
+ "rimelight_personal_core",
  "rimelight_personal_ui_slint",
  "rimelight_ui_kit",
  "wasm-bindgen",
@@ -7058,6 +7061,7 @@ dependencies = [
  "open",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "web-sys",
 ]
 

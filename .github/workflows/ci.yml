@@ -71,6 +71,30 @@ jobs:
         working-directory: apps/rimelight-space/apps/web
         run: trunk build --release
 
+  personal-wasm:
+    if: github.event_name != 'schedule'
+    name: Rimelight Personal web (wasm32, trunk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Install trunk
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: trunk@0.22.1
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Build personal web shell
+        env:
+          RIMELIGHT_API_BASE: https://example.com/api/personal
+          RIMELIGHT_ACCESS_AUD: ci-placeholder
+          RIMELIGHT_ACCESS_TEAM_ORIGIN: https://example.cloudflareaccess.com
+        working-directory: apps/rimelight-personal/apps/web
+        run: trunk build --release
+
   android:
     if: github.event_name != 'schedule'
     name: Android (arm64 check, no emulator)

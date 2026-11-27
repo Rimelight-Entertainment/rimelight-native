@@ -3,10 +3,13 @@
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-changed=ui/update.slint");
+    println!("cargo::rerun-if-changed=ui/setup.slint");
+    println!("cargo::rerun-if-changed=ui/app.slint");
     println!("cargo::rerun-if-changed=app.rc");
     println!("cargo::rerun-if-changed=../../assets/logo/logo_color.ico");
+    // Both windows are compiled from ui/app.slint, so one generated module holds them.
+    slint_build::compile("ui/app.slint").expect("slint: ui/app.slint failed to compile");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        slint_build::compile("ui/update.slint").expect("slint: ui/update.slint failed to compile");
         // The app icon and version information (app.rc) inside personal_desktop.exe. The version is taken from the
         // package version, as rimelight-media does.
         let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".into());

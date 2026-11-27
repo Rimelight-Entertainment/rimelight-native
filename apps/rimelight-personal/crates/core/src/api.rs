@@ -3,10 +3,6 @@ use std::sync::Arc;
 
 use ehttp::{Headers, Method, Request};
 
-/// Default API root. The backend moved from personal.idantity.me to idantity.me (2026-11-22), under `/api/personal`
-/// (protected by a Cloudflare Access application). Callers can override it with their own base (the desktop `--api` flag).
-pub const DEFAULT_API_BASE: &str = "https://idantity.me/api/personal";
-
 use crate::finance::{FinanceData, decode_finances};
 use crate::habits::{HabitAction, HabitData, decode_habits};
 use crate::notes::{
@@ -53,7 +49,7 @@ pub trait BearerSource: Send + Sync {
     fn credential(&self) -> Option<HeaderToken>;
 }
 
-/// Calls the personal.idantity.me API. Callbacks run on ehttp's worker thread (native) or the browser event loop (wasm),
+/// Calls the personal API at `base`. Callbacks run on ehttp's worker thread (native) or the browser event loop (wasm),
 /// so UI code must hand results back through shared state and call `request_repaint`.
 ///
 /// Every API request goes through [`ApiClient::send`], which adds the bearer token when a [`BearerSource`] is set.
@@ -311,11 +307,21 @@ impl ApiClient {
         decode: impl FnOnce(&[u8]) -> Result<T, ApiError> + Send + 'static,
         on_done: impl FnOnce(Result<T, ApiError>) + Send + 'static,
     ) {
-        if let Some(credential) = self.bearer.as_ref().and_then(|source| source.credential()) {
-            request
-                .headers
-                .headers
-                .push((credential.name, credential.value));
+        if let Some(source) = self.bearer.as_ref() {
+            match source.credential() {
+                Some(credential) => request
+                    .headers
+                    .headers
+                    .push((credential.name, credential.value)),
+                None => {
+                    // Without a token Access answers with its login page, which then fails to parse. Say so instead.
+                    on_done(Err(ApiError::Status {
+                        code: 401,
+                        body: "no sign-in token in this session; sign in again".to_owned(),
+                    }));
+                    return;
+                }
+            }
         }
         send_anonymous(request, decode, on_done);
     }
@@ -342,6 +348,7 @@ pub(crate) fn send_anonymous<T: Send + 'static>(
     decode: impl FnOnce(&[u8]) -> Result<T, ApiError> + Send + 'static,
     on_done: impl FnOnce(Result<T, ApiError>) + Send + 'static,
 ) {
+    let url = request.url.clone();
     ehttp::fetch(request, move |result| {
         let outcome = match result {
             Err(e) => Err(ApiError::Transport(e)),
@@ -349,7 +356,13 @@ pub(crate) fn send_anonymous<T: Send + 'static>(
                 code: resp.status,
                 body: String::from_utf8_lossy(&resp.bytes).into_owned(),
             }),
-            Ok(resp) => decode(&resp.bytes),
+            Ok(resp) => decode(&resp.bytes).map_err(|e| match e {
+                ApiError::Decode(msg) => {
+                    let head = String::from_utf8_lossy(&resp.bytes[..resp.bytes.len().min(80)]);
+                    ApiError::Decode(format!("{msg} (GET {url}, {} bytes, starts {head:?})", resp.bytes.len()))
+                }
+                other => other,
+            }),
         };
         on_done(outcome);
     });

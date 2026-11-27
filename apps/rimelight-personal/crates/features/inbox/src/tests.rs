@@ -48,7 +48,7 @@ impl InboxApi for Arc<Fake> {
     fn config(&self, on_done: Done<Config>) {
         self.record("config".to_owned());
         on_done(Ok(Config {
-            domains: vec!["idantity.me".to_owned()],
+            domains: vec!["example.com".to_owned()],
         }));
     }
 
@@ -312,6 +312,18 @@ fn setup() -> Setup {
 
 fn loaded() -> (Arc<Fake>, Arc<FakeShell>, InboxController) {
     let (fake, shell, c, _) = setup();
+    c.load();
+    (fake, shell, c)
+}
+
+/// Like `loaded`, but the one message carries an attachment before the controller reads the list.
+fn loaded_with_attachment(
+    filename: &str,
+    mimetype: &str,
+    bytes: &[u8],
+) -> (Arc<Fake>, Arc<FakeShell>, InboxController) {
+    let (fake, shell, c, _) = setup();
+    with_attachment(&fake, filename, mimetype, bytes);
     c.load();
     (fake, shell, c)
 }
@@ -623,14 +635,15 @@ fn with_attachment(fake: &Fake, filename: &str, mimetype: &str, bytes: &[u8]) {
         content_id: None,
         disposition: None,
     };
-    fake.emails.lock().unwrap()[0].attachments = vec![att];
+    // The same message sits in both lists; `find_email` checks the thread first.
+    fake.emails.lock().unwrap()[0].attachments = vec![att.clone()];
+    fake.thread.lock().unwrap()[0].attachments = vec![att];
     *fake.fetch_bytes.lock().unwrap() = bytes.to_vec();
 }
 
 #[test]
 fn a_text_attachment_opens_in_the_app_viewer() {
-    let (fake, _, c) = loaded();
-    with_attachment(&fake, "notes.txt", "text/plain", b"hello there");
+    let (fake, _, c) = loaded_with_attachment("notes.txt", "text/plain", b"hello there");
     assert!(c.open_attachment("a1", "att1"));
     assert!(
         fake.calls()
@@ -645,8 +658,7 @@ fn a_text_attachment_opens_in_the_app_viewer() {
 
 #[test]
 fn an_other_attachment_is_saved_then_opened_by_plain_path() {
-    let (fake, shell, c) = loaded();
-    with_attachment(&fake, "plan.pdf", "application/pdf", b"%PDF-1.4");
+    let (fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
     let target = test_dir().join("saved").join("plan.pdf");
     *shell.save_target.lock().unwrap() = Some(target.clone());
     assert!(c.open_attachment("a1", "att1"));
@@ -659,8 +671,7 @@ fn an_other_attachment_is_saved_then_opened_by_plain_path() {
 
 #[test]
 fn a_cancelled_save_leaves_nothing_behind() {
-    let (fake, shell, c) = loaded();
-    with_attachment(&fake, "plan.pdf", "application/pdf", b"%PDF-1.4");
+    let (fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
     *shell.save_target.lock().unwrap() = None;
     assert!(c.open_attachment("a1", "att1"));
     assert!(shell.opened.lock().unwrap().is_empty());
@@ -669,8 +680,7 @@ fn a_cancelled_save_leaves_nothing_behind() {
 
 #[test]
 fn a_failed_download_opens_the_address_in_the_browser() {
-    let (fake, shell, c) = loaded();
-    with_attachment(&fake, "plan.pdf", "application/pdf", b"");
+    let (fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"");
     *fake.fetch_fail.lock().unwrap() = true;
     assert!(c.open_attachment("a1", "att1"));
     assert_eq!(shell.opened.lock().unwrap()[0], "https://api.test/att");
@@ -679,8 +689,7 @@ fn a_failed_download_opens_the_address_in_the_browser() {
 
 #[test]
 fn an_unreadable_picture_says_so_in_the_banner() {
-    let (fake, _, c) = loaded();
-    with_attachment(&fake, "photo.png", "image/png", b"not a picture");
+    let (fake, _, c) = loaded_with_attachment("photo.png", "image/png", b"not a picture");
     assert!(c.open_attachment("a1", "att1"));
     assert!(c.view().banner.contains("Could not show photo.png"));
     assert!(c.view().viewer.is_none());

@@ -3,7 +3,7 @@
 > **Status:** Single Source of Truth & Authoritative Technical Manual  
 > **Project Name:** Rimelight Personal (formerly `rimelight-personal`)  
 > **Primary Technology:** Rust 2024 (1.100.0) | Slint | Cloudflare D1 + Access | WebAssembly  
-> **Backend Host:** `idantity.me/api/personal` (Cloudflare Worker + D1 Database)
+> **Backend Host:** set per instance with `RIMELIGHT_API_BASE` (see README.md). The current deployment is `idantity.me/api/personal` (Cloudflare Worker + D1), which moves out in R5.
 
 ---
 
@@ -293,20 +293,20 @@ Steps are batch-sized. Within a batch nothing is built; the batch ends with one 
 
 | # | Module | Route | Web Parity Status | Native Implementation Notes |
 |---|---|---|---|---|
-| **1** | **Overview** | `/` | ⬜ In Progress | Core layout wired; adding financial cards and urgent task widgets. |
-| **2** | **Todos** | `/todos` | 🟨 Partial | Basic list, add, toggle, delete functional in `crates/features/todos`. Pending recurring logic, filters, and batchToolbar. |
-| **3** | **Focus** | `/focus` | 🟨 Partial | Focus timer operational; audio stream integration pending. |
+| **1** | **Overview** | `/` | ✅ Ported | Checked against `DashboardOverview.tsx`: all four tiles, task preview with quick add and tick-off, pinned notes, and every navigation link. |
+| **2** | **Todos** | `/todos` | ✅ Ported | Checked against `TodosManager.tsx`: six filter tabs, search, recurring fields in the add form, batch complete and delete (one request per todo, since the server has no batch action). |
+| **3** | **Focus** | `/focus` | ✅ Ported | Checked against `common/FocusTimer.tsx`: work and break cycle, long break every fourth session, 880 Hz cue, reset, sessions count. Native adds the stretch routine and metronome. Audio goes through `rimelight_sound`; not yet heard on a real device. |
 | **4** | **Notes** | `/notes` | ✅ Ported | Complete parity: active/archive/trash tabs, debounced autosave, tags, colors, and search. |
-| **5** | **Habits** | `/habits` | 🟨 Partial | Calendar grid mode operational; streaks mode (52-week heatmap) in progress. |
-| **6** | **Watchlist** | `/watchlist` | 🟨 Partial | Card catalog and status toggles wired. |
-| **7** | **Music** | `/music` | 🟨 Partial | Audio playback backend wired; drag-drop playlist UI in progress. |
-| **8** | **Notebooks** | `/notebooks` | 🟨 Partial | Chapter hierarchy and markdown renderer in progress. |
-| **9** | **Projects** | `/projects` | ⬜ In Progress | Kanban board layout; moving logic from legacy egui reference crate into `crates/features/projects`. |
-| **10**| **Finances** | `/finances` | ⬜ In Progress | Ledger logic extracted from reference implementation; Frankfurter FX API wired. |
-| **11**| **Housing** | `/housing` | ⬜ In Progress | Groceries checklist and maintenance schedules moving to Slint. |
-| **12**| **Health** | `/health` | ⬜ In Progress | Fasting timer and measurement inputs moving to Slint. |
-| **13**| **Inbox** | `/inbox` | ⬜ In Progress | Email triage UI wired to Cloudflare Email Routing worker. |
-| **14**| **Storage** | `/storage` | ⬜ In Progress | File manager view connecting to Cloudflare R2 / storage backend. |
+| **5** | **Habits** | `/habits` | ✅ Ported | Checked against `habits/HabitsTracker.tsx`: year tabs and add year, month grid and streaks view, 52-week grid, current and best streaks, category add and delete. |
+| **6** | **Watchlist** | `/watchlist` | ✅ Ported | Checked against `watchlist/WatchlistManager.tsx`: add, edit, quick status change, tick-off, delete, categories with confirmation. Native adds sorting, search, multi-select and CSV export. |
+| **7** | **Music** | `/music` | ✅ Ported | Checked against `music/*`: repertoire pieces with attachments and status, exercise checklists, metronome with tap tempo and subdivisions. |
+| **8** | **Notebooks** | `/notebooks` | ✅ Ported | Checked against `notebooks/*`: create notebooks, entries add/edit/delete, pin, archive, trash and restore, rename. |
+| **9** | **Projects** | `/projects` | ✅ Ported | Checked against `projects/KanbanBoard.tsx`: create board with the same four default lists, create list, add card, move card, delete card. |
+| **10**| **Finances** | `/finances` | ✅ Ported | Checked against `finances/tabs/*` and the add modals: accounts, transactions, incomes, bills, budgets, debts, wishlist, each with its form, edit and delete. FX via Frankfurter. |
+| **11**| **Housing** | `/housing` | ✅ Ported | Checked against `housing/*` and `groceries/*`: pets with history and weight entries, wishlist, grocery list. The web has no maintenance schedules, so none are needed. |
+| **12**| **Health** | `/health` | ✅ Ported | Checked against `health/*`: fasting with protocols and custom hours, measurements with chart, goals and metrics, workouts with exercises, sets, stretches and the routine. |
+| **13**| **Inbox** | `/inbox` | ✅ Ported (on paper) | Checked against `inbox/*`: compose, reply, forward, send, search, move between folders, attachments. Not yet exercised against live mail. |
+| **14**| **Storage** | `/storage` | ✅ Ported | Checked against `storage/*`: upload, folders, move, rename, delete single and batch, copy link, previews, audio. |
 
 ---
 

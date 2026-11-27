@@ -102,7 +102,7 @@ impl HealthApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn HealthApi> {
     Arc::new(ApiClient::new(api_base))
 }
@@ -124,7 +124,7 @@ pub const CUSTOM_PROTOCOL: usize = 5;
 /// Units offered for a measurement track.
 pub const UNITS: [&str; 6] = ["cm", "in", "kg", "lb", "%", "mm"];
 /// Number of history bars shown.
-const HISTORY_LIMIT: usize = 12;
+const HISTORY_LIMIT: usize = 14;
 
 /// Metabolic stage: the hours at which it starts, its name and its one-line description.
 pub struct Stage {
@@ -1235,7 +1235,7 @@ impl HealthController {
             if s.custom_start_on {
                 // The picked day and time are local, as the web's datetime input gives them; the API gets UTC.
                 let iso = s.start_pick.and_then(|(y, m, d)| {
-                    local_time::local_to_iso(y, m, d, s.start_hour, s.start_minute)
+                    rimelight_personal_core::local_date::local_to_iso(y, m, d, s.start_hour, s.start_minute)
                 });
                 let Some(iso) = iso else {
                     drop(s);
@@ -1481,7 +1481,10 @@ impl HealthController {
         let Some(rest) = rest else { return false };
         let now = now_secs();
         self.change(|s| {
-            if !s.done_sets.remove(set_id) {
+            if s.done_sets.remove(set_id) {
+                // Unchecking a set ends its rest countdown.
+                s.rest_ends = None;
+            } else {
                 s.done_sets.insert(set_id.to_owned());
                 s.rest_ends = Some(now + f64::from(rest));
             }
@@ -1928,7 +1931,9 @@ mod tests {
 
         fn workouts_get(&self, on_done: Done<Option<WorkoutData>>) {
             self.record("workouts_get");
-            on_done(Ok(self.workouts.lock().unwrap().clone()));
+            // Copy out first: the callback may save, which locks `workouts` again.
+            let data = self.workouts.lock().unwrap().clone();
+            on_done(Ok(data));
         }
 
         fn workouts_save(&self, data: &WorkoutData, on_done: Done<()>) {
@@ -2061,7 +2066,7 @@ mod tests {
             .expect("start sent");
         // The API gets UTC; read back in the local zone it is the picked 08:30.
         assert!(sent.ends_with("Z"), "got {sent}");
-        assert_eq!(local_time::local_hm(&sent), Some((8, 30)), "got {sent}");
+        assert_eq!(local_time::local_hm(sent.trim_start_matches("start:24:")), Some((8, 30)), "got {sent}");
         let view = c.view();
         assert!(view.fasting.active.is_some());
         assert!(

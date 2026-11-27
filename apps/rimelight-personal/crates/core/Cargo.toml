@@ -21,6 +21,8 @@ base64 = "0.22"
 jiff = "0.2"
 # The transfer key for the desktop Access login (crates/core/src/signin.rs).
 getrandom = "0.3"
+# The PKCE code challenge for the Cloudflare OAuth sign-in (crates/core/src/cf_oauth.rs).
+sha2 = "0.10"
 # The NaCl box the transfer service encrypts the token with (crates/core/src/signin.rs); the primitive cloudflared uses.
 crypto_box = { version = "0.9", default-features = false, features = ["alloc", "salsa20"] }
 

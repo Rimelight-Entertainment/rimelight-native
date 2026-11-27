@@ -1,4 +1,4 @@
-//! Decodes responses captured from the local personal.idantity.me backend.
+//! Decodes responses captured from the local personal backend.
 //! The fixtures are the source of truth for the wire format.
 
 use rimelight_personal_core::ApiError;

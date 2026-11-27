@@ -1,10 +1,10 @@
-//! Sign-in and the session for the personal API, which sits behind a Cloudflare Access application on idantity.me.
+//! Sign-in and the session for the personal API, which sits behind a Cloudflare Access application (see [`InstanceConfig`]).
 //!
 //! Desktop: Cloudflare Access issues a JWT (`CF_Authorization`). The app obtains it through the Access CLI login (see
 //! [`crate::signin`]), keeps it in the OS credential store, and sends it as the `cf-access-token` header on every API call.
 //! A token whose `exp` claim has passed is treated as absent, so the next start signs in again.
 //!
-//! Web: the browser holds the `CF_Authorization` cookie for idantity.me once Access has signed the user in, and
+//! Web: the browser holds the `CF_Authorization` cookie for the app origin once Access has signed the user in, and
 //! same-origin requests send it. The web build sends no header; sign-in navigates to the Access login and sign-out to the
 //! Access logout (both in the `apps/web` shell, see [`web_login_url`] and [`web_logout_url`]).
 //!
@@ -15,21 +15,10 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{BearerSource, HeaderToken};
+use crate::instance::InstanceConfig;
 
 /// The request header the personal API expects the Access token in.
 pub const ACCESS_HEADER: &str = "cf-access-token";
-
-/// The Access application's origin (the same host as the API). Empty is not allowed; see [`AppUrl::new`].
-pub const APP_ORIGIN: &str = "https://idantity.me";
-
-/// The Access application the personal API sits behind: its URL (host and path), as Access scopes it.
-pub const ACCESS_APP_URL: &str = "https://idantity.me/api/personal";
-
-/// The application's AUD tag. Access prints it as `kid` in the login redirect and as `aud` in the token; it is not a secret.
-pub const ACCESS_AUD: &str = "f55835872c87ed965c6f06fa02bed51bb36fa5b714ea7f3c20205d89624d6391";
-
-/// The team's Access login host (where Access signs a user in).
-pub const ACCESS_TEAM_ORIGIN: &str = "https://idantitydotme.cloudflareaccess.com";
 
 /// The token transfer service the CLI login polls (the same one `cloudflared access login` uses).
 pub const TRANSFER_ORIGIN: &str = "https://login.cloudflareaccess.org";
@@ -226,13 +215,16 @@ impl SessionStore for KeyringStore {
 /// The sign-in state the app holds: the store and the in-memory session, kept together so sign-out clears both.
 pub struct Auth {
     pub session: Arc<AccessSession>,
+    /// The instance this session signs in to.
+    pub instance: InstanceConfig,
     store: Arc<dyn SessionStore>,
 }
 
 impl Auth {
-    pub fn new(store: Arc<dyn SessionStore>) -> Self {
+    pub fn new(store: Arc<dyn SessionStore>, instance: InstanceConfig) -> Self {
         Self {
             session: Arc::new(AccessSession::default()),
+            instance,
             store,
         }
     }
@@ -277,20 +269,23 @@ impl Auth {
 /// The web sign-in page: Access shows its login and returns to `return_to` (an absolute URL on the app origin). Access
 /// takes a path on the application host, not a full URL (a full URL is refused as "Invalid redirect URL"), so only the
 /// path and query of `return_to` are sent. A `return_to` that is not on the app origin returns to `/`.
-pub fn web_login_url(return_to: &str) -> String {
+pub fn web_login_url(instance: &InstanceConfig, return_to: &str) -> String {
     let path = return_to
-        .strip_prefix(APP_ORIGIN)
+        .strip_prefix(instance.app_origin())
         .filter(|rest| rest.starts_with('/'))
         .unwrap_or("/");
     format!(
-        "{ACCESS_TEAM_ORIGIN}/cdn-cgi/access/login/idantity.me?kid={ACCESS_AUD}&redirect_url={}",
+        "{}/cdn-cgi/access/login/{}?kid={}&redirect_url={}",
+        instance.access_team_origin,
+        instance.app_host(),
+        percent_encode(&instance.access_aud),
         percent_encode(path)
     )
 }
 
 /// The web sign-out: Access clears its cookie and returns to the app origin.
-pub fn web_logout_url() -> String {
-    format!("{APP_ORIGIN}/cdn-cgi/access/logout")
+pub fn web_logout_url(instance: &InstanceConfig) -> String {
+    format!("{}/cdn-cgi/access/logout", instance.app_origin())
 }
 
 /// Encodes a query value (RFC 3986 unreserved characters pass through).
@@ -347,7 +342,7 @@ mod tests {
 
     #[test]
     fn accept_then_sign_out_clears_store_and_session() {
-        let auth = Auth::new(Arc::new(MemoryStore::default()));
+        let auth = Auth::new(Arc::new(MemoryStore::default()), test_instance());
         let token = token_with_exp(now_unix() + 3600);
         auth.accept_token(token.clone()).expect("accept");
         let header = auth.session.credential().expect("header");
@@ -367,19 +362,27 @@ mod tests {
                 expires_at: 1,
             })
             .expect("save");
-        let auth = Auth::new(store.clone());
+        let auth = Auth::new(store.clone(), test_instance());
         assert_eq!(auth.restore(), Ok(false));
         assert_eq!(store.load(), Ok(None));
     }
 
     #[test]
     fn web_login_url_sends_a_path_with_the_app_aud() {
+        let instance = test_instance();
         assert_eq!(
-            web_login_url("https://idantity.me/todos"),
-            format!(
-                "https://idantitydotme.cloudflareaccess.com/cdn-cgi/access/login/idantity.me?kid={ACCESS_AUD}&redirect_url=%2Ftodos"
-            )
+            web_login_url(&instance, "https://app.example.com/todos"),
+            "https://team.example/cdn-cgi/access/login/app.example.com?kid=AUD&redirect_url=%2Ftodos"
         );
-        assert!(web_login_url("https://elsewhere.example/x").ends_with("redirect_url=%2F"));
+        assert!(web_login_url(&instance, "https://elsewhere.example/x").ends_with("redirect_url=%2F"));
+        assert_eq!(web_logout_url(&instance), "https://app.example.com/cdn-cgi/access/logout");
+    }
+
+    fn test_instance() -> InstanceConfig {
+        InstanceConfig {
+            api_base: "https://app.example.com/api/personal".to_owned(),
+            access_aud: "AUD".to_owned(),
+            access_team_origin: "https://team.example".to_owned(),
+        }
     }
 }

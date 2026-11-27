@@ -23,6 +23,8 @@ export global Session {
     callback cancel();
     // The user pressed Retry on the unreachable screen.
     callback retry();
+    // Signed in: Rust reloads the page the user is on, so data requested before the sign-in is fetched again.
+    callback reload-page();
     // The user chose Sign out (the shell's account menu calls it).
     callback sign-out();
 }

@@ -1,0 +1,14 @@
+{
+  // Builds the Worker bundle that the Windows release ships (no account, no deploy): see tools/pack-windows.ps1.
+  // The ids here are placeholders; setup sends the real bindings to the owner's account.
+  "name": "rimelight-personal",
+  "main": "./src/fetch.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "durable_objects": { "bindings": [ { "name": "MAILBOX", "class_name": "MailboxDO" } ] },
+  "migrations": [ { "tag": "v1", "new_sqlite_classes": ["MailboxDO"] } ],
+  "d1_databases": [ { "binding": "DB", "database_name": "rimelight-personal", "database_id": "00000000-0000-0000-0000-000000000000" } ],
+  "r2_buckets": [ { "binding": "PERSONAL_BLOB", "bucket_name": "rimelight-personal" } ],
+  "send_email": [ { "name": "EMAIL" } ],
+  "vars": { "TEAM_DOMAIN": "", "POLICY_AUD": "", "DOMAINS": "", "EMAIL_ADDRESSES": "[]" }
+}

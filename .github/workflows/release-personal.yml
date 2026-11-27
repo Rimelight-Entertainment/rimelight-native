@@ -1,0 +1,56 @@
+name: Release Rimelight Personal
+
+# Pushing a version tag such as personal-v0.1.0 builds the Windows installer and update package, with the Worker bundle
+# the app sets up the owner's backend from, and publishes them as a GitHub release (the same way as Media).
+# The tag version (without `personal-v`) must equal `version` in apps/rimelight-personal/apps/desktop/Cargo.toml.
+
+on:
+  push:
+    tags:
+      - "personal-v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-personal
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  VPK_VERSION: "1.3.39-g8d2844f"
+
+jobs:
+  windows:
+    name: Windows installer and update package (Personal)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3 (Node 24)
+      - name: Check the tag matches the app version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}" -replace '^personal-v', ''
+          $cargo = Get-Content apps/rimelight-personal/apps/desktop/Cargo.toml -Raw
+          if ($cargo -notmatch "(?m)^version\s*=\s*`"$([regex]::Escape($tag))`"") {
+            throw "the tag $tag does not match the version in apps/rimelight-personal/apps/desktop/Cargo.toml"
+          }
+      - name: Install pnpm for the worker bundle
+        run: npm install -g pnpm@12
+      - name: Pack (app, worker bundle, installer)
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^personal-v', ''
+          pwsh apps/rimelight-personal/tools/pack-windows.ps1 -Version $version -VpkVersion $env:VPK_VERSION
+      - name: Publish the GitHub release
+        working-directory: apps/rimelight-personal/releases
+        shell: pwsh
+        run: >
+          vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
+          --token "${{ secrets.GITHUB_TOKEN }}" --publish
+          --releaseName "Rimelight Personal ${{ github.ref_name }}" --tag "${{ github.ref_name }}"
+          --outputDir .

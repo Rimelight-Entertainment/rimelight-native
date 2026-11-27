@@ -1,5 +1,5 @@
 //! The Finances page controller (ported from `crates/app/src/finances.rs`; the behaviour comes from the web app's
-//! `src/components/finances/` in personal.idantity.me).
+//! `src/components/finances/` in the previous personal web app).
 //!
 //! Plain Rust with no Slint. [`FinancesController`] holds the page state (the finance data, the FX rates, the active
 //! tab, the filters and the open form), calls the endpoints through [`FinanceApi`], and reports each state change as a
@@ -160,7 +160,7 @@ impl FinanceApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn FinanceApi> {
     Arc::new(ApiClient::new(api_base))
 }

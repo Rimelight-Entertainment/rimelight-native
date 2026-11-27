@@ -44,38 +44,3 @@ pub fn month_day_time(value: &str) -> Option<String> {
 const MONTH_SHORT: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-
-/// The ISO UTC instant for a local calendar date and time (the picker's value, as the web's datetime input gives).
-/// `None` when the date does not exist.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn local_to_iso(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> Option<String> {
-    use jiff::civil;
-    use jiff::tz::TimeZone;
-    let local = civil::date(
-        i16::try_from(year).ok()?,
-        i8::try_from(month).ok()?,
-        i8::try_from(day).ok()?,
-    )
-    .at(i8::try_from(hour).ok()?, i8::try_from(minute).ok()?, 0, 0);
-    let zoned = local.to_zoned(TimeZone::system()).ok()?;
-    let instant = zoned.timestamp().to_string();
-    // jiff prints `2026-11-22T10:00:00.000Z`-style UTC text; keep the millisecond form the API parses.
-    Some(instant.replace("Z", ".000Z").replace(".000.000Z", ".000Z"))
-}
-
-/// The ISO UTC instant for a local calendar date and time (browser build).
-#[cfg(target_arch = "wasm32")]
-pub fn local_to_iso(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> Option<String> {
-    let date = js_sys::Date::new_with_year_month_day_hr_min(
-        year as u32,
-        (month as i32) - 1,
-        day as i32,
-        hour as i32,
-        minute as i32,
-    );
-    if date.get_time().is_nan() {
-        None
-    } else {
-        Some(String::from(date.to_iso_string()))
-    }
-}

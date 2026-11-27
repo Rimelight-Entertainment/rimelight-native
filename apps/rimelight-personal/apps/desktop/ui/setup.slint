@@ -1,0 +1,64 @@
+// The set-up window: shown once, on a copy that is not set up yet. It uses the system palette, like the update window, because
+// it runs before the app shell exists. Rust (src/setup_window.rs) runs the sign-in and the set-up in a worker thread and
+// writes the progress into the properties below.
+import { Button, Palette, ProgressIndicator } from "std-widgets.slint";
+
+export component SetupWindow inherits Window {
+    in property <string> status: "Sign in to Cloudflare. The backend is set up in your own Cloudflare account.";
+    in property <bool> busy: false;
+    in property <bool> failed: false;
+    callback start();
+    callback quit();
+
+    title: "Rimelight Personal setup";
+    preferred-width: 480px;
+    preferred-height: 200px;
+    min-width: 480px;
+    min-height: 200px;
+    background: Palette.background;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 14px;
+
+        Text {
+            text: "Set up Rimelight Personal";
+            font-size: 18px;
+            font-weight: 600;
+            color: Palette.foreground;
+        }
+
+        Text {
+            text: root.status;
+            wrap: word-wrap;
+            font-size: 13px;
+            color: root.failed ? #d14343 : Palette.foreground;
+        }
+
+        // A thin line while busy, and no space at all otherwise.
+        ProgressIndicator {
+            height: root.busy ? 4px : 0px;
+            indeterminate: true;
+            visible: root.busy;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+
+            Button {
+                text: "Quit";
+                enabled: !root.busy;
+                height: 30px;
+                clicked => { root.quit(); }
+            }
+            Button {
+                text: "Sign in and set up";
+                primary: true;
+                enabled: !root.busy;
+                height: 30px;
+                clicked => { root.start(); }
+            }
+        }
+    }
+}

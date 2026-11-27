@@ -78,7 +78,7 @@ pub trait TodoApi: Send + Sync {
     fn delete(&self, id: &str, on_done: Done<()>);
 }
 
-/// The live API over HTTP, for `api_base` (for example `https://personal.idantity.me/api`).
+/// The live API over HTTP, for `api_base` (for example `https://example.com/api/personal`).
 pub struct HttpTodoApi {
     base: String,
     /// The signed-in session's header (Cloudflare Access), added to every request.
@@ -454,8 +454,9 @@ impl TodosController {
                     Ok(todos) => {
                         // Drop selections of todos that no longer exist.
                         s.selected.retain(|id| todos.iter().any(|t| &t.id == id));
+                        // A good answer does not clear the error: a failed write that triggered this refresh keeps its
+                        // message until the user dismisses it.
                         s.todos = todos;
-                        s.error = None;
                     }
                     Err(e) => s.error = Some(e.to_string()),
                 }

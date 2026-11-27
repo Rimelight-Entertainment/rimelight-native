@@ -23,6 +23,7 @@ all = { level = "warn", priority = -1 }
 # The app shell (Slint, sign-in, feature pages) and the route manifest for the --route check.
 rimelight_personal_ui_slint.workspace = true
 rimelight_personal_nav.workspace = true
+rimelight_personal_core.workspace = true
 rimelight_ui_kit.workspace = true
 
 # Windows only: the installed-copy update gate (rimelight_update), the update window (its Slint markup is compiled by
@@ -31,6 +32,8 @@ rimelight_ui_kit.workspace = true
 rimelight_update.workspace = true
 rimelight_platform.workspace = true
 slint.workspace = true
+# Reads the screen size, to centre the set-up window (src/setup_window.rs).
+windows-sys = { version = "0.60", features = ["Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(windows)'.build-dependencies]
 slint-build.workspace = true

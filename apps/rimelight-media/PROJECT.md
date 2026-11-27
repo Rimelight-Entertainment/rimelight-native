@@ -2,21 +2,9 @@
 
 ## 1. High-Level Vision & Scope
 
-**Rimelight Media** is a compact, ultra-fast Windows utility and media player designed to replace bloated default and third-party desktop tools. It combines viewing, playing, markup, editing, screen capture, camera capture, and text editing into a single lightweight ~30 MB native binary.
+**Rimelight Media** is a compact, ultra-fast Windows utility and media player designed to replace bloated default and third-party desktop tools. It combines viewing, playing, markup, editing, screen capture, camera capture, and text editing into a single lightweight native binary.
 
-### 1.1 Applications Replaced
-
-| Windows / 3rd-Party App | Rimelight Media Replacement |
-|---|---|
-| **Photos / Image Glass** | Image Viewer & Markup Studio |
-| **Media Player / VLC / Movies & TV** | High-Efficiency Video & Audio Player |
-| **Notepad / Notepad++** | Text Editor & Markdown/JSON Viewer |
-| **Snipping Tool** | Global Screen Snip (`Win+Shift+S`) & Video Screen Recorder |
-| **Camera** | Webcam Photo & Video Capture |
-| **Sound Recorder** | Microphone Voice & Audio Recorder |
-| **Paint / MS Paint 3D** | Vector & Raster Canvas Studio |
-
-## 1.2 Technical Architecture
+## 1.1 Technical Architecture
 
 ```mermaid
 flowchart TD
@@ -42,10 +30,19 @@ flowchart TD
     Core --> Distribution
 ```
 
-### 1.3 Architecture Highlights
-- **Engine & GUI:** Rust 2024 paired with **Slint** for low-memory, GPU-accelerated interface rendering.
+### 1.3 Architecture
+- **Language:** Rust
+- **GUI:** Slint
+
 - **FFmpeg Integration:** Custom trimmed LGPL FFmpeg build (approx. 17 MB DLLs) fetched by `cargo xtask ffmpeg` into the workspace's `ffmpeg/current`. Decodes H.264, HEVC, AV1, VP9, MP3, FLAC, AAC, WAV, OGG, Opus without requiring external codecs.
 - **Installer & Auto-Updates:** Packaged with **Velopack**. Installs per-user (`%LOCALAPPDATA%\RimelightMedia`) without UAC prompts and automatically updates in the background.
+
+### 1.4 Target Platforms
+
+- **Desktop:**
+  - **Windows:**
+  - **MacOS:**
+  - **Linux:**
 
 ## 3. Comprehensive Feature Catalog
 
@@ -112,6 +109,7 @@ flowchart TD
 
 | Module | Feature | Status | Implementation Details & Next Steps |
 |---|---|---|---|
+| **Installer** | Velopack Auto-Update | ✅ Done | Per-user setup, background delta updates, file associations. |
 | **Pictures** | Basic Image Viewer | ✅ Done | Zoom, pan, multi-format decoders, animated GIF/WebP playback. |
 | | Side-by-Side Comparison | ✅ Done | Multi-image selection compare grid. |
 | | Vector Markup & Editing | ✅ Done | Pen, highlighter, shapes, crop, rotation, image paste. |
@@ -128,4 +126,3 @@ flowchart TD
 | | Screen Recorder | 🟨 In Review | Audio loopback and microphone MP4 recording. |
 | **Camera** | Webcam Stills & Video | ✅ Done | Camera roll integration, grid, timer, and resolution selection. |
 | **Voice** | Voice Recorder | ✅ Done | Microphone recording to M4A/WAV/FLAC with waveform markers. |
-| **Installer** | Velopack Auto-Update | ✅ Done | Per-user setup, background delta updates, file associations. |

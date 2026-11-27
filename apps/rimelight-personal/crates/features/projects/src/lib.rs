@@ -96,7 +96,7 @@ pub trait ProjectsApi: Send + Sync {
     fn delete_card(&self, card_id: &str, on_done: Done<()>);
 }
 
-/// The live client for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live client for `api_base`, for example `https://example.com/api/personal`.
 /// The live API for `api_base`, signing each request with the session's header.
 pub fn http_api_signed(
     api_base: impl Into<String>,
@@ -475,7 +475,7 @@ impl ProjectsController {
                         {
                             s.active = first.id.clone();
                         }
-                        s.error = None;
+                        // A good answer keeps the error of the write that triggered this refresh until dismissed.
                     }
                     Err(e) => s.error = Some(e.to_string()),
                 }
@@ -578,7 +578,13 @@ impl ProjectsController {
             if title.is_empty() || state.active.is_empty() {
                 return false;
             }
-            (state.active.clone(), title, state.lists.len() as i64)
+            // The new list goes last on the active board: its order is the count of that board's lists.
+            let order = state
+                .lists
+                .iter()
+                .filter(|l| l.board_id.as_deref() == Some(state.active.as_str()))
+                .count() as i64;
+            (state.active.clone(), title, order)
         };
         let me = self.clone();
         let board_for_state = board_id.clone();
@@ -792,9 +798,12 @@ mod tests {
                 } => format!("create:card:{list_id}:{title}:{order}"),
             };
             self.record(call);
-            let mut next = self.next_id.lock().unwrap();
-            *next += 1;
-            let id = format!("id-{next}");
+            // Release the counter before answering: the answer can start another create, which takes it again.
+            let id = {
+                let mut next = self.next_id.lock().unwrap();
+                *next += 1;
+                format!("id-{next}")
+            };
             match self.next_write() {
                 Ok(()) => on_done(Ok(id)),
                 Err(e) => on_done(Err(e)),

@@ -108,7 +108,7 @@ impl StorageApi for ApiClient {
     }
 }
 
-/// The live API for `api_base`, for example `https://personal.idantity.me/api`.
+/// The live API for `api_base`, for example `https://example.com/api/personal`.
 pub fn http_api(api_base: impl Into<String>) -> Arc<dyn StorageApi> {
     Arc::new(ApiClient::new(api_base))
 }
@@ -862,8 +862,8 @@ impl StorageController {
                         let known = &files;
                         s.selected_keys
                             .retain(|key| known.iter().any(|f| &f.key == key));
+                        // A good answer keeps an error from the write that triggered it (a file that could not be read).
                         s.files = files;
-                        s.error = None;
                     }
                     Err(e) => s.error = Some(e.to_string()),
                 }
@@ -993,6 +993,7 @@ impl StorageController {
     /// be read sets the error and the rest still go. Returns `false` when nothing could be read.
     pub fn upload_paths(&self, paths: &[PathBuf]) -> bool {
         let mut files = Vec::new();
+        let mut unreadable = Vec::new();
         for path in paths {
             let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
                 continue;
@@ -1002,10 +1003,15 @@ impl StorageController {
                     name: name.to_owned(),
                     bytes,
                 }),
-                Err(e) => self.fail_message(format!("could not read {name}: {e}")),
+                Err(e) => unreadable.push(format!("could not read {name}: {e}")),
             }
         }
-        self.upload(files)
+        // `upload` clears the error when it starts, so the read failures are reported after it.
+        let started = self.upload(files);
+        if let Some(message) = unreadable.first() {
+            self.fail_message(message.clone());
+        }
+        started
     }
 
     /// The shell's entry point for files dropped on the window (winit's dropped-file paths, as strings).

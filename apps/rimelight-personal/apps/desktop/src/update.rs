@@ -13,15 +13,8 @@ const FEED_ENV: &str = "RIMELIGHT_PERSONAL_UPDATE_URL";
 /// The Velopack channel this build is packaged for, and the channel of its minimum-version file.
 const CHANNEL: &str = "stable";
 
-// The Slint type for the start-up window (ui/update.slint, compiled by build.rs). Only this module may allow the generated
-// unsafe code (the crate denies unsafe).
-#[allow(unsafe_code)]
-mod generated {
-    slint::include_modules!();
-}
-
-// Defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module.
-rimelight_update::update_window_gate!(generated::UpdateWindow, "Rimelight Personal");
+// Defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module. The window is `crate::windows_ui::UpdateWindow`.
+rimelight_update::update_window_gate!(crate::windows_ui::UpdateWindow, "Rimelight Personal");
 
 /// Runs the Velopack install, update and uninstall hooks. Must be the first call in `main`.
 pub fn init() {

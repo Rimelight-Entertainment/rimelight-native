@@ -193,17 +193,18 @@ fn stage_files(release_dir: &Path, ffmpeg_dir: &Path, stage: &Path) -> Result<()
         ));
     }
 
-    let root = media_dir();
     let licence_files = [
         (ffmpeg_dir.join("LICENSE.txt"), "FFmpeg-LICENSE.txt"),
         (ffmpeg_dir.join("dav1d-LICENSE.txt"), "dav1d-LICENSE.txt"),
         (ffmpeg_dir.join("BUILD-INFO.txt"), "FFmpeg-BUILD-INFO.txt"),
-        (root.join("assets").join("icons").join("LICENSE"), "Lucide-LICENSE.txt"),
+        (
+            crate::ffmpeg::workspace_root().join("packages/ui/rimelight_ui/assets/icons/LICENSE"),
+            "Lucide-LICENSE.txt",
+        ),
     ];
     for (from, name) in licence_files {
         copy(&from, &licenses.join(name))?;
     }
-    copy(&root.join("THIRD-PARTY-NOTICES.md"), &stage.join("THIRD-PARTY-NOTICES.md"))?;
     Ok(())
 }
 

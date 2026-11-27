@@ -55,7 +55,10 @@ const WINDOW_CLASS: &str = "RimelightMediaWindow";
 /// True on the run the installer starts right after installing.
 static FIRST_RUN: AtomicBool = AtomicBool::new(false);
 
-/// This copy's updater, or None when updates are off: a build without a feed, or a copy that isn't installed. The feed is
+/// The Media update feed: its own folder in the rimelight.com bucket (release-media.yml), not the shared GitHub releases.
+const MEDIA_FEED_URL: &str = "https://rimelight.com/v1/apps/media/releases/win";
+
+/// This copy's updater, or None when updates are off: a copy that isn't installed. The feed is
 /// RIMELIGHT_MEDIA_UPDATE_URL (a folder or web address, for testing a release locally) or else the repository's releases.
 fn updater() -> Option<Arc<Updater>> {
     static UPDATER: OnceLock<Option<Arc<Updater>>> = OnceLock::new();
@@ -63,8 +66,8 @@ fn updater() -> Option<Arc<Updater>> {
         .get_or_init(|| {
             let feed = match std::env::var("RIMELIGHT_MEDIA_UPDATE_URL") {
                 Ok(location) => Feed::Location { location },
-                Err(_) => Feed::GithubReleases {
-                    repo: REPO?.to_string(),
+                Err(_) => Feed::Http {
+                    url: MEDIA_FEED_URL.to_string(),
                 },
             };
             Updater::new(Config {

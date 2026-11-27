@@ -21,11 +21,12 @@ pub fn init() {
     rimelight_update::init(|app| app);
 }
 
-/// The updater for this copy. Personal has no release feed of its own yet, so updates come only from the feed named by
-/// `RIMELIGHT_PERSONAL_UPDATE_URL`. The monorepo's GitHub releases are NOT used: they carry Media and Space packages, and
-/// Velopack installed a Media package into the Personal folder when they were read here.
+/// The Personal update feed: its own folder in the rimelight.com bucket (see release-personal.yml). Not the GitHub
+/// releases, which carry other apps' packages. `RIMELIGHT_PERSONAL_UPDATE_URL` overrides it for testing.
+const FEED_URL: &str = "https://rimelight.com/v1/apps/personal/releases/win";
+
 fn updater() -> Option<Arc<Updater>> {
-    let url = std::env::var(FEED_ENV).ok()?;
+    let url = std::env::var(FEED_ENV).unwrap_or_else(|_| FEED_URL.to_owned());
     let feed = Feed::Http { url };
     Updater::new(Config {
         feed,

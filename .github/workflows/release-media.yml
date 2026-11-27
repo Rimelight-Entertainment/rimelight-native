@@ -32,19 +32,24 @@ jobs:
       - name: Install vpk (Velopack CLI, the version xtask packs with)
         run: dotnet tool install --global vpk --version $(cargo xtask media vpk-version)
         shell: pwsh
-      - name: Fetch the previous release (for small delta updates)
-        working-directory: apps/rimelight-media/apps/desktop
-        run: vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --outputDir releases
-        continue-on-error: true # the first release has nothing to fetch
       - name: Build and pack
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^media-v', ''
           cargo xtask media pack --version $version --repo "${{ github.repository }}"
-      - name: Publish the GitHub release
-        working-directory: apps/rimelight-media/apps/desktop
-        run: >
-          vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
-          --token "${{ secrets.GITHUB_TOKEN }}" --publish
-          --releaseName "Rimelight Media ${{ github.ref_name }}" --tag "${{ github.ref_name }}"
-          --outputDir releases
+      - name: Upload to R2 (the Media update feed)
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          out=apps/rimelight-media/apps/desktop/releases
+          dest="s3://rimelight-dot-com/media/releases/win"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*.nupkg"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*-Setup.exe" --include "*-Portable.zip"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "assets.*.json" --include "RELEASES*"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "releases.*.json"

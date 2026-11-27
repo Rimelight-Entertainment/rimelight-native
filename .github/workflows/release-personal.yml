@@ -49,11 +49,21 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}" -replace '^personal-v', ''
           pwsh apps/rimelight-personal/tools/pack-windows.ps1 -Version $version -VpkVersion $env:VPK_VERSION
-      - name: Publish the GitHub release
-        working-directory: apps/rimelight-personal/releases
-        shell: pwsh
-        run: >
-          vpk upload github --repoUrl "https://github.com/${{ github.repository }}"
-          --token "${{ secrets.GITHUB_TOKEN }}" --publish
-          --releaseName "Rimelight Personal ${{ github.ref_name }}" --tag "${{ github.ref_name }}"
-          --outputDir .
+s;
+      - name: Upload to R2 (the Personal update feed)
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          out=apps/rimelight-personal/releases
+          dest="s3://rimelight-dot-com/personal/releases/win"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*.nupkg"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*-Setup.exe" --include "*-Portable.zip"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "assets.*.json" --include "RELEASES*"
+          aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "releases.*.json"
+

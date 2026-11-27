@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-space
@@ -64,3 +64,12 @@ jobs:
           aws s3 cp "$out/min-version.stable.txt" "$dest/min-version.stable.txt" --endpoint-url "$endpoint"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "assets.*.json" --include "RELEASES-*"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "releases.*.json"
+      - name: Attach the installer to a GitHub Release (download and notes only; updates come from R2)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" target/release-out/RimelightSpace-*-Setup.exe \
+            --repo "$GITHUB_REPOSITORY" --title "Rimelight Space $GITHUB_REF_NAME" --generate-notes || \
+          gh release upload "$GITHUB_REF_NAME" target/release-out/RimelightSpace-*-Setup.exe --repo "$GITHUB_REPOSITORY" --clobber

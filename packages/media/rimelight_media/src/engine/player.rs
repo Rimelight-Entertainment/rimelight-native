@@ -21,6 +21,107 @@ type Input = ff::format::context::Input;
 type Scaler = ff::software::scaling::Context;
 type Resampler = ff::software::resampling::Context;
 
+/// The format of decoded sound. A converter's resampler is rebuilt when it changes.
+type FrameFormat = (ff::format::Sample, ff::ChannelLayout, u32);
+
+fn frame_format(f: &ff::frame::Audio) -> FrameFormat {
+    let layout = if f.channel_layout().channels() > 0 {
+        f.channel_layout()
+    } else {
+        ff::ChannelLayout::default(i32::from(f.channels()))
+    };
+    (f.format(), layout, f.rate())
+}
+
+/// Gives a frame with an unspecified channel order (common in WAV) the native layout for its channel count. The
+/// resampler normalises its input to the native layout and rejects such a frame with "Input changed" otherwise.
+#[allow(unsafe_code)]
+fn native_layout(frame: &mut ff::frame::Audio) {
+    if frame.channel_layout().0.order != ff::ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC {
+        return;
+    }
+    let channels = i32::from(frame.channels());
+    // SAFETY: `frame` is a valid, owned AVFrame; the call only writes its channel layout.
+    unsafe {
+        ff::ffi::av_channel_layout_default(&mut (*frame.as_mut_ptr()).ch_layout, channels);
+    }
+}
+
+/// Converts decoded sound to interleaved f32 at one rate and layout. One resampler is kept for as long as the input
+/// format stays the same, so its internal state carries across frames.
+struct SoundConverter {
+    out_layout: ff::ChannelLayout,
+    out_rate: u32,
+    resampler: Option<(Resampler, FrameFormat)>,
+}
+
+impl SoundConverter {
+    fn new(out_layout: ff::ChannelLayout, out_rate: u32) -> Self {
+        Self {
+            out_layout,
+            out_rate,
+            resampler: None,
+        }
+    }
+
+    /// The converted samples of one frame, interleaved (`out_layout` channels per sample frame).
+    fn convert(&mut self, frame: &mut ff::frame::Audio) -> Result<Vec<f32>, String> {
+        native_layout(frame);
+        let fmt = frame_format(frame);
+        if self.resampler.as_ref().map(|(_, f)| *f) != Some(fmt) {
+            let (format, layout, rate) = fmt;
+            let r = Resampler::get(
+                format,
+                layout,
+                rate,
+                ff::format::Sample::F32(ff::format::sample::Type::Packed),
+                self.out_layout,
+                self.out_rate,
+            )
+            .map_err(|e| e.to_string())?;
+            self.resampler = Some((r, fmt));
+        }
+        let Some((r, _)) = self.resampler.as_mut() else {
+            return Ok(Vec::new());
+        };
+        let mut out = ff::frame::Audio::empty();
+        r.run(frame, &mut out).map_err(|e| e.to_string())?;
+        Ok(samples_of(&out, self.out_layout.channels() as usize))
+    }
+
+    /// The samples still buffered inside the resampler, at the end of a stream.
+    fn finish(&mut self) -> Result<Vec<f32>, String> {
+        let Some((r, _)) = self.resampler.as_mut() else {
+            return Ok(Vec::new());
+        };
+        let mut all = Vec::new();
+        // The delay left in the resampler is a few milliseconds, so a few calls drain it. The cap stops a flush that
+        // never reports the end from looping forever.
+        for _ in 0..16 {
+            // flush does not allocate its output (run does), so the frame is given the output format up front.
+            let mut out = ff::frame::Audio::new(
+                ff::format::Sample::F32(ff::format::sample::Type::Packed),
+                4096,
+                self.out_layout,
+            );
+            out.set_rate(self.out_rate);
+            let more = r.flush(&mut out).map_err(|e| e.to_string())?;
+            all.extend(samples_of(&out, self.out_layout.channels() as usize));
+            if more.is_none() {
+                break;
+            }
+        }
+        Ok(all)
+    }
+}
+
+/// The interleaved f32 samples of a converted frame with `channels` per sample frame.
+fn samples_of(frame: &ff::frame::Audio, channels: usize) -> Vec<f32> {
+    let count = frame.samples() * channels;
+    let bytes = frame.data(0).get(..count * 4).unwrap_or_default();
+    bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect()
+}
+
 // Decoded frames waiting to be shown. Each is a full RGBA picture at the window's size (8 MB at 1080p, 33 MB at 4K),
 // so this is the biggest part of the memory while a video plays. 5 covers the decoder's hiccups; the clock drops late
 // frames anyway, so a longer queue only adds memory.
@@ -414,37 +515,12 @@ pub fn peaks(
     let mut dec = ctx.decoder().audio().map_err(|e| e.to_string())?;
     // The peaks so far, the largest sample in the current 10 ms, and how many samples it holds.
     let mut acc: (Vec<f32>, f32, usize) = (Vec::new(), 0.0, 0);
-    let mut rs: Option<Resampler> = None;
+    let mut conv = SoundConverter::new(ff::ChannelLayout::default(1), RATE);
     let mut decoded = ff::frame::Audio::empty();
 
-    let take = |frame: &ff::frame::Audio,
-                rs: &mut Option<Resampler>,
-                acc: &mut (Vec<f32>, f32, usize)|
-     -> Result<(), String> {
-        if rs.is_none() {
-            let layout = if frame.channel_layout().channels() > 0 {
-                frame.channel_layout()
-            } else {
-                ff::ChannelLayout::default(i32::from(frame.channels()))
-            };
-            *rs = Some(
-                Resampler::get(
-                    frame.format(),
-                    layout,
-                    frame.rate(),
-                    ff::format::Sample::F32(ff::format::sample::Type::Packed),
-                    ff::ChannelLayout::default(1),
-                    RATE,
-                )
-                .map_err(|e| e.to_string())?,
-            );
-        }
-        let Some(r) = rs.as_mut() else { return Ok(()) };
-        let mut res = ff::frame::Audio::empty();
-        r.run(frame, &mut res).map_err(|e| e.to_string())?;
-        let bytes = res.data(0).get(..res.samples() * 4).unwrap_or_default();
-        for b in bytes.as_chunks::<4>().0 {
-            let v = f32::from_le_bytes(*b).abs();
+    let fold = |samples: Vec<f32>, acc: &mut (Vec<f32>, f32, usize)| {
+        for s in samples {
+            let v = s.abs();
             acc.1 = acc.1.max(v);
             acc.2 += 1;
             if acc.2 == HOP {
@@ -453,7 +529,6 @@ pub fn peaks(
                 acc.2 = 0;
             }
         }
-        Ok(())
     };
 
     for (st, pkt) in ictx.packets() {
@@ -464,13 +539,14 @@ pub fn peaks(
             continue;
         }
         while dec.receive_frame(&mut decoded).is_ok() {
-            take(&decoded, &mut rs, &mut acc)?;
+            fold(conv.convert(&mut decoded)?, &mut acc);
         }
     }
     let _ = dec.send_eof();
     while dec.receive_frame(&mut decoded).is_ok() {
-        take(&decoded, &mut rs, &mut acc)?;
+        fold(conv.convert(&mut decoded)?, &mut acc);
     }
+    fold(conv.finish()?, &mut acc);
     if acc.2 > 0 {
         acc.0.push(acc.1);
     }
@@ -926,14 +1002,14 @@ fn audio_run(sh: &Shared, start_ms: u64, epoch: u64, idx: usize) -> Result<(), S
     if start > 0.0 {
         ictx.seek(to_av_ts(start), ..).map_err(|e| e.to_string())?;
     }
-    let mut rs: Option<Resampler> = None;
+    let mut conv = SoundConverter::new(ff::ChannelLayout::default(i32::from(sh.out_channels)), sh.out_rate);
     let mut decoded = ff::frame::Audio::empty();
     let channels = usize::from(sh.out_channels);
     let speed = sh.speed();
     let mut stretch = ((speed - 1.0).abs() > 0.001).then(|| Stretch::new(channels, speed));
 
     let mut drain = |dec: &mut ff::decoder::Audio,
-                     rs: &mut Option<Resampler>,
+                     conv: &mut SoundConverter,
                      stretch: &mut Option<Stretch>|
      -> Result<bool, String> {
         while dec.receive_frame(&mut decoded).is_ok() {
@@ -944,35 +1020,7 @@ fn audio_run(sh: &Shared, start_ms: u64, epoch: u64, idx: usize) -> Result<(), S
             if decoded.timestamp().is_some() && pts + 0.05 < start {
                 continue;
             }
-            if rs.is_none() {
-                let layout = if decoded.channel_layout().channels() > 0 {
-                    decoded.channel_layout()
-                } else {
-                    ff::ChannelLayout::default(i32::from(decoded.channels()))
-                };
-                *rs = Some(
-                    Resampler::get(
-                        decoded.format(),
-                        layout,
-                        decoded.rate(),
-                        ff::format::Sample::F32(ff::format::sample::Type::Packed),
-                        ff::ChannelLayout::default(channels as i32),
-                        sh.out_rate,
-                    )
-                    .map_err(|e| e.to_string())?,
-                );
-            }
-            let Some(r) = rs.as_mut() else { continue };
-            let mut out = ff::frame::Audio::empty();
-            r.run(&decoded, &mut out).map_err(|e| e.to_string())?;
-            let count = out.samples() * channels;
-            let bytes = out.data(0).get(..count * 4).unwrap_or_default();
-            let mut samples: Vec<f32> = bytes
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|b| f32::from_le_bytes(*b))
-                .collect();
+            let mut samples = conv.convert(&mut decoded)?;
             if let Some(st) = stretch.as_mut() {
                 samples = st.process(&samples);
             }
@@ -993,12 +1041,20 @@ fn audio_run(sh: &Shared, start_ms: u64, epoch: u64, idx: usize) -> Result<(), S
         if dec.send_packet(&pkt).is_err() {
             continue;
         }
-        if !drain(&mut dec, &mut rs, &mut stretch)? {
+        if !drain(&mut dec, &mut conv, &mut stretch)? {
             return Ok(());
         }
     }
     let _ = dec.send_eof();
-    drain(&mut dec, &mut rs, &mut stretch)?;
+    if !drain(&mut dec, &mut conv, &mut stretch)? {
+        return Ok(());
+    }
+    // The end of the stream: what the resampler still holds (a few milliseconds) is played too.
+    let mut tail = conv.finish()?;
+    if let Some(st) = stretch.as_mut() {
+        tail = st.process(&tail);
+    }
+    push_samples(sh, epoch, tail);
     Ok(())
 }
 
@@ -1373,5 +1429,106 @@ impl Player {
 impl Drop for Player {
     fn drop(&mut self) {
         self.release();
+    }
+}
+
+#[cfg(test)]
+mod converter_tests {
+    use super::*;
+
+    /// A 16-bit PCM WAV of a sine tone.
+    fn write_wav(path: &Path, rate: u32, channels: u16, seconds: f32) {
+        let frames = (rate as f32 * seconds) as u32;
+        let data_len = frames * u32::from(channels) * 2;
+        let mut b = Vec::new();
+        b.extend_from_slice(b"RIFF");
+        b.extend_from_slice(&(36 + data_len).to_le_bytes());
+        b.extend_from_slice(b"WAVEfmt ");
+        b.extend_from_slice(&16u32.to_le_bytes());
+        b.extend_from_slice(&1u16.to_le_bytes());
+        b.extend_from_slice(&channels.to_le_bytes());
+        b.extend_from_slice(&rate.to_le_bytes());
+        b.extend_from_slice(&(rate * u32::from(channels) * 2).to_le_bytes());
+        b.extend_from_slice(&(channels * 2).to_le_bytes());
+        b.extend_from_slice(&16u16.to_le_bytes());
+        b.extend_from_slice(b"data");
+        b.extend_from_slice(&data_len.to_le_bytes());
+        for i in 0..frames * u32::from(channels) {
+            let v = ((i as f32 * 0.05).sin() * 12000.0) as i16;
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        std::fs::write(path, b).unwrap();
+    }
+
+    /// Decodes the first sound track of `path` through `conv` and returns how many interleaved samples came out.
+    fn decode_all(path: &Path, conv: &mut SoundConverter) -> Result<usize, String> {
+        init()?;
+        let mut ictx = open_input(path)?;
+        let (idx, params) = {
+            let st = ictx.streams().best(ff::media::Type::Audio).ok_or("no sound")?;
+            (st.index(), st.parameters())
+        };
+        let mut dec = ff::codec::context::Context::from_parameters(params)
+            .map_err(|e| e.to_string())?
+            .decoder()
+            .audio()
+            .map_err(|e| e.to_string())?;
+        let mut decoded = ff::frame::Audio::empty();
+        let mut total = 0;
+        for (st, pkt) in ictx.packets() {
+            if st.index() != idx {
+                continue;
+            }
+            dec.send_packet(&pkt).map_err(|e| e.to_string())?;
+            while dec.receive_frame(&mut decoded).is_ok() {
+                total += conv.convert(&mut decoded)?.len();
+            }
+        }
+        let _ = dec.send_eof();
+        while dec.receive_frame(&mut decoded).is_ok() {
+            total += conv.convert(&mut decoded)?.len();
+        }
+        total += conv.finish()?.len();
+        Ok(total)
+    }
+
+    #[test]
+    fn converts_a_whole_wav_file() {
+        let dir = std::env::temp_dir().join("rimelight-sound-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tone-48k-mono.wav");
+        write_wav(&path, 48_000, 1, 1.0);
+        let mut conv = SoundConverter::new(ff::ChannelLayout::default(2), 44_100);
+        let samples = decode_all(&path, &mut conv).expect("conversion must not fail");
+        // One second at 44.1 kHz stereo is 88200 interleaved samples; the resampler's delay may shave a few.
+        assert!(
+            (samples as i64 - 88_200).abs() < 88_200 / 50,
+            "got {samples} samples"
+        );
+    }
+
+    #[test]
+    fn converts_frames_whose_format_changes() {
+        let mut conv = SoundConverter::new(ff::ChannelLayout::default(2), 48_000);
+        let mut mono_s16 = ff::frame::Audio::new(
+            ff::format::Sample::I16(ff::format::sample::Type::Packed),
+            480,
+            ff::ChannelLayout::default(1),
+        );
+        mono_s16.set_rate(48_000);
+        mono_s16.data_mut(0).fill(0);
+        let mut stereo_f32 = ff::frame::Audio::new(
+            ff::format::Sample::F32(ff::format::sample::Type::Planar),
+            480,
+            ff::ChannelLayout::default(2),
+        );
+        stereo_f32.set_rate(44_100);
+        stereo_f32.data_mut(0).fill(0);
+        stereo_f32.data_mut(1).fill(0);
+
+        let a = conv.convert(&mut mono_s16).expect("first format");
+        let b = conv.convert(&mut stereo_f32).expect("changed format");
+        let c = conv.convert(&mut mono_s16).expect("back to the first format");
+        assert!(!a.is_empty() && !b.is_empty() && !c.is_empty());
     }
 }

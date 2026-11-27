@@ -41,7 +41,7 @@ pub fn send(
     body: Vec<u8>,
 ) -> Result<Value, CfError> {
     let mut all = vec![("Authorization", format!("Bearer {token}"))];
-    all.extend(headers.into_iter().map(|(k, v)| (k, v)));
+    all.extend(headers);
     let pairs: Vec<(&str, &str)> = all.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let mut request = Request::new(method, url, Headers::new(&pairs));
     request.body = body;

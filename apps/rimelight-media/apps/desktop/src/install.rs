@@ -471,60 +471,22 @@ pub fn launcher_path() -> PathBuf {
         .unwrap_or(exe)
 }
 
-fn powershell(script: &str) {
-    let mut cmd = std::process::Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt as _;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
-    let _ = cmd.status();
-}
 
-fn quote(p: &Path) -> String {
-    p.display().to_string().replace('\'', "''")
-}
-
-/// The Start menu folder for every Rimelight app ("Rimelight", like JetBrains' folder).
-const START_FOLDER: &str = "$([Environment]::GetFolderPath('Programs'))\\Rimelight";
-const DESKTOP: &str = "$([Environment]::GetFolderPath('Desktop'))";
-
-fn shortcut_script(folder: &str) -> String {
-    format!(
-        "New-Item -ItemType Directory -Force \"{folder}\" | Out-Null; $s=(New-Object -ComObject WScript.Shell).CreateShortcut(\"{folder}\\{APP_NAME}.lnk\"); $s.TargetPath='{}'; $s.WorkingDirectory='{}'; $s.IconLocation='{},0'; $s.Description='Pictures, video, music and screen capture'; $s.Save()",
-        quote(&launcher_path()),
-        quote(
-            &current_exe()
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_default()
-        ),
-        quote(&current_exe()),
-    )
-}
-
-/// Start menu > Rimelight > Rimelight Media, and the Desktop shortcut when desktop. Also removes the shortcut 0.1.0's
-/// installer put at the top of the Start menu.
+/// The Start menu and Desktop shortcuts, in the "Rimelight Entertainment" folder (the shared code in rimelight_update).
 pub fn set_shortcuts(desktop: bool) {
-    let mut script = shortcut_script(START_FOLDER);
-    script.push_str("; Remove-Item -Force -ErrorAction SilentlyContinue \"$([Environment]::GetFolderPath('Programs'))\\Rimelight Media.lnk\"");
-    if desktop {
-        script.push_str("; ");
-        script.push_str(&shortcut_script(DESKTOP));
-    } else {
-        script.push_str(&format!(
-            "; Remove-Item -Force -ErrorAction SilentlyContinue \"{DESKTOP}\\{APP_NAME}.lnk\""
-        ));
-    }
-    powershell(&script);
+    rimelight_update::shortcuts::set_up(
+        &rimelight_update::shortcuts::Shortcut {
+            name: APP_NAME,
+            target: &launcher_path(),
+            description: "Pictures, video, music and screen capture",
+        },
+        desktop,
+    );
 }
 
-/// Removes both shortcuts, and the Rimelight Start menu folder when nothing else is in it.
+/// Removes both shortcuts, and the company folder when nothing else is in it.
 fn remove_shortcuts() {
-    powershell(&format!(
-        "Remove-Item -Force -ErrorAction SilentlyContinue \"{START_FOLDER}\\{APP_NAME}.lnk\",\"{DESKTOP}\\{APP_NAME}.lnk\"; if ((Test-Path \"{START_FOLDER}\") -and -not (Get-ChildItem \"{START_FOLDER}\")) {{ Remove-Item -Force \"{START_FOLDER}\" }}"
-    ));
+    rimelight_update::shortcuts::remove(APP_NAME);
 }
 
 /// After install: the shortcuts, all file types, start with Windows (so the Print Screen keys work), using the choices

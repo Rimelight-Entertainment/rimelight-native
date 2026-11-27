@@ -55,7 +55,7 @@ Copy-Item (Join-Path $app "LICENSE") (Join-Path $stage "LICENSE") -ErrorAction S
 Step "install vpk" { dotnet tool update --global vpk --version $VpkVersion }
 Step "vpk pack" {
     vpk pack --packId RimelightPersonal --packVersion $Version --packDir $stage `
-        --mainExe personal_desktop.exe --packTitle "Rimelight Personal" --packAuthors "Rimelight Entertainment" `
+        --mainExe personal_desktop.exe --packTitle "Rimelight Personal" --packAuthors "Rimelight Entertainment" --shortcuts None `
         --outputDir $releases
 }
 

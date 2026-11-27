@@ -22,6 +22,9 @@
 //! Desktop only: on wasm and Android the crate is empty (Velopack does not build there).
 #![cfg(not(any(target_arch = "wasm32", target_os = "android")))]
 
+#[cfg(windows)]
+pub mod shortcuts;
+
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;

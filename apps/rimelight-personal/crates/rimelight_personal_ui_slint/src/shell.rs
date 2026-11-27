@@ -403,12 +403,20 @@ fn toast_tone(tone: Tone) -> ToastTone {
 /// Opens the shell window at `start` (a concrete route, already checked with `rimelight_personal_nav::parse`) with the theme `mode`,
 /// and runs the event loop until the window closes. Used by the desktop app and the web app. The API and the Access
 /// application are `instance`; requests carry the signed-in session's bearer token.
-pub fn run(start: &str, mode: Mode, instance: InstanceConfig) -> Result<(), slint::PlatformError> {
+/// What the About overlay shows: the app's version and, for installed copies, the update check. `check` runs on a worker
+/// thread and returns the sentence the overlay shows.
+pub struct About {
+    pub version: String,
+    pub check: Option<Arc<dyn Fn() -> String + Send + Sync>>,
+}
+
+pub fn run(start: &str, mode: Mode, instance: InstanceConfig, about: About) -> Result<(), slint::PlatformError> {
     let ui = RimelightPersonalShell::new()?;
     let entries = nav_entries();
     let items: Vec<SidebarItem> = entries.iter().map(|entry| to_item(&ui, entry)).collect();
     ui.set_nav_items(ModelRc::new(VecModel::from(items)));
     ui.set_mac_keys(cfg!(target_os = "macos"));
+    wire_about(&ui, about);
 
     // Sign-in first: the pages' API client carries the bearer token of the session.
     let auth = session::wire(&ui, instance.clone());
@@ -721,4 +729,26 @@ pub(crate) mod tests {
         assert_eq!(entries.last().and_then(|e| e.route), Some("/storage"));
         assert_eq!(COMMANDS.len(), 21);
     }
+}
+
+/// The About overlay: the version, and the update check run on a worker thread (the check blocks on the network).
+fn wire_about(ui: &RimelightPersonalShell, about: About) {
+    ui.set_about_version(about.version.into());
+    ui.set_about_can_check(about.check.is_some());
+    let Some(check) = about.check else { return };
+    let weak = ui.as_weak();
+    ui.on_about_check_requested(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        ui.set_about_checking(true);
+        ui.set_about_status("Checking for updates...".into());
+        let check = check.clone();
+        let weak = weak.clone();
+        std::thread::spawn(move || {
+            let answer = check();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                ui.set_about_checking(false);
+                ui.set_about_status(answer.into());
+            });
+        });
+    });
 }

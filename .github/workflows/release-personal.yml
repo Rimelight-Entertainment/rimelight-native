@@ -2,7 +2,7 @@ name: Release Rimelight Personal
 
 # Pushing a version tag such as personal-v0.1.0 builds the Windows installer and update package, with the Worker bundle
 # the app sets up the owner's backend from, and publishes them as a GitHub release (the same way as Media).
-# The tag version (without `personal-v`) must equal `version` in apps/rimelight-personal/apps/desktop/Cargo.toml.
+# The tag version (without `personal-v`) must equal `version` under [workspace.package] in the root Cargo.toml.
 
 on:
   push:
@@ -35,10 +35,13 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}" -replace '^personal-v', ''
-          $cargo = Get-Content apps/rimelight-personal/apps/desktop/Cargo.toml -Raw
+          # The version lives once, in [workspace.package] of the root Cargo.toml; the app inherits it.
+          $cargo = Get-Content Cargo.toml -Raw
           if ($cargo -notmatch "(?m)^version\s*=\s*`"$([regex]::Escape($tag))`"") {
-            throw "the tag $tag does not match the version in apps/rimelight-personal/apps/desktop/Cargo.toml"
+            throw "the tag $tag does not match [workspace.package] version in Cargo.toml"
           }
+      - name: Fetch FFmpeg (the app loads its DLLs for Storage previews)
+        run: cargo xtask ffmpeg
       - name: Install pnpm for the worker bundle
         run: npm install -g pnpm@12
       - name: Pack (app, worker bundle, installer)

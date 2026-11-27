@@ -1,0 +1,78 @@
+// The About overlay, opened from the account menu (like Rimelight Media's About in Settings): the app's name and version,
+// the update check for installed copies, and the Slint attribution card. The Slint royalty-free licence needs the
+// AboutSlint widget on an About screen reachable from the app, so it stays here.
+import { Button, AboutSlint } from "std-widgets.slint";
+import { Tokens } from "@rimelight_design/tokens.slint";
+
+export component AboutOverlay inherits Rectangle {
+    in property <string> app-name: "Rimelight Personal";
+    in property <string> version: "";
+    in property <string> status: "";
+    // Installed copies can check for updates; a copy run from the build cannot.
+    in property <bool> can-check: false;
+    in property <bool> checking: false;
+    callback check-clicked();
+    callback close-clicked();
+
+    // The scrim: a click outside the card closes it.
+    background: #00000080;
+    TouchArea {
+        clicked => { root.close-clicked(); }
+    }
+
+    Rectangle {
+        width: 380px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: Tokens.surface-raised;
+        border-width: 1px;
+        border-color: Tokens.border-subtle;
+        border-radius: Tokens.radius-surface;
+
+        // Clicks on the card do not reach the scrim.
+        TouchArea { }
+
+        VerticalLayout {
+            padding: Tokens.space-4;
+            spacing: Tokens.space-2;
+
+            Text {
+                text: root.app-name;
+                color: Tokens.text-primary;
+                font-size: 18px;
+                font-weight: 600;
+            }
+            Text {
+                text: "Version " + root.version;
+                color: Tokens.text-muted;
+                font-size: 13px;
+            }
+            if root.status != "": Text {
+                text: root.status;
+                wrap: word-wrap;
+                color: Tokens.text-primary;
+                font-size: 13px;
+            }
+            AboutSlint {
+                height: 100px;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                if root.can-check: Button {
+                    text: root.checking ? "Checking..." : "Check for updates";
+                    enabled: !root.checking;
+                    height: 30px;
+                    clicked => { root.check-clicked(); }
+                }
+                Button {
+                    text: "Close";
+                    primary: true;
+                    height: 30px;
+                    clicked => { root.close-clicked(); }
+                }
+            }
+        }
+    }
+}

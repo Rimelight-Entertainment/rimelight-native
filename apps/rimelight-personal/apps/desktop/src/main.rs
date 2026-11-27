@@ -29,6 +29,12 @@ mod windows_ui {
 const TOOL: &str = "personal_desktop";
 
 // Installer hooks, the start-up update check and the forced-update watcher (Windows installed copies only).
+#[cfg(windows)]
+use update::about_check;
+#[cfg(not(windows))]
+fn about_check() -> Option<std::sync::Arc<dyn Fn() -> String + Send + Sync>> {
+    None
+}
 mod setup_window;
 /// Only the Windows installed copy has an update check.
 #[cfg(windows)]
@@ -98,7 +104,11 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match rimelight_personal_ui_slint::shell::run(&route, mode, instance) {
+    let about = rimelight_personal_ui_slint::shell::About {
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        check: about_check(),
+    };
+    match rimelight_personal_ui_slint::shell::run(&route, mode, instance, about) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{TOOL}: {e}");

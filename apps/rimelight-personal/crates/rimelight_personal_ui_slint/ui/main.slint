@@ -10,6 +10,7 @@ import { ToastStack, ToastEntry, ToastTone } from "@rimelight_ui/components/toas
 import { Popover } from "@rimelight_ui/components/popover.slint";
 import { ShortcutsDialog } from "@rimelight_shell/components/shortcuts-dialog.slint";
 import { QuickTodoModal } from "@rimelight_personal_feature_todos/todos.slint";
+import { AboutOverlay } from "about.slint";
 import { Button, ButtonVariant, ButtonSize } from "@rimelight_ui/components/button.slint";
 import { SelectOption } from "@rimelight_ui/components/select.slint";
 import { TableColumn, TableRow } from "@rimelight_ui/components/table.slint";
@@ -115,6 +116,13 @@ export component RimelightPersonalShell inherits Window {
 
     // True on macOS: Cmd+K opens the palette there, Ctrl+K elsewhere (set from Rust).
     in property <bool> mac-keys: false;
+    // The About overlay (the account menu opens it). Rust fills the version and runs the update check.
+    in-out property <bool> about-open: false;
+    in property <string> about-version: "";
+    in property <string> about-status: "";
+    in property <bool> about-can-check: false;
+    in property <bool> about-checking: false;
+    callback about-check-requested();
 
     // The floating quick-action button (web FloatingActionsOverlay). Rust answers `fab-picked` with the item id.
     property <bool> fab-open: false;
@@ -239,6 +247,16 @@ export component RimelightPersonalShell inherits Window {
                     anchor-height: 48px;
                     panel-width: 200px;
                     align-end: true;
+                    Button {
+                        width: 100%;
+                        text: "About";
+                        variant: ButtonVariant.ghost;
+                        size: ButtonSize.md;
+                        clicked => {
+                            account.close();
+                            root.about-open = true;
+                        }
+                    }
                     Button {
                         width: 100%;
                         text: "Sign out";
@@ -578,5 +596,19 @@ export component RimelightPersonalShell inherits Window {
                 lost-keys.focus();
             }
         }
+    }
+
+    // The About overlay, above everything else (from the account menu).
+    if root.about-open : AboutOverlay {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        version: root.about-version;
+        status: root.about-status;
+        can-check: root.about-can-check;
+        checking: root.about-checking;
+        check-clicked => { root.about-check-requested(); }
+        close-clicked => { root.about-open = false; }
     }
 }

@@ -471,7 +471,6 @@ pub fn launcher_path() -> PathBuf {
         .unwrap_or(exe)
 }
 
-
 /// The Start menu and Desktop shortcuts, in the "Rimelight Entertainment" folder (the shared code in rimelight_update).
 pub fn set_shortcuts(desktop: bool) {
     rimelight_update::shortcuts::set_up(

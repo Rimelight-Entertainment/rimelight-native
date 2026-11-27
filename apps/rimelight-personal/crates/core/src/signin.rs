@@ -163,7 +163,9 @@ mod tests {
         assert!(url.contains("&send_org_token=true&"));
         assert!(url.ends_with("&token=KEY%3D"));
         // The redirect is the application URL (inside the Access app), not "/".
-        assert!(url.contains("redirect_url=https%3A%2F%2Fapp.example.com%2Fapi%2Fpersonal%3Faud%3DAUD"));
+        assert!(
+            url.contains("redirect_url=https%3A%2F%2Fapp.example.com%2Fapi%2Fpersonal%3Faud%3DAUD")
+        );
         assert!(!url.contains("redirect_url=%2F&"));
     }
 

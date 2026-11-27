@@ -119,7 +119,12 @@ impl SoundConverter {
 fn samples_of(frame: &ff::frame::Audio, channels: usize) -> Vec<f32> {
     let count = frame.samples() * channels;
     let bytes = frame.data(0).get(..count * 4).unwrap_or_default();
-    bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect()
+    bytes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
+        .collect()
 }
 
 // Decoded frames waiting to be shown. Each is a full RGBA picture at the window's size (8 MB at 1080p, 33 MB at 4K),
@@ -1002,7 +1007,10 @@ fn audio_run(sh: &Shared, start_ms: u64, epoch: u64, idx: usize) -> Result<(), S
     if start > 0.0 {
         ictx.seek(to_av_ts(start), ..).map_err(|e| e.to_string())?;
     }
-    let mut conv = SoundConverter::new(ff::ChannelLayout::default(i32::from(sh.out_channels)), sh.out_rate);
+    let mut conv = SoundConverter::new(
+        ff::ChannelLayout::default(i32::from(sh.out_channels)),
+        sh.out_rate,
+    );
     let mut decoded = ff::frame::Audio::empty();
     let channels = usize::from(sh.out_channels);
     let speed = sh.speed();
@@ -1465,7 +1473,10 @@ mod converter_tests {
         init()?;
         let mut ictx = open_input(path)?;
         let (idx, params) = {
-            let st = ictx.streams().best(ff::media::Type::Audio).ok_or("no sound")?;
+            let st = ictx
+                .streams()
+                .best(ff::media::Type::Audio)
+                .ok_or("no sound")?;
             (st.index(), st.parameters())
         };
         let mut dec = ff::codec::context::Context::from_parameters(params)
@@ -1528,7 +1539,9 @@ mod converter_tests {
 
         let a = conv.convert(&mut mono_s16).expect("first format");
         let b = conv.convert(&mut stereo_f32).expect("changed format");
-        let c = conv.convert(&mut mono_s16).expect("back to the first format");
+        let c = conv
+            .convert(&mut mono_s16)
+            .expect("back to the first format");
         assert!(!a.is_empty() && !b.is_empty() && !c.is_empty());
     }
 }

@@ -81,7 +81,10 @@ impl std::fmt::Display for SignInError {
             Self::Browser(e) => write!(f, "could not open the browser: {e}"),
             Self::Timeout => write!(f, "sign-in timed out; try again"),
             Self::Denied { error, description } => {
-                write!(f, "Cloudflare did not approve the sign-in ({error}: {description})")
+                write!(
+                    f,
+                    "Cloudflare did not approve the sign-in ({error}: {description})"
+                )
             }
             Self::StateMismatch => write!(f, "sign-in was not started by this app; try again"),
             Self::MissingCode => write!(f, "Cloudflare did not send a sign-in code"),
@@ -103,12 +106,17 @@ pub fn new_pkce() -> Result<Pkce, SignInError> {
     let verifier = random_url_safe(32)?;
     let challenge = challenge_for(&verifier);
     let state = random_url_safe(16)?;
-    Ok(Pkce { verifier, challenge, state })
+    Ok(Pkce {
+        verifier,
+        challenge,
+        state,
+    })
 }
 
 fn random_url_safe(bytes: usize) -> Result<String, SignInError> {
     let mut buf = vec![0u8; bytes];
-    getrandom::fill(&mut buf).map_err(|e| SignInError::Listener(format!("no random source: {e}")))?;
+    getrandom::fill(&mut buf)
+        .map_err(|e| SignInError::Listener(format!("no random source: {e}")))?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 
@@ -176,7 +184,12 @@ pub fn parse_query(query: &str) -> Vec<(String, String)> {
 /// Checks the redirect's query and returns the authorization code. Pure, so it can be tested without a browser.
 pub fn code_from_redirect(query: &str, expected_state: &str) -> Result<String, SignInError> {
     let pairs = parse_query(query);
-    let get = |name: &str| pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone());
+    let get = |name: &str| {
+        pairs
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.clone())
+    };
 
     if let Some(error) = get("error") {
         return Err(SignInError::Denied {
@@ -187,12 +200,16 @@ pub fn code_from_redirect(query: &str, expected_state: &str) -> Result<String, S
     if get("state").as_deref() != Some(expected_state) {
         return Err(SignInError::StateMismatch);
     }
-    get("code").filter(|c| !c.is_empty()).ok_or(SignInError::MissingCode)
+    get("code")
+        .filter(|c| !c.is_empty())
+        .ok_or(SignInError::MissingCode)
 }
 
 /// Runs one full sign-in: opens the Allow page with `open_browser`, waits for the redirect on the loopback listener,
 /// exchanges the code for a token, and returns the session to store.
-pub fn sign_in(open_browser: impl FnOnce(&str) -> Result<(), String>) -> Result<StoredAccess, SignInError> {
+pub fn sign_in(
+    open_browser: impl FnOnce(&str) -> Result<(), String>,
+) -> Result<StoredAccess, SignInError> {
     let pkce = new_pkce()?;
     let listener = TcpListener::bind(("127.0.0.1", CALLBACK_PORT))
         .map_err(|e| SignInError::Listener(e.to_string()))?;
@@ -266,14 +283,17 @@ fn exchange_code(code: &str, verifier: &str) -> Result<StoredAccess, SignInError
 
 /// Reads the access token and its lifetime from the token endpoint's JSON answer. Pure, so it can be tested.
 pub fn stored_from_token_response(bytes: &[u8], now: u64) -> Result<StoredAccess, SignInError> {
-    let value: serde_json::Value =
-        serde_json::from_slice(bytes).map_err(|e| SignInError::Token(format!("bad answer: {e}")))?;
+    let value: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|e| SignInError::Token(format!("bad answer: {e}")))?;
     let token = value
         .get("access_token")
         .and_then(|v| v.as_str())
         .filter(|t| !t.is_empty())
         .ok_or_else(|| SignInError::Token("no access token in the answer".to_owned()))?;
-    let lifetime = value.get("expires_in").and_then(|v| v.as_u64()).unwrap_or(3600);
+    let lifetime = value
+        .get("expires_in")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(3600);
     Ok(StoredAccess {
         token: token.to_owned(),
         expires_at: now + lifetime,
@@ -281,7 +301,10 @@ pub fn stored_from_token_response(bytes: &[u8], now: u64) -> Result<StoredAccess
 }
 
 fn now_unix() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -327,26 +350,38 @@ mod tests {
 
     #[test]
     fn a_redirect_with_the_wrong_state_is_refused() {
-        assert_eq!(code_from_redirect("code=abc&state=other", "s1"), Err(SignInError::StateMismatch));
+        assert_eq!(
+            code_from_redirect("code=abc&state=other", "s1"),
+            Err(SignInError::StateMismatch)
+        );
     }
 
     #[test]
     fn a_declined_sign_in_reports_the_reason() {
-        let err = code_from_redirect("error=access_denied&error_description=no&state=s1", "s1").unwrap_err();
+        let err = code_from_redirect("error=access_denied&error_description=no&state=s1", "s1")
+            .unwrap_err();
         assert_eq!(
             err,
-            SignInError::Denied { error: "access_denied".to_owned(), description: "no".to_owned() }
+            SignInError::Denied {
+                error: "access_denied".to_owned(),
+                description: "no".to_owned()
+            }
         );
     }
 
     #[test]
     fn a_redirect_without_a_code_is_refused() {
-        assert_eq!(code_from_redirect("state=s1", "s1"), Err(SignInError::MissingCode));
+        assert_eq!(
+            code_from_redirect("state=s1", "s1"),
+            Err(SignInError::MissingCode)
+        );
     }
 
     #[test]
     fn the_token_answer_gives_the_token_and_its_lifetime() {
-        let stored = stored_from_token_response(br#"{"access_token":"cfoat_x","expires_in":3599}"#, 1000).unwrap();
+        let stored =
+            stored_from_token_response(br#"{"access_token":"cfoat_x","expires_in":3599}"#, 1000)
+                .unwrap();
         assert_eq!(stored.token, "cfoat_x");
         assert_eq!(stored.expires_at, 4599);
     }

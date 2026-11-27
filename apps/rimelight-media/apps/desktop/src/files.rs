@@ -28,8 +28,8 @@ pub const SUBTITLE_EXTS: &[&str] = &["srt", "vtt", "ass", "ssa"];
 /// Plain text the Text tab edits (Notepad's job): notes, Markdown, JSON and config or log files.
 pub const TEXT_EXTS: &[&str] = &[
     "txt", "md", "markdown", "json", "toml", "yaml", "yml", "ini", "cfg", "conf", "log", "csv",
-    "xml", "env", "text", "rs", "js", "mjs", "cjs", "jsx", "ts", "tsx", "html", "css", "bat", "ps1",
-    "sh",
+    "xml", "env", "text", "rs", "js", "mjs", "cjs", "jsx", "ts", "tsx", "html", "css", "bat",
+    "ps1", "sh",
 ];
 
 pub fn ext_of(path: &Path) -> String {

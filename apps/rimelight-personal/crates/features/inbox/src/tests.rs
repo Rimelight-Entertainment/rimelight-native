@@ -259,7 +259,10 @@ fn mail(id: &str, thread: &str, subject: &str, read: bool) -> Email {
 }
 
 fn test_dir() -> PathBuf {
-    std::env::temp_dir().join(format!("rimelight-personal-inbox-test-{}", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "rimelight-personal-inbox-test-{}",
+        std::process::id()
+    ))
 }
 
 /// What setup() returns: the fake API, the fake shell, the controller and the views it published.
@@ -617,7 +620,11 @@ fn view_original_writes_a_safe_copy_and_opens_it() {
     assert_eq!(opened.len(), 1);
     // The plain local path, not a file:/// address: ShellExecuteW opens paths.
     assert!(!opened[0].starts_with("file:"), "{}", opened[0]);
-    assert!(opened[0].contains("rimelight-personal-inbox-test"), "{}", opened[0]);
+    assert!(
+        opened[0].contains("rimelight-personal-inbox-test"),
+        "{}",
+        opened[0]
+    );
     let text = std::fs::read_to_string(&opened[0]).unwrap();
     assert!(text.contains("Content-Security-Policy"));
     assert!(!text.contains("<script"));

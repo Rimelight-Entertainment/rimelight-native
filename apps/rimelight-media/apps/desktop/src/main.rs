@@ -204,16 +204,17 @@ fn selftest(dir: &std::path::Path) -> ExitCode {
     }
     // Every media file in the folder: video gives a frame, sound gives decoded samples.
     const MEDIA_EXTENSIONS: &[&str] = &[
-        "mkv", "mp4", "mov", "avi", "mpg", "ogv", "wmv", "webm", "ac3", "flac", "m4a", "ogg", "opus", "wav", "wma", "mp3",
+        "mkv", "mp4", "mov", "avi", "mpg", "ogv", "wmv", "webm", "ac3", "flac", "m4a", "ogg",
+        "opus", "wav", "wma", "mp3",
     ];
     let mut codec_files: Vec<_> = std::fs::read_dir(dir)
         .map(|rd| {
             rd.flatten()
                 .map(|e| e.path())
                 .filter(|p| {
-                    p.extension()
-                        .and_then(|x| x.to_str())
-                        .is_some_and(|x| MEDIA_EXTENSIONS.contains(&x.to_ascii_lowercase().as_str()))
+                    p.extension().and_then(|x| x.to_str()).is_some_and(|x| {
+                        MEDIA_EXTENSIONS.contains(&x.to_ascii_lowercase().as_str())
+                    })
                 })
                 .collect()
         })

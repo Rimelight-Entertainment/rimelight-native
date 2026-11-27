@@ -14,7 +14,8 @@ use std::process::{Command, ExitCode};
 /// The pin file: `release=`, `asset=` and `sha256=` lines. Read at compile time, so xtask and the build scripts agree.
 const PIN: &str = include_str!("../../../../ffmpeg-pin.txt");
 /// Where the asset is published (still rimelight-media's release, until rimelight-rs publishes its own).
-const URL_BASE: &str = "https://github.com/Rimelight-Entertainment/rimelight-media/releases/download";
+const URL_BASE: &str =
+    "https://github.com/Rimelight-Entertainment/rimelight-media/releases/download";
 
 /// The value of one `key=` line of the pin file.
 fn pin(key: &str) -> &'static str {
@@ -36,7 +37,11 @@ pub fn run(args: &[&str]) -> ExitCode {
     }
     match ensure() {
         Ok(current) => {
-            println!("xtask ffmpeg: {} is in {}", pin("asset="), current.display());
+            println!(
+                "xtask ffmpeg: {} is in {}",
+                pin("asset="),
+                current.display()
+            );
             ExitCode::SUCCESS
         }
         Err(err) => {

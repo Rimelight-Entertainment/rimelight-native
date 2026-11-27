@@ -16,7 +16,7 @@ use rimelight_personal_feature_notes::{
 };
 use slint::{ComponentHandle as _, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use crate::generated::{RimelightPersonalShell, NoteCard, NotesState};
+use crate::generated::{NoteCard, NotesState, RimelightPersonalShell};
 
 /// Autosave debounce. Matches the Solid editor's 600 ms timer.
 const AUTOSAVE_DELAY: Duration = Duration::from_millis(600);
@@ -181,7 +181,11 @@ fn show_editor(ui: &RimelightPersonalShell, editor: &EditorView) {
 }
 
 /// Connects the shell's notes callbacks to the controller. Editor edits also re-arm the autosave debounce.
-fn wire(ui: &RimelightPersonalShell, controller: &NotesController, autosave: &Rc<RefCell<Option<Timer>>>) {
+fn wire(
+    ui: &RimelightPersonalShell,
+    controller: &NotesController,
+    autosave: &Rc<RefCell<Option<Timer>>>,
+) {
     let c = controller.clone();
     ui.global::<NotesState>().on_tab_requested(move |index| {
         if let Some(tab) = usize::try_from(index).ok().and_then(NoteTab::from_index) {

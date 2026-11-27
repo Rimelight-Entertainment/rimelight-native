@@ -14,7 +14,7 @@ use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::clipboard;
 use crate::generated::{
-    RimelightPersonalShell, PageLoadState as SlintPageLoad, SelectOption, TableColumn, TableRow,
+    PageLoadState as SlintPageLoad, RimelightPersonalShell, SelectOption, TableColumn, TableRow,
     WatchlistCategory, WatchlistColumn, WatchlistState,
 };
 

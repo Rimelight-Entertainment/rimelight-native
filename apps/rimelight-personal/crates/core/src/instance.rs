@@ -38,17 +38,29 @@ impl InstanceConfig {
     #[cfg(target_arch = "wasm32")]
     pub fn from_env() -> Result<Self, String> {
         Self::from_values(
-            option_env!("RIMELIGHT_API_BASE").unwrap_or_default().to_owned(),
-            option_env!("RIMELIGHT_ACCESS_AUD").unwrap_or_default().to_owned(),
-            option_env!("RIMELIGHT_ACCESS_TEAM_ORIGIN").unwrap_or_default().to_owned(),
+            option_env!("RIMELIGHT_API_BASE")
+                .unwrap_or_default()
+                .to_owned(),
+            option_env!("RIMELIGHT_ACCESS_AUD")
+                .unwrap_or_default()
+                .to_owned(),
+            option_env!("RIMELIGHT_ACCESS_TEAM_ORIGIN")
+                .unwrap_or_default()
+                .to_owned(),
         )
     }
 
     /// Checks and trims the three values. Each must be set, and the API root must be an absolute URL.
-    pub fn from_values(api_base: String, access_aud: String, access_team_origin: String) -> Result<Self, String> {
+    pub fn from_values(
+        api_base: String,
+        access_aud: String,
+        access_team_origin: String,
+    ) -> Result<Self, String> {
         let api_base = api_base.trim().trim_end_matches('/').to_owned();
         if !(api_base.starts_with("https://") || api_base.starts_with("http://")) {
-            return Err(format!("RIMELIGHT_API_BASE must be an http(s) URL, got {api_base:?}"));
+            return Err(format!(
+                "RIMELIGHT_API_BASE must be an http(s) URL, got {api_base:?}"
+            ));
         }
         let access_aud = access_aud.trim().to_owned();
         if access_aud.is_empty() {
@@ -103,7 +115,10 @@ mod tests {
         let c = config("https://example.com/api/personal");
         assert_eq!(c.app_origin(), "https://example.com");
         assert_eq!(c.app_host(), "example.com");
-        assert_eq!(config("http://localhost:5173").app_origin(), "http://localhost:5173");
+        assert_eq!(
+            config("http://localhost:5173").app_origin(),
+            "http://localhost:5173"
+        );
         assert_eq!(config("http://localhost:5173").app_host(), "localhost:5173");
     }
 
@@ -118,8 +133,13 @@ mod tests {
         assert_eq!(ok.api_base, "https://example.com/api");
         assert_eq!(ok.access_aud, "AUD");
         assert_eq!(ok.access_team_origin, "https://team.example");
-        assert!(InstanceConfig::from_values("example.com".into(), "A".into(), "https://t".into()).is_err());
-        assert!(InstanceConfig::from_values("https://e".into(), "".into(), "https://t".into()).is_err());
+        assert!(
+            InstanceConfig::from_values("example.com".into(), "A".into(), "https://t".into())
+                .is_err()
+        );
+        assert!(
+            InstanceConfig::from_values("https://e".into(), "".into(), "https://t".into()).is_err()
+        );
         assert!(InstanceConfig::from_values("https://e".into(), "A".into(), " ".into()).is_err());
     }
 }

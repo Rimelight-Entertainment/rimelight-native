@@ -10,14 +10,14 @@ pub mod finance;
 pub mod habits;
 pub mod health;
 pub mod housing;
-pub mod instance;
 pub mod inbox;
+pub mod instance;
 pub mod local_date;
 pub mod music;
 pub mod notebooks;
 pub mod notes;
-pub mod provision;
 pub mod projects;
+pub mod provision;
 pub mod rates;
 /// The desktop Access CLI login. Native only: the browser and a worker thread.
 #[cfg(not(target_arch = "wasm32"))]
@@ -31,11 +31,11 @@ pub mod watchlist;
 pub mod web_session;
 
 pub use api::{ApiClient, ApiError};
-pub use instance::InstanceConfig;
 pub use api::{BearerSource, HeaderToken};
 pub use auth::{ACCESS_HEADER, Auth, AuthError, MemoryStore, SessionStore};
 pub use finance::{Account, Bill, FinanceData};
 pub use habits::{HabitAction, HabitData};
+pub use instance::InstanceConfig;
 pub use notes::{NewNote, Note, NoteBatchAction, NotePatch};
 pub use rates::{BASE_CURRENCY, Rates, convert_to_brl, fetch_rates};
 pub use todo::NewDatedTodo;

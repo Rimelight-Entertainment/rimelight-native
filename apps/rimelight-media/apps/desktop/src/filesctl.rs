@@ -654,7 +654,16 @@ fn sidebar_rows(st: &ExplorerState) -> Vec<SideEntry> {
         );
     }
     out.push((
-        side_item("Recycle Bin", "Recycle", 0, false, false, false, false, false),
+        side_item(
+            "Recycle Bin",
+            "Recycle",
+            0,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ),
         None,
         "Recycle",
     ));
@@ -667,13 +676,30 @@ fn sidebar_rows(st: &ExplorerState) -> Vec<SideEntry> {
     push_header(&mut out, "Pinned");
     if st.pinned.is_empty() {
         out.push((
-            side_item("Pin a folder with the pin button", "hint", 0, false, false, false, false, false),
+            side_item(
+                "Pin a folder with the pin button",
+                "hint",
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+            ),
             None,
             "hint",
         ));
     }
     for path in st.pinned.iter().filter(|p| p.is_dir()) {
-        push_flat(&mut out, &file_name_of(path), "Folder", path.clone(), st, current.as_deref(), true);
+        push_flat(
+            &mut out,
+            &file_name_of(path),
+            "Folder",
+            path.clone(),
+            st,
+            current.as_deref(),
+            true,
+        );
     }
     out
 }
@@ -702,7 +728,11 @@ fn side_item(
 }
 
 fn push_header(out: &mut Vec<SideEntry>, title: &str) {
-    out.push((side_item(title, "header", 0, false, false, false, false, false), None, "header"));
+    out.push((
+        side_item(title, "header", 0, false, false, false, false, false),
+        None,
+        "header",
+    ));
 }
 
 /// A flat sidebar row (no arrow) for a folder with a known kind, such as a quick access folder or a pinned one.
@@ -824,7 +854,14 @@ fn add_tree_node(
         for child in subfolders(path) {
             let name = file_name_of(&child);
             add_tree_node(
-                &child, &name, depth + 1, "Folder", expanded, selection, current, out,
+                &child,
+                &name,
+                depth + 1,
+                "Folder",
+                expanded,
+                selection,
+                current,
+                out,
             );
         }
     }
@@ -910,14 +947,14 @@ fn side_clicked(app: &Rc<App>, index: usize, shift: bool, ctrl: bool) {
             let anchor = st.tree_anchor.clone();
             match anchor {
                 Some(anchor) if shift => {
-                    let from = st.side_paths.iter().position(|p| p.as_ref() == Some(&anchor));
+                    let from = st
+                        .side_paths
+                        .iter()
+                        .position(|p| p.as_ref() == Some(&anchor));
                     if let Some(from) = from {
                         let (lo, hi) = (from.min(index), from.max(index));
-                        let range: Vec<PathBuf> = st.side_paths[lo..=hi]
-                            .iter()
-                            .flatten()
-                            .cloned()
-                            .collect();
+                        let range: Vec<PathBuf> =
+                            st.side_paths[lo..=hi].iter().flatten().cloned().collect();
                         st.tree_selected = range.into_iter().collect();
                     }
                 }
@@ -1121,7 +1158,9 @@ fn folder_details(st: &ExplorerState) -> Details {
         kind: label.into(),
         path: current_location(st),
         size: if archive {
-            fs::metadata(&path).map(|m| human_size(m.len())).unwrap_or_default()
+            fs::metadata(&path)
+                .map(|m| human_size(m.len()))
+                .unwrap_or_default()
         } else {
             String::new()
         },
@@ -1146,7 +1185,10 @@ fn row_details(st: &ExplorerState, row: &Row) -> Details {
         (None, Some(av)) => format!(
             "{} › {}",
             av.path.display(),
-            row.entry.as_deref().unwrap_or(row.name.as_str()).replace('/', " › ")
+            row.entry
+                .as_deref()
+                .unwrap_or(row.name.as_str())
+                .replace('/', " › ")
         ),
         // A Recycle Bin record: its original path (kept in `entry`).
         (None, None) => row.entry.clone().unwrap_or_default(),
@@ -1313,7 +1355,12 @@ fn up(app: &Rc<App>) {
                     .map(|(parent, _)| parent.to_string())
                     .unwrap_or_default();
             }
-        } else if let Some(parent) = st.dir.as_ref().and_then(|d| d.parent()).map(Path::to_path_buf) {
+        } else if let Some(parent) = st
+            .dir
+            .as_ref()
+            .and_then(|d| d.parent())
+            .map(Path::to_path_buf)
+        {
             st.dir = Some(parent);
         }
     }
@@ -1432,7 +1479,9 @@ fn enter_archive(app: &Rc<App>, path: PathBuf, password: Option<String>) {
             explorer(app).pending = Some(Pending::OpenArchive(path));
             open_password_dialog(app, "The password is wrong.");
         }
-        Err(ArchiveError::Failed(text)) => toast(app, format!("Could not open the archive: {text}")),
+        Err(ArchiveError::Failed(text)) => {
+            toast(app, format!("Could not open the archive: {text}"))
+        }
     }
 }
 
@@ -1449,15 +1498,21 @@ fn open_from_archive(app: &Rc<App>, entry: String) {
             .unwrap_or_else(|| "archive".into());
         (av.path.clone(), av.password.clone(), stem)
     };
-    let dest = std::env::temp_dir().join("RimelightMedia").join("archive").join(&stem);
+    let dest = std::env::temp_dir()
+        .join("RimelightMedia")
+        .join("archive")
+        .join(&stem);
     let file = dest.join(entry.replace('/', std::path::MAIN_SEPARATOR_STR));
     let job_dest = dest.clone();
-    start_job(app, "Extracting to a temporary folder…", move || {
-        archive::extract_all(&archive_path, &job_dest, password.as_deref())
-    }, move |a, result| match result {
-        Ok(_) => open_path(a, &file),
-        Err(e) => toast(a, format!("Could not extract the file: {e}")),
-    });
+    start_job(
+        app,
+        "Extracting to a temporary folder…",
+        move || archive::extract_all(&archive_path, &job_dest, password.as_deref()),
+        move |a, result| match result {
+            Ok(_) => open_path(a, &file),
+            Err(e) => toast(a, format!("Could not extract the file: {e}")),
+        },
+    );
 }
 
 // ---- Clipboard, rename, new folder, delete ----------------------------------------------------------------------
@@ -1643,7 +1698,10 @@ fn delete_submit(app: &Rc<App>) {
     }
     close_dialog(app);
     if failed > 0 {
-        toast(app, format!("{failed} item(s) could not go to the Recycle Bin."));
+        toast(
+            app,
+            format!("{failed} item(s) could not go to the Recycle Bin."),
+        );
     }
     reload(app);
 }
@@ -1678,7 +1736,13 @@ fn batch_start(app: &Rc<App>) {
     f.set_batch_ok(false);
 }
 
-fn rule_from(pattern: &str, find: &str, replace: &str, start: &str, pad: &str) -> Result<BatchRule, String> {
+fn rule_from(
+    pattern: &str,
+    find: &str,
+    replace: &str,
+    start: &str,
+    pad: &str,
+) -> Result<BatchRule, String> {
     let start = if start.trim().is_empty() {
         1
     } else {
@@ -1739,7 +1803,10 @@ fn batch_preview(app: &Rc<App>, pattern: &str, find: &str, replace: &str, start:
     let summary = if problems == 0 {
         format!("{} renames ready.", plan.len())
     } else {
-        format!("{problems} of {} can't be renamed. Fix them to apply.", plan.len())
+        format!(
+            "{problems} of {} can't be renamed. Fix them to apply.",
+            plan.len()
+        )
     };
     f.set_batch_rows(ModelRc::new(VecModel::from(rows)));
     f.set_batch_summary(summary.into());
@@ -1762,7 +1829,10 @@ fn batch_apply(app: &Rc<App>, pattern: &str, find: &str, replace: &str, start: &
     close_dialog(app);
     match error {
         Some(e) => toast(app, format!("Renamed {count}, but some failed: {e}")),
-        None => toast(app, format!("Renamed {count} item(s). Undo can bring the names back.")),
+        None => toast(
+            app,
+            format!("Renamed {count} item(s). Undo can bring the names back."),
+        ),
     }
     reload(app);
 }
@@ -1781,7 +1851,10 @@ fn archive_start(app: &Rc<App>) {
             [] => None,
             [one] => Some(match one.file_stem() {
                 Some(stem) if !one.is_dir() => format!("{}.zip", stem.to_string_lossy()),
-                _ => format!("{}.zip", one.file_name().unwrap_or_default().to_string_lossy()),
+                _ => format!(
+                    "{}.zip",
+                    one.file_name().unwrap_or_default().to_string_lossy()
+                ),
             }),
             _ => Some("Archive.zip".to_string()),
         }
@@ -1819,7 +1892,10 @@ fn archive_submit(app: &Rc<App>, name: &str, password: &str) {
         Some(password.to_string())
     };
     close_dialog(app);
-    let shown = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let shown = dest
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
     start_job(
         app,
         "Compressing…",
@@ -1829,11 +1905,12 @@ fn archive_submit(app: &Rc<App>, name: &str, password: &str) {
                 toast(a, format!("Created {shown} with {n} file(s)."));
                 reload(a);
             }
-        Err(e) => {
-            toast(a, format!("Could not create the archive: {e}"));
-            reload(a);
-        }
-    });
+            Err(e) => {
+                toast(a, format!("Could not create the archive: {e}"));
+                reload(a);
+            }
+        },
+    );
 }
 
 fn extract_here(app: &Rc<App>) {
@@ -1841,8 +1918,16 @@ fn extract_here(app: &Rc<App>) {
         let st = explorer(app);
         if let Some(av) = st.archive.as_ref() {
             let parent = av.path.parent().map(Path::to_path_buf).unwrap_or_default();
-            let stem = av.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-            (av.path.clone(), av.password.clone(), fileops::unique_path(&parent, &stem))
+            let stem = av
+                .path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            (
+                av.path.clone(),
+                av.password.clone(),
+                fileops::unique_path(&parent, &stem),
+            )
         } else {
             let picked: Vec<PathBuf> = selected_paths(&st)
                 .into_iter()
@@ -1853,7 +1938,10 @@ fn extract_here(app: &Rc<App>) {
                 return;
             };
             let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
-            let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+            let stem = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
             (path, None, fileops::unique_path(&parent, &stem))
         }
     };
@@ -1894,32 +1982,35 @@ fn start_extract(app: &Rc<App>, archive_path: PathBuf, dest: PathBuf, password: 
     let archive_for_job = archive_path.clone();
     let dest_for_job = dest.clone();
     let pw_for_job = password.clone();
-    start_job(app, "Extracting…", move || {
-        archive::extract_all(&archive_for_job, &dest_for_job, pw_for_job.as_deref())
-    }, move |a, result: Result<usize, ArchiveError>| match result {
-        Ok(n) => {
-            toast(a, format!("Extracted {n} file(s)."));
-            reload(a);
-        }
-        Err(ArchiveError::PasswordRequired) => {
-            explorer(a).pending = Some(Pending::Extract {
-                archive: archive_path.clone(),
-                dest: dest.clone(),
-            });
-            open_password_dialog(a, "This archive is protected. Enter its password.");
-        }
-        Err(ArchiveError::WrongPassword) => {
-            explorer(a).pending = Some(Pending::Extract {
-                archive: archive_path.clone(),
-                dest: dest.clone(),
-            });
-            open_password_dialog(a, "The password is wrong.");
-        }
-        Err(ArchiveError::Failed(text)) => {
-            toast(a, format!("Could not extract: {text}"));
-            reload(a);
-        }
-    });
+    start_job(
+        app,
+        "Extracting…",
+        move || archive::extract_all(&archive_for_job, &dest_for_job, pw_for_job.as_deref()),
+        move |a, result: Result<usize, ArchiveError>| match result {
+            Ok(n) => {
+                toast(a, format!("Extracted {n} file(s)."));
+                reload(a);
+            }
+            Err(ArchiveError::PasswordRequired) => {
+                explorer(a).pending = Some(Pending::Extract {
+                    archive: archive_path.clone(),
+                    dest: dest.clone(),
+                });
+                open_password_dialog(a, "This archive is protected. Enter its password.");
+            }
+            Err(ArchiveError::WrongPassword) => {
+                explorer(a).pending = Some(Pending::Extract {
+                    archive: archive_path.clone(),
+                    dest: dest.clone(),
+                });
+                open_password_dialog(a, "The password is wrong.");
+            }
+            Err(ArchiveError::Failed(text)) => {
+                toast(a, format!("Could not extract: {text}"));
+                reload(a);
+            }
+        },
+    );
 }
 
 fn password_submit(app: &Rc<App>, password: &str) {

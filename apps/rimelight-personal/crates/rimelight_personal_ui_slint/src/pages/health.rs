@@ -480,7 +480,11 @@ fn wire(
 mod tests {
     use super::*;
 
-    fn item(id: &str, name: &str, duration: &str) -> rimelight_personal_feature_health::StretchItemView {
+    fn item(
+        id: &str,
+        name: &str,
+        duration: &str,
+    ) -> rimelight_personal_feature_health::StretchItemView {
         rimelight_personal_feature_health::StretchItemView {
             id: id.to_owned(),
             name: name.to_owned(),

@@ -45,7 +45,9 @@ jobs:
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
             libwayland-dev \
-            libxcb1-dev
+            libxcb1-dev \
+            libdbus-1-dev \
+            pkg-config
       - name: Install toolchain from rust-toolchain.toml
         run: rustup show
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
@@ -67,6 +69,10 @@ jobs:
         with:
           tool: trunk@0.22.1
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Install libdbus for the keyring build script
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
       - name: Build web shell
         working-directory: apps/rimelight-space/apps/web
         run: trunk build --release
@@ -87,6 +93,10 @@ jobs:
         with:
           tool: trunk@0.22.1
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Install libdbus for the keyring build script
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
       - name: Build personal web shell
         env:
           RIMELIGHT_API_BASE: https://example.com/api/personal
@@ -117,6 +127,10 @@ jobs:
           echo "Using $jar"
           echo "ANDROID_JAR=$jar" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Install libdbus for the keyring build script
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
       - name: Check rimelight_android for arm64-v8a
         run: cargo ndk -t arm64-v8a check -p rimelight_android
 

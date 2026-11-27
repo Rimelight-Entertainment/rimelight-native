@@ -13,12 +13,12 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use rimelight_media::{MediaError, Player, PlayerOptions};
 use rimelight_personal_core::storage::{
     FilePatch, MediaKind, StorageFile, UploadFile, extension_of, join_key, media_kind, mime_for,
     move_filename, normalize_folder, preview_key, rename_filename, sanitize_basename, split_key,
 };
 use rimelight_personal_core::{ApiClient, ApiError};
-use rimelight_media::{MediaError, Player, PlayerOptions};
 
 /// The page's Slint markup, for the shell's build script (added as `@rimelight_personal_feature_storage`).
 pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");

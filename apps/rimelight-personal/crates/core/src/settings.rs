@@ -36,7 +36,8 @@ pub fn settings_folder() -> Option<PathBuf> {
     let base = if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
     } else if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library").join("Application Support"))
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join("Library").join("Application Support"))
     } else {
         std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from)
@@ -52,7 +53,9 @@ pub fn settings_path() -> Option<PathBuf> {
 /// Reads the saved settings. `Ok(None)` when setup has not run yet.
 pub fn load(path: &Path) -> Result<Option<Settings>, String> {
     match std::fs::read_to_string(path) {
-        Ok(text) => serde_json::from_str(&text).map(Some).map_err(|e| format!("settings are unreadable: {e}")),
+        Ok(text) => serde_json::from_str(&text)
+            .map(Some)
+            .map_err(|e| format!("settings are unreadable: {e}")),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("could not read the settings: {e}")),
     }
@@ -61,7 +64,8 @@ pub fn load(path: &Path) -> Result<Option<Settings>, String> {
 /// Writes the settings, creating the folder when it is missing.
 pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("could not create the settings folder: {e}"))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("could not create the settings folder: {e}"))?;
     }
     let text = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(path, text).map_err(|e| format!("could not save the settings: {e}"))
@@ -97,7 +101,10 @@ mod tests {
     #[test]
     fn saved_settings_become_an_instance() {
         let instance = sample().to_instance().expect("valid");
-        assert_eq!(instance.api_base, "https://rimelight-personal.example.workers.dev/api");
+        assert_eq!(
+            instance.api_base,
+            "https://rimelight-personal.example.workers.dev/api"
+        );
         assert_eq!(instance.access_aud, "aud-1");
     }
 

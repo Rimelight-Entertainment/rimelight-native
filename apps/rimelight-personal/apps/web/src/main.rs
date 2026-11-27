@@ -15,7 +15,16 @@ pub fn web_main() {
     let mode = rimelight_ui_kit::theme::Mode::System;
     let instance = rimelight_personal_core::InstanceConfig::from_env()
         .unwrap_or_else(|message| panic!("Rimelight Personal is not configured: {message}"));
-    rimelight_personal_ui_slint::shell::run("/", mode, instance, rimelight_personal_ui_slint::shell::About { version: env!("CARGO_PKG_VERSION").to_owned(), check: None }).expect("the Rimelight Personal shell failed to run");
+    rimelight_personal_ui_slint::shell::run(
+        "/",
+        mode,
+        instance,
+        rimelight_personal_ui_slint::shell::About {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            check: None,
+        },
+    )
+    .expect("the Rimelight Personal shell failed to run");
 }
 
 #[cfg(not(target_arch = "wasm32"))]

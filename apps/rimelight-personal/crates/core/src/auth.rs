@@ -177,7 +177,8 @@ pub struct KeyringStore;
 ))]
 impl KeyringStore {
     fn entry() -> Result<keyring::Entry, AuthError> {
-        keyring::Entry::new("rimelight-personal", "access").map_err(|e| AuthError::Storage(e.to_string()))
+        keyring::Entry::new("rimelight-personal", "access")
+            .map_err(|e| AuthError::Storage(e.to_string()))
     }
 }
 
@@ -374,8 +375,13 @@ mod tests {
             web_login_url(&instance, "https://app.example.com/todos"),
             "https://team.example/cdn-cgi/access/login/app.example.com?kid=AUD&redirect_url=%2Ftodos"
         );
-        assert!(web_login_url(&instance, "https://elsewhere.example/x").ends_with("redirect_url=%2F"));
-        assert_eq!(web_logout_url(&instance), "https://app.example.com/cdn-cgi/access/logout");
+        assert!(
+            web_login_url(&instance, "https://elsewhere.example/x").ends_with("redirect_url=%2F")
+        );
+        assert_eq!(
+            web_logout_url(&instance),
+            "https://app.example.com/cdn-cgi/access/logout"
+        );
     }
 
     fn test_instance() -> InstanceConfig {

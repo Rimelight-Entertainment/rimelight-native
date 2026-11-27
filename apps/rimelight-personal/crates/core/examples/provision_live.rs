@@ -12,7 +12,9 @@ use rimelight_personal_core::provision::{Plan, provision};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let [_, account_id, bundle_path, schema_path, owner] = args.as_slice() else {
-        eprintln!("usage: provision_live <account-id> <worker-bundle.js> <schema.sql> <owner-email>");
+        eprintln!(
+            "usage: provision_live <account-id> <worker-bundle.js> <schema.sql> <owner-email>"
+        );
         std::process::exit(2);
     };
 

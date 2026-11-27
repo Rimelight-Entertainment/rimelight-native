@@ -359,7 +359,10 @@ pub(crate) fn send_anonymous<T: Send + 'static>(
             Ok(resp) => decode(&resp.bytes).map_err(|e| match e {
                 ApiError::Decode(msg) => {
                     let head = String::from_utf8_lossy(&resp.bytes[..resp.bytes.len().min(80)]);
-                    ApiError::Decode(format!("{msg} (GET {url}, {} bytes, starts {head:?})", resp.bytes.len()))
+                    ApiError::Decode(format!(
+                        "{msg} (GET {url}, {} bytes, starts {head:?})",
+                        resp.bytes.len()
+                    ))
                 }
                 other => other,
             }),

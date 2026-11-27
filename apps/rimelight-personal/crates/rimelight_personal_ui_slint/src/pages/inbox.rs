@@ -11,10 +11,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use rimelight_media::{Player, PlayerOptions};
 use rimelight_personal_feature_inbox::{
     ImageView, InboxApi, InboxController, InboxView, Shell, SystemShell, ViewerView,
 };
-use rimelight_media::{Player, PlayerOptions};
 use slint::{
     ComponentHandle as _, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer,
     TimerMode, VecModel,

@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use slint::ComponentHandle;
 use std::sync::{Arc, Mutex};
 
-use rimelight_personal_core::cf_oauth;
 use rimelight_personal_core::SessionStore;
+use rimelight_personal_core::cf_oauth;
 use rimelight_personal_core::cloudflare_api::{BearerCloudflare, only_account, user_email};
 use rimelight_personal_core::provision::{Plan, provision};
 use rimelight_personal_core::settings::{self, Settings};
@@ -31,7 +31,8 @@ fn bundle_path() -> PathBuf {
 
 /// Shows the set-up window and returns once the copy is set up. An error means the owner closed the window first.
 pub fn run() -> Result<InstanceConfig, String> {
-    let path = settings::settings_path().ok_or_else(|| "no settings folder on this computer".to_owned())?;
+    let path = settings::settings_path()
+        .ok_or_else(|| "no settings folder on this computer".to_owned())?;
     let ui = SetupWindow::new().map_err(|e| e.to_string())?;
     let finished: Arc<Mutex<Option<Settings>>> = Arc::new(Mutex::new(None));
 
@@ -42,7 +43,10 @@ pub fn run() -> Result<InstanceConfig, String> {
             let Some(ui) = weak.upgrade() else { return };
             ui.set_failed(false);
             ui.set_busy(true);
-            ui.set_status("Opening the Cloudflare sign-in page. Sign in and approve access in your browser.".into());
+            ui.set_status(
+                "Opening the Cloudflare sign-in page. Sign in and approve access in your browser."
+                    .into(),
+            );
 
             let weak = weak.clone();
             let finished = finished.clone();
@@ -101,7 +105,10 @@ fn fail(weak: &slint::Weak<SetupWindow>, message: String) {
 /// Signs in, sets up the backend in the account, and returns the settings to save. `progress` gets a line per step.
 fn set_up(bundle: &Path, progress: &dyn Fn(&str)) -> Result<Settings, String> {
     let bundle = std::fs::read(bundle).map_err(|_| {
-        format!("The Worker bundle is missing ({}). Reinstall Rimelight Personal.", bundle.display())
+        format!(
+            "The Worker bundle is missing ({}). Reinstall Rimelight Personal.",
+            bundle.display()
+        )
     })?;
 
     let session = cf_oauth::sign_in(open_system_browser).map_err(|e| e.to_string())?;
@@ -135,7 +142,8 @@ fn show_centered(ui: &SetupWindow) -> Result<(), slint::PlatformError> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
     ui.show()?;
     // SAFETY: GetSystemMetrics only reads the display size; it takes no pointers.
-    let (screen_w, screen_h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    let (screen_w, screen_h) =
+        unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
     let size = ui.window().size();
     let x = ((screen_w - size.width as i32) / 2).max(0);
     let y = ((screen_h - size.height as i32) / 2).max(0);

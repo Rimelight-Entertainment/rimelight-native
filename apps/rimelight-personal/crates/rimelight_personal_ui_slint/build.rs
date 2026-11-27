@@ -44,7 +44,10 @@ fn main() {
     ];
     for (page, dir) in features {
         println!("cargo::rerun-if-changed={dir}");
-        libraries.insert(format!("rimelight_personal_feature_{page}"), PathBuf::from(dir));
+        libraries.insert(
+            format!("rimelight_personal_feature_{page}"),
+            PathBuf::from(dir),
+        );
     }
 
     // Debug info lets the headless tests find elements by accessible label (i-slint-backend-testing).

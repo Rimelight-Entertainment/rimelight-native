@@ -17,7 +17,9 @@ pub struct BearerCloudflare {
 
 impl BearerCloudflare {
     pub fn new(token: impl Into<String>) -> Self {
-        Self { token: token.into() }
+        Self {
+            token: token.into(),
+        }
     }
 }
 
@@ -31,7 +33,13 @@ fn ehttp_method(method: &CfMethod) -> Method {
 }
 
 /// Sends one request and returns the parsed answer. Errors carry Cloudflare's own code and message, never the token.
-pub fn send(method: Method, url: String, token: &str, headers: Vec<(&str, String)>, body: Vec<u8>) -> Result<Value, CfError> {
+pub fn send(
+    method: Method,
+    url: String,
+    token: &str,
+    headers: Vec<(&str, String)>,
+    body: Vec<u8>,
+) -> Result<Value, CfError> {
     let mut all = vec![("Authorization", format!("Bearer {token}"))];
     all.extend(headers.into_iter().map(|(k, v)| (k, v)));
     let pairs: Vec<(&str, &str)> = all.iter().map(|(k, v)| (*k, v.as_str())).collect();
@@ -49,7 +57,10 @@ pub fn send(method: Method, url: String, token: &str, headers: Vec<(&str, String
 
     let parsed: Value = serde_json::from_slice(&response.bytes).unwrap_or(Value::Null);
     if !response.ok {
-        let first = parsed.get("errors").and_then(Value::as_array).and_then(|e| e.first());
+        let first = parsed
+            .get("errors")
+            .and_then(Value::as_array)
+            .and_then(|e| e.first());
         return Err(CfError::Api {
             status: response.status,
             code: first.and_then(|e| e.get("code")).and_then(Value::as_u64),
@@ -70,7 +81,13 @@ impl Cloudflare for BearerCloudflare {
     fn call(&self, method: CfMethod, path: &str, body: Body) -> Result<Value, CfError> {
         let url = format!("{API_BASE}{path}");
         match body {
-            Body::None => send(ehttp_method(&method), url, &self.token, Vec::new(), Vec::new()),
+            Body::None => send(
+                ehttp_method(&method),
+                url,
+                &self.token,
+                Vec::new(),
+                Vec::new(),
+            ),
             Body::Json(value) => send(
                 ehttp_method(&method),
                 url,
@@ -84,7 +101,10 @@ impl Cloudflare for BearerCloudflare {
                     ehttp_method(&method),
                     url,
                     &self.token,
-                    vec![("Content-Type", format!("multipart/form-data; boundary={boundary}"))],
+                    vec![(
+                        "Content-Type",
+                        format!("multipart/form-data; boundary={boundary}"),
+                    )],
                     bytes,
                 )
             }
@@ -94,7 +114,13 @@ impl Cloudflare for BearerCloudflare {
 
 /// The owner's email, read from the sign-in's user info. It becomes the Access policy's only allowed identity.
 pub fn owner_email(token: &str) -> Result<String, CfError> {
-    let answer = send(Method::GET, USERINFO_URL.to_owned(), token, Vec::new(), Vec::new())?;
+    let answer = send(
+        Method::GET,
+        USERINFO_URL.to_owned(),
+        token,
+        Vec::new(),
+        Vec::new(),
+    )?;
     answer
         .get("email")
         .and_then(Value::as_str)
@@ -106,7 +132,11 @@ pub fn owner_email(token: &str) -> Result<String, CfError> {
 /// The account this sign-in can see, when there is exactly one. With several, the caller must choose one.
 pub fn only_account(cf: &dyn Cloudflare) -> Result<String, CfError> {
     let answer = cf.call(CfMethod::Get, "/accounts", Body::None)?;
-    let accounts = answer.get("result").and_then(Value::as_array).cloned().unwrap_or_default();
+    let accounts = answer
+        .get("result")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     match accounts.as_slice() {
         [one] => one
             .get("id")
@@ -115,7 +145,10 @@ pub fn only_account(cf: &dyn Cloudflare) -> Result<String, CfError> {
             .ok_or_else(|| CfError::Shape("the account has no id".to_owned())),
         [] => Err(CfError::Shape("this sign-in can see no account".to_owned())),
         many => {
-            let names: Vec<&str> = many.iter().filter_map(|a| a.get("name").and_then(Value::as_str)).collect();
+            let names: Vec<&str> = many
+                .iter()
+                .filter_map(|a| a.get("name").and_then(Value::as_str))
+                .collect();
             Err(CfError::Shape(format!(
                 "this sign-in can see several accounts ({}); pass --account <id> to choose one",
                 names.join(", ")

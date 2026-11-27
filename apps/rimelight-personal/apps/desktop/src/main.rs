@@ -119,7 +119,11 @@ fn main() -> ExitCode {
 
 /// The three RIMELIGHT_* variables when they are all set; otherwise the settings saved by setup.
 fn instance_from_env_or_settings() -> Result<InstanceConfig, String> {
-    let vars = ["RIMELIGHT_API_BASE", "RIMELIGHT_ACCESS_AUD", "RIMELIGHT_ACCESS_TEAM_ORIGIN"];
+    let vars = [
+        "RIMELIGHT_API_BASE",
+        "RIMELIGHT_ACCESS_AUD",
+        "RIMELIGHT_ACCESS_TEAM_ORIGIN",
+    ];
     if vars.iter().all(|name| std::env::var_os(name).is_some()) {
         return InstanceConfig::from_env();
     }
@@ -150,7 +154,9 @@ fn run_setup(args: &[String]) -> ExitCode {
             ("--bundle", Some(v)) => bundle = Some(v),
             ("--account", Some(v)) => account = Some(v),
             _ => {
-                eprintln!("{TOOL} setup: usage: setup --owner-email <email> --bundle <worker.js> --account <account-id>");
+                eprintln!(
+                    "{TOOL} setup: usage: setup --owner-email <email> --bundle <worker.js> --account <account-id>"
+                );
                 return ExitCode::from(2);
             }
         }

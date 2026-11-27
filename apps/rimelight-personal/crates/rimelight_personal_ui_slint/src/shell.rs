@@ -20,7 +20,7 @@ use rimelight_ui_kit::toast::{Record, Toast, ToastQueue, Tone, sync_model, take_
 use slint::{ComponentHandle as _, Model as _, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::generated::{
-    FocusState, RimelightPersonalShell, Icons, OverviewState, PaletteRow, SidebarItem, SidebarKind,
+    FocusState, Icons, OverviewState, PaletteRow, RimelightPersonalShell, SidebarItem, SidebarKind,
     SubTab, ToastEntry, ToastTone, TodosState,
 };
 use crate::pages::{
@@ -410,7 +410,12 @@ pub struct About {
     pub check: Option<Arc<dyn Fn() -> String + Send + Sync>>,
 }
 
-pub fn run(start: &str, mode: Mode, instance: InstanceConfig, about: About) -> Result<(), slint::PlatformError> {
+pub fn run(
+    start: &str,
+    mode: Mode,
+    instance: InstanceConfig,
+    about: About,
+) -> Result<(), slint::PlatformError> {
     let ui = RimelightPersonalShell::new()?;
     let entries = nav_entries();
     let items: Vec<SidebarItem> = entries.iter().map(|entry| to_item(&ui, entry)).collect();
@@ -423,9 +428,14 @@ pub fn run(start: &str, mode: Mode, instance: InstanceConfig, about: About) -> R
     let client = ApiClient::new(instance.api_base.clone()).with_bearer(auth.session.clone());
     let api = Arc::new(client);
     // Todos and Projects make their own requests; they carry the same session header.
-    let todo_api = rimelight_personal_feature_todos::http_api_signed(instance.api_base.clone(), auth.session.clone());
-    let projects_api =
-        rimelight_personal_feature_projects::http_api_signed(instance.api_base.clone(), auth.session.clone());
+    let todo_api = rimelight_personal_feature_todos::http_api_signed(
+        instance.api_base.clone(),
+        auth.session.clone(),
+    );
+    let projects_api = rimelight_personal_feature_projects::http_api_signed(
+        instance.api_base.clone(),
+        auth.session.clone(),
+    );
 
     theme::set_mode(&ui, mode);
 
@@ -530,10 +540,11 @@ pub fn run(start: &str, mode: Mode, instance: InstanceConfig, about: About) -> R
     // After sign-in, the page the user is on loads its data again (the first load happened before the sign-in).
     {
         let shell = shell.clone();
-        ui.global::<crate::generated::Session>().on_reload_page(move || {
-            let route = shell.ui.get_route().to_string();
-            shell.navigate(&route);
-        });
+        ui.global::<crate::generated::Session>()
+            .on_reload_page(move || {
+                let route = shell.ui.get_route().to_string();
+                shell.navigate(&route);
+            });
     }
 
     // The route opens at `start`, with its page fetched.

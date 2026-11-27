@@ -38,7 +38,11 @@ fn run_powershell(script: &str) {
 
 /// The script that writes one `.lnk` into `folder`.
 fn shortcut_script(folder: &str, app: &Shortcut<'_>) -> String {
-    let dir = app.target.parent().map(Path::to_path_buf).unwrap_or_default();
+    let dir = app
+        .target
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
     format!(
         "New-Item -ItemType Directory -Force '{folder}' | Out-Null; \
          $s=(New-Object -ComObject WScript.Shell).CreateShortcut('{folder}\\{name}.lnk'); \

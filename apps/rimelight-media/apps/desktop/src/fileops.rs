@@ -95,7 +95,9 @@ pub fn check_name(name: &str) -> Result<(), String> {
     if t.is_empty() {
         return Err("The name is empty.".into());
     }
-    if t.chars().any(|c| "<>:\"/\\|?*".contains(c) || c.is_control()) {
+    if t.chars()
+        .any(|c| "<>:\"/\\|?*".contains(c) || c.is_control())
+    {
         return Err("A name can't contain < > : \" / \\ | ? *".into());
     }
     if t == "." || t == ".." {
@@ -132,10 +134,7 @@ pub fn new_folder(parent: &Path, name: &str) -> Result<(PathBuf, Undo), String> 
     check_name(name)?;
     let path = unique_path(parent, name);
     fs::create_dir(&path).map_err(|e| e.to_string())?;
-    Ok((
-        path.clone(),
-        Undo::Created { path },
-    ))
+    Ok((path.clone(), Undo::Created { path }))
 }
 
 /// Copies `src` (a file or a whole folder) into `dest_dir` under its own name, numbering it if taken.

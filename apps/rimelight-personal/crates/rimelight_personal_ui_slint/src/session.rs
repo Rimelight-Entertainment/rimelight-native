@@ -84,8 +84,9 @@ pub fn wire(ui: &RimelightPersonalShell, instance: InstanceConfig) -> Arc<Auth> 
             }
             #[cfg(target_arch = "wasm32")]
             {
-                let _ =
-                    rimelight_personal_core::web_session::navigate(&rimelight_personal_core::auth::web_logout_url(&for_sign_out.instance));
+                let _ = rimelight_personal_core::web_session::navigate(
+                    &rimelight_personal_core::auth::web_logout_url(&for_sign_out.instance),
+                );
             }
         }
     });
@@ -152,17 +153,20 @@ fn decide(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
     #[cfg(target_arch = "wasm32")]
     {
         let weak = ui.as_weak();
-        rimelight_personal_core::web_session::probe_cookie_session(&auth.instance.api_base, move |signed_in| {
-            let _ = weak.upgrade_in_event_loop(move |ui| {
-                let session = ui.global::<Session>();
-                session.set_connection(ConnectionState::Connected);
-                session.set_phase(if signed_in {
-                    SessionPhase::SignedIn
-                } else {
-                    SessionPhase::SignedOut
+        rimelight_personal_core::web_session::probe_cookie_session(
+            &auth.instance.api_base,
+            move |signed_in| {
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    let session = ui.global::<Session>();
+                    session.set_connection(ConnectionState::Connected);
+                    session.set_phase(if signed_in {
+                        SessionPhase::SignedIn
+                    } else {
+                        SessionPhase::SignedOut
+                    });
                 });
-            });
-        });
+            },
+        );
         // The browser keeps no token here: the Access cookie is the session.
         let _ = auth;
     }
@@ -231,8 +235,11 @@ fn begin_sign_in(ui: &RimelightPersonalShell, auth: Arc<Auth>) {
         let instance = auth.instance.clone();
         std::thread::spawn(move || {
             let result: Result<(), rimelight_personal_core::auth::AuthError> =
-                rimelight_personal_core::signin::cli_login(&instance, &rimelight_personal_core::signin::open_system_browser)
-                    .and_then(|token| auth.accept_token(token));
+                rimelight_personal_core::signin::cli_login(
+                    &instance,
+                    &rimelight_personal_core::signin::open_system_browser,
+                )
+                .and_then(|token| auth.accept_token(token));
             let _ = weak.upgrade_in_event_loop(move |ui| finish_sign_in(&ui, &auth, result));
         });
     }

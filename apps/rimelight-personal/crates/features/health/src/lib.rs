@@ -1235,7 +1235,13 @@ impl HealthController {
             if s.custom_start_on {
                 // The picked day and time are local, as the web's datetime input gives them; the API gets UTC.
                 let iso = s.start_pick.and_then(|(y, m, d)| {
-                    rimelight_personal_core::local_date::local_to_iso(y, m, d, s.start_hour, s.start_minute)
+                    rimelight_personal_core::local_date::local_to_iso(
+                        y,
+                        m,
+                        d,
+                        s.start_hour,
+                        s.start_minute,
+                    )
                 });
                 let Some(iso) = iso else {
                     drop(s);
@@ -2066,7 +2072,11 @@ mod tests {
             .expect("start sent");
         // The API gets UTC; read back in the local zone it is the picked 08:30.
         assert!(sent.ends_with("Z"), "got {sent}");
-        assert_eq!(local_time::local_hm(sent.trim_start_matches("start:24:")), Some((8, 30)), "got {sent}");
+        assert_eq!(
+            local_time::local_hm(sent.trim_start_matches("start:24:")),
+            Some((8, 30)),
+            "got {sent}"
+        );
         let view = c.view();
         assert!(view.fasting.active.is_some());
         assert!(
@@ -2123,7 +2133,8 @@ mod tests {
         assert_eq!(history.len(), 14);
         // Labels are the viewer's local month and day, so the expected text comes from the same local helper.
         let local = |iso: &str| {
-            let day = rimelight_personal_core::local_date::local_day_of(iso).expect("valid instant");
+            let day =
+                rimelight_personal_core::local_date::local_day_of(iso).expect("valid instant");
             format!("{}/{}", day.month, day.day)
         };
         assert_eq!(

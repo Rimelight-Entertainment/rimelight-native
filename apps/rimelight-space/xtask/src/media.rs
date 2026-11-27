@@ -22,7 +22,13 @@ const PACKAGE: &str = "media_desktop";
 /// The GitHub repository the build bakes in, so installed copies update from its releases (`option_env!` in the app).
 const REPO_ENV: &str = "RIMELIGHT_MEDIA_REPO";
 /// The FFmpeg DLLs the app loads, by file-name prefix (`ffmpeg/current/bin`).
-const FFMPEG_DLLS: &[&str] = &["avcodec-", "avformat-", "avutil-", "swresample-", "swscale-"];
+const FFMPEG_DLLS: &[&str] = &[
+    "avcodec-",
+    "avformat-",
+    "avutil-",
+    "swresample-",
+    "swscale-",
+];
 
 const USAGE: &str = "\
 usage: cargo xtask media pack [--version <x.y.z>] [--repo <owner/name>] [--install]
@@ -95,7 +101,10 @@ fn pack(args: &[&str]) -> Result<(), String> {
     }
     let options = parse(args)?;
     let cargo_version = cargo_version()?;
-    let version = options.version.clone().unwrap_or_else(|| cargo_version.clone());
+    let version = options
+        .version
+        .clone()
+        .unwrap_or_else(|| cargo_version.clone());
     if version != cargo_version {
         return Err(format!(
             "version {version} doesn't match apps/rimelight-media/apps/desktop/Cargo.toml ({cargo_version}); bump it first"
@@ -121,22 +130,44 @@ fn pack(args: &[&str]) -> Result<(), String> {
     let icon = target.join("rimelight-media.ico");
     run_step(
         "write the app icon",
-        Command::new(stage.join(MAIN_EXE)).arg("--write-icon").arg(&icon),
+        Command::new(stage.join(MAIN_EXE))
+            .arg("--write-icon")
+            .arg(&icon),
     )?;
 
     run_step(
         "install the vpk CLI",
-        Command::new("dotnet").args(["tool", "update", "--global", "vpk", "--version", VPK_VERSION]),
+        Command::new("dotnet").args([
+            "tool",
+            "update",
+            "--global",
+            "vpk",
+            "--version",
+            VPK_VERSION,
+        ]),
     )?;
     let out = media_dir().join("releases");
     fs::create_dir_all(&out).map_err(|e| format!("create {}: {e}", out.display()))?;
     run_step(
         "vpk pack",
         Command::new("vpk")
-            .args(["pack", "--packId", PACK_ID, "--packVersion", version.as_str()])
+            .args([
+                "pack",
+                "--packId",
+                PACK_ID,
+                "--packVersion",
+                version.as_str(),
+            ])
             .arg("--packDir")
             .arg(&stage)
-            .args(["--mainExe", MAIN_EXE, "--packTitle", TITLE, "--packAuthors", AUTHORS])
+            .args([
+                "--mainExe",
+                MAIN_EXE,
+                "--packTitle",
+                TITLE,
+                "--packAuthors",
+                AUTHORS,
+            ])
             .arg("--icon")
             .arg(&icon)
             .arg("--outputDir")
@@ -157,11 +188,10 @@ fn pack(args: &[&str]) -> Result<(), String> {
     );
 
     if options.install {
-        run_step(
-            "install on this PC",
-            Command::new(&setup).arg("--silent"),
-        )?;
-        println!("xtask media: installed to %LOCALAPPDATA%\\RimelightMedia (Start menu: Rimelight Media)");
+        run_step("install on this PC", Command::new(&setup).arg("--silent"))?;
+        println!(
+            "xtask media: installed to %LOCALAPPDATA%\\RimelightMedia (Start menu: Rimelight Media)"
+        );
     }
     Ok(())
 }
@@ -179,7 +209,10 @@ fn stage_files(release_dir: &Path, ffmpeg_dir: &Path, stage: &Path) -> Result<()
     let mut dlls = 0;
     for entry in fs::read_dir(&bin).map_err(|e| format!("read {}: {e}", bin.display()))? {
         let path = entry.map_err(|e| e.to_string())?.path();
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
         if name.ends_with(".dll") && FFMPEG_DLLS.iter().any(|lib| name.starts_with(lib)) {
             copy(&path, &stage.join(name))?;
             dlls += 1;
@@ -243,8 +276,8 @@ fn megabytes(path: &Path) -> Result<String, String> {
 /// `version` under `[package]` in apps/rimelight-media/apps/desktop/Cargo.toml.
 fn cargo_version() -> Result<String, String> {
     let manifest = media_dir().join("Cargo.toml");
-    let text = fs::read_to_string(&manifest)
-        .map_err(|e| format!("read {}: {e}", manifest.display()))?;
+    let text =
+        fs::read_to_string(&manifest).map_err(|e| format!("read {}: {e}", manifest.display()))?;
     let mut in_package = false;
     for line in text.lines() {
         let line = line.trim();
@@ -259,7 +292,10 @@ fn cargo_version() -> Result<String, String> {
             return Ok(value.trim().trim_matches('"').to_string());
         }
     }
-    Err(format!("no version under [package] in {}", manifest.display()))
+    Err(format!(
+        "no version under [package] in {}",
+        manifest.display()
+    ))
 }
 
 fn media_dir() -> PathBuf {
@@ -272,8 +308,10 @@ fn media_dir() -> PathBuf {
 
 /// `CARGO_TARGET_DIR` when set (the shared target folder, see AGENTS.md), else `target/` in the workspace.
 fn target_dir() -> PathBuf {
-    std::env::var_os("CARGO_TARGET_DIR")
-        .map_or_else(|| crate::ffmpeg::workspace_root().join("target"), PathBuf::from)
+    std::env::var_os("CARGO_TARGET_DIR").map_or_else(
+        || crate::ffmpeg::workspace_root().join("target"),
+        PathBuf::from,
+    )
 }
 
 #[cfg(test)]
@@ -282,8 +320,8 @@ mod tests {
 
     #[test]
     fn parse_reads_flags() {
-        let options = parse(&["--version", "1.2.3", "--repo", "owner/app", "--install"])
-            .expect("parses");
+        let options =
+            parse(&["--version", "1.2.3", "--repo", "owner/app", "--install"]).expect("parses");
         assert_eq!(options.version.as_deref(), Some("1.2.3"));
         assert_eq!(options.repo.as_deref(), Some("owner/app"));
         assert!(options.install);

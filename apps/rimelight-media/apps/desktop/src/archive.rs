@@ -165,7 +165,9 @@ fn extract_zip(path: &Path, dest: &Path, password: Option<&str>) -> Result<usize
             .encrypted();
         let mut file = match (encrypted, password) {
             (true, None) => return Err(ArchiveError::PasswordRequired),
-            (true, Some(pw)) => archive.by_index_decrypt(i, pw.as_bytes()).map_err(map_zip)?,
+            (true, Some(pw)) => archive
+                .by_index_decrypt(i, pw.as_bytes())
+                .map_err(map_zip)?,
             (false, _) => archive.by_index(i).map_err(map_zip)?,
         };
         // enclosed_name refuses names that climb out of the folder (../), so extraction stays inside dest.
@@ -202,10 +204,7 @@ fn extract_rar(path: &Path, dest: &Path, password: Option<&str>) -> Result<usize
         .open_for_processing()
         .map_err(|e| map_rar(&e.to_string()))?;
     let mut files = 0;
-    while let Some(header) = open
-        .read_header()
-        .map_err(|e| map_rar(&e.to_string()))?
-    {
+    while let Some(header) = open.read_header().map_err(|e| map_rar(&e.to_string()))? {
         let is_file = header.entry().is_file();
         let encrypted = header.entry().is_encrypted();
         if encrypted && password.is_none() {
@@ -242,7 +241,8 @@ pub fn create_zip(sources: &[PathBuf], dest: &Path, password: Option<&str>) -> R
             None => add_path(&mut zip, parent, source, base, &mut files)?,
         }
     }
-    zip.finish().map_err(|e| ArchiveError::Failed(e.to_string()))?;
+    zip.finish()
+        .map_err(|e| ArchiveError::Failed(e.to_string()))?;
     Ok(files)
 }
 
@@ -278,7 +278,11 @@ fn count_files(dir: &Path) -> Result<usize> {
     let mut n = 0;
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
-        n += if path.is_dir() { count_files(&path)? } else { 1 };
+        n += if path.is_dir() {
+            count_files(&path)?
+        } else {
+            1
+        };
     }
     Ok(n)
 }

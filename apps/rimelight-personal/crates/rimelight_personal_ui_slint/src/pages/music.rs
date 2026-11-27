@@ -24,8 +24,8 @@ use rimelight_personal_feature_music::{
 use slint::{ComponentHandle as _, ModelRc, Timer, TimerMode, VecModel, Weak};
 
 use crate::generated::{
-    RimelightPersonalShell, MusicAttachmentRow, MusicBeatCell, MusicBlockItemRow, MusicBlockPair,
-    MusicBlockRow, MusicExerciseRow, MusicPieceRow, MusicState, SelectOption,
+    MusicAttachmentRow, MusicBeatCell, MusicBlockItemRow, MusicBlockPair, MusicBlockRow,
+    MusicExerciseRow, MusicPieceRow, MusicState, RimelightPersonalShell, SelectOption,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use crate::platform::{FileDrop, FileDrops, Platform, Subscription};
@@ -770,7 +770,9 @@ pub(crate) mod tests {
             .invoke_music_attachment_open_requested(piece.attachments[0].id.as_str().into());
         assert_eq!(
             *platform.opens.borrow(),
-            ["https://example.test/api/storage/files?key=rimelight-personal-music-test-take-one.mp3"]
+            [
+                "https://example.test/api/storage/files?key=rimelight-personal-music-test-take-one.mp3"
+            ]
         );
 
         // The save flash: a save shows "Saved" until two seconds pass, then clears.

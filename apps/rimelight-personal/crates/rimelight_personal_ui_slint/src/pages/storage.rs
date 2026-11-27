@@ -12,7 +12,9 @@ use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use rimelight_personal_feature_storage::{StorageApi, StorageController, StorageView, Thumb, TypeFilter};
+use rimelight_personal_feature_storage::{
+    StorageApi, StorageController, StorageView, Thumb, TypeFilter,
+};
 use slint::Model as _;
 use slint::{
     ComponentHandle as _, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer,
@@ -80,7 +82,11 @@ fn to_image(thumb: &Thumb) -> Image {
     Image::from_rgba8(buffer)
 }
 
-fn show_view(ui: &RimelightPersonalShell, controller: Option<&StorageController>, view: &StorageView) {
+fn show_view(
+    ui: &RimelightPersonalShell,
+    controller: Option<&StorageController>,
+    view: &StorageView,
+) {
     let state = ui.global::<StorageState>();
 
     state.set_folders(model(

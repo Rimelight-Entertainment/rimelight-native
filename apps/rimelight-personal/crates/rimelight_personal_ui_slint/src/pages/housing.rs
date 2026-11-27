@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 
-use rimelight_personal_feature_housing::{FormView, HousingApi, HousingController, HousingTab, HousingView};
+use rimelight_personal_feature_housing::{
+    FormView, HousingApi, HousingController, HousingTab, HousingView,
+};
 use slint::{ComponentHandle as _, ModelRc, VecModel};
 
 use crate::RimelightPersonalShell;

@@ -9,8 +9,8 @@ use rimelight_personal_feature_habits::{DayView, HabitApi, HabitsController, Hab
 use slint::{ComponentHandle as _, ModelRc, VecModel};
 
 use crate::generated::{
-    HabitCategoryRow, HabitDay, HabitRow, HabitWeek, HabitYearTab, HabitsState, RimelightPersonalShell,
-    SelectOption,
+    HabitCategoryRow, HabitDay, HabitRow, HabitWeek, HabitYearTab, HabitsState,
+    RimelightPersonalShell, SelectOption,
 };
 
 /// The grids show this many day cells per line.
@@ -24,7 +24,11 @@ pub struct Habits {
 impl Habits {
     /// Connects `ui` to a controller that calls `api`. `today` is `(year, month, day)`, as [`rimelight_personal_feature_habits::today`]
     /// returns it. Nothing is fetched until [`Habits::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn HabitApi>, today: (i32, u32, u32)) -> Self {
+    pub fn new(
+        ui: &RimelightPersonalShell,
+        api: Arc<dyn HabitApi>,
+        today: (i32, u32, u32),
+    ) -> Self {
         let month_options: Vec<SelectOption> = MONTHS
             .iter()
             .enumerate()

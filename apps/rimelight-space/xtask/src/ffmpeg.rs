@@ -122,6 +122,9 @@ fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), 
 
 /// Lower-case hex SHA-256 of a file, through PowerShell's Get-FileHash.
 fn sha256_of(path: &Path) -> Result<String, String> {
+    if !path.is_file() {
+        return Err(format!("{} is missing after the download", path.display()));
+    }
     let out = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command"])
         .arg(format!(
@@ -131,7 +134,13 @@ fn sha256_of(path: &Path) -> Result<String, String> {
         .output()
         .map_err(|e| format!("powershell.exe could not start: {e}"))?;
     if !out.status.success() {
-        return Err("Get-FileHash failed".to_string());
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(format!(
+            "Get-FileHash failed for {} ({}): {}",
+            path.display(),
+            out.status,
+            stderr.trim()
+        ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_lowercase())
 }

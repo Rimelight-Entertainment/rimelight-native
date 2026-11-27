@@ -120,29 +120,36 @@ fn fetch(root: &Path, current: &Path, stamp: &Path, wanted: &str) -> Result<(), 
     Ok(())
 }
 
-/// Lower-case hex SHA-256 of a file, through PowerShell's Get-FileHash.
+/// Lower-case hex SHA-256 of a file, through Windows' `certutil.exe` (present on every Windows install; the
+/// GitHub runner's `powershell.exe` does not have `Get-FileHash`).
 fn sha256_of(path: &Path) -> Result<String, String> {
     if !path.is_file() {
         return Err(format!("{} is missing after the download", path.display()));
     }
-    let out = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command"])
-        .arg(format!(
-            "(Get-FileHash -Algorithm SHA256 -LiteralPath '{}').Hash",
-            path.display().to_string().replace('\'', "''")
-        ))
+    let out = Command::new("certutil.exe")
+        .args(["-hashfile"])
+        .arg(path)
+        .arg("SHA256")
         .output()
-        .map_err(|e| format!("powershell.exe could not start: {e}"))?;
+        .map_err(|e| format!("certutil.exe could not start: {e}"))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
         return Err(format!(
-            "Get-FileHash failed for {} ({}): {}",
+            "certutil failed for {} ({}): {}{}",
             path.display(),
             out.status,
+            stdout.trim(),
             stderr.trim()
         ));
     }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_lowercase())
+    // certutil prints a header line, then the hash (possibly with spaces), then a status line.
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|line| line.split_whitespace().collect::<String>())
+        .find(|hex| hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(|hex| hex.to_lowercase())
+        .ok_or_else(|| format!("certutil printed no SHA-256 for {}", path.display()))
 }
 
 /// The monorepo root (the folder holding the workspace `Cargo.toml`): this crate is `apps/rimelight-space/xtask`.

@@ -12,8 +12,6 @@ use rimelight_update::{Config, DEFAULT_WATCH_INTERVAL, Feed, Updater};
 const FEED_ENV: &str = "RIMELIGHT_PERSONAL_UPDATE_URL";
 /// The Velopack channel this build is packaged for, and the channel of its minimum-version file.
 const CHANNEL: &str = "stable";
-/// The repository whose releases carry the Personal installer (the monorepo).
-const REPOSITORY: &str = "Rimelight-Entertainment/rimelight-native";
 
 // Defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module. The window is `crate::windows_ui::UpdateWindow`.
 rimelight_update::update_window_gate!(crate::windows_ui::UpdateWindow, "Rimelight Personal");
@@ -23,13 +21,12 @@ pub fn init() {
     rimelight_update::init(|app| app);
 }
 
-/// The updater for this copy, or `None` when this run is not installed. The feed is the GitHub releases of the monorepo unless
-/// `RIMELIGHT_PERSONAL_UPDATE_URL` names a Velopack HTTP feed.
+/// The updater for this copy. Personal has no release feed of its own yet, so updates come only from the feed named by
+/// `RIMELIGHT_PERSONAL_UPDATE_URL`. The monorepo's GitHub releases are NOT used: they carry Media and Space packages, and
+/// Velopack installed a Media package into the Personal folder when they were read here.
 fn updater() -> Option<Arc<Updater>> {
-    let feed = match std::env::var(FEED_ENV) {
-        Ok(url) => Feed::Http { url },
-        Err(_) => Feed::GithubReleases { repo: REPOSITORY.to_owned() },
-    };
+    let url = std::env::var(FEED_ENV).ok()?;
+    let feed = Feed::Http { url };
     Updater::new(Config {
         feed,
         minimum_version_channel: Some(CHANNEL.to_owned()),

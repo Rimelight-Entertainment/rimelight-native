@@ -18,7 +18,7 @@ const PACK_ID: &str = "RimelightSpace";
 const TITLE: &str = "Rimelight Space";
 const AUTHORS: &str = "Rimelight Entertainment";
 const CHANNEL: &str = "stable";
-const MAIN_EXE: &str = "rimelight_desktop.exe";
+const MAIN_EXE: &str = "space_desktop.exe";
 /// Where the installed copies read the feed (apps/desktop/src/update.rs). `pack` downloads the previous releases from here
 /// so `vpk` can build delta packages.
 const FEED_URL: &str = "https://rimelight.com/v1/releases/win";
@@ -158,13 +158,13 @@ fn pack(args: &[&str]) -> Result<(), String> {
 
     // Whole workspace selected, narrowed by a target flag (decision 0043).
     run_step(
-        "cargo build --workspace --release --bin rimelight_desktop",
+        "cargo build --workspace --release --bin space_desktop",
         Command::new("cargo").args([
             "build",
             "--workspace",
             "--release",
             "--bin",
-            "rimelight_desktop",
+            "space_desktop",
         ]),
     )?;
 

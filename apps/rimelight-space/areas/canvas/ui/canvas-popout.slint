@@ -16,6 +16,7 @@ import { CanvasState } from "canvas-types.slint";
 import { CanvasPage } from "canvas.slint";
 
 export component CanvasPopout inherits Window {
+    icon: @image-url("../../../assets/logo/logo_color.svg");
     in-out property <bool> bar-auto-hide: false;
     in-out property <bool> pinned;
     in-out property <bool> click-through;

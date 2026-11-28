@@ -1,7 +1,7 @@
 //! The clipboard writer of Copy link (gaps D2), here because the area glue macros (`wire_projects!`) expand in this crate and
 //! take it by path. `space_ui::slint_ui::clipboard` re-exports it and keeps the toast.
 //!
-//! Desktop and Android: the AppShell's `copy-link` function (`ui/components/clipboard-writer.slint`) selects its hidden
+//! Desktop and Android: the AppWindow's `copy-link` function (`ui/components/clipboard-writer.slint`) selects its hidden
 //! TextInput's text and calls the TextInput's `copy()`, which Slint hands to the platform clipboard. That path is synchronous,
 //! so its outcome is known at once.
 //!
@@ -13,7 +13,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::AppShell;
+use crate::AppWindow;
 
 /// A browser writer: takes the text of a link and a callback that gets the outcome (`true` when the browser took it).
 type BrowserWriter = Rc<dyn Fn(&str, Box<dyn FnOnce(bool)>)>;
@@ -30,9 +30,9 @@ pub fn set_browser_writer(write: impl Fn(&str, Box<dyn FnOnce(bool)>) + 'static)
 }
 
 /// Writes `link` to the clipboard, then calls `done` with whether it was written. On desktop and Android the write is
-/// synchronous, so `done` runs before this returns, with `true` (the AppShell's `last-copied` property records the text). With
+/// synchronous, so `done` runs before this returns, with `true` (the AppWindow's `last-copied` property records the text). With
 /// a browser writer, `done` runs when the browser answers.
-pub fn write_link(ui: &AppShell, link: &str, done: impl FnOnce(bool) + 'static) {
+pub fn write_link(ui: &AppWindow, link: &str, done: impl FnOnce(bool) + 'static) {
     let browser = BROWSER_WRITER.with(|slot| slot.borrow().clone());
     match browser {
         Some(write) => write(link, Box::new(done)),

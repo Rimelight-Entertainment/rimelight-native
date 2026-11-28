@@ -68,7 +68,7 @@ fn wait(ms: u64) {
 }
 
 /// The cell texts of row `i` of the departments table.
-fn cells(ui: &space_ui::slint_ui::AppShell, i: usize) -> Vec<String> {
+fn cells(ui: &space_ui::slint_ui::AppWindow, i: usize) -> Vec<String> {
     let row = ui
         .global::<DeptsTable>()
         .get_rows()
@@ -80,7 +80,7 @@ fn cells(ui: &space_ui::slint_ui::AppShell, i: usize) -> Vec<String> {
 }
 
 /// The department names on show, in order: the indent and the "+" or "-" marker are left out.
-fn names(ui: &space_ui::slint_ui::AppShell) -> Vec<String> {
+fn names(ui: &space_ui::slint_ui::AppWindow) -> Vec<String> {
     let rows = ui.global::<DeptsTable>().get_rows();
     (0..rows.row_count())
         .map(|i| {

@@ -3,7 +3,7 @@
 //! 1. The page's markup has a load state (`PageLoadState`: loading, loaded, empty, error), an error line, and callbacks
 //!    for `opened` (sent from the page's `init`, so the first load runs when its route becomes active), `retry` and any
 //!    actions. `components/page-state.slint` (`PageState`) draws the spinner, the empty message and the error with Try again.
-//! 2. The window (`AppShell`) holds those as `<page>-*` properties and callbacks, and the page's markup binds to them.
+//! 2. The window (`AppWindow`) holds those as `<page>-*` properties and callbacks, and the page's markup binds to them.
 //! 3. The page's plain-Rust side (its area crate) keeps its request state (generation, query, cursor) behind a `Mutex`,
 //!    so a worker can read and write it. A request bumps the generation, and a result for an older generation is dropped.
 //!    The window glue (`wire_<area>!`) wires the callbacks.

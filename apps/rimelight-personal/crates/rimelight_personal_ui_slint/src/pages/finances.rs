@@ -11,13 +11,13 @@ use rimelight_personal_feature_finances::{
 };
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{
     CalendarDay, FinanceChip, FinanceField, FinanceRow, FinanceSection, FinanceStat, FinancesState,
     SelectOption,
 };
 
-rimelight_ui_kit::wire_clipboard!(crate::RimelightPersonalShell);
+rimelight_ui_kit::wire_clipboard!(crate::AppWindow);
 
 pub struct Finances {
     controller: FinancesController,
@@ -25,7 +25,7 @@ pub struct Finances {
 
 impl Finances {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Finances::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn FinanceApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn FinanceApi>) -> Self {
         let weak = ui.as_weak();
         let controller = FinancesController::new(api, move |view: FinancesView| {
             let _ = weak.upgrade_in_event_loop(move |ui| show_view(&ui, &view));
@@ -49,7 +49,7 @@ impl Finances {
     }
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &FinancesView) {
+fn show_view(ui: &AppWindow, view: &FinancesView) {
     let state = ui.global::<FinancesState>();
     state.set_tab(view.tab.key().into());
     state.set_loading(view.loading);
@@ -160,7 +160,7 @@ fn form_fields(form: &FormView) -> Vec<FinanceField> {
         .collect()
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &FinancesController) {
+fn wire(ui: &AppWindow, controller: &FinancesController) {
     let state = ui.global::<FinancesState>();
 
     let c = controller.clone();

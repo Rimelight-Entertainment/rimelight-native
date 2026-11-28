@@ -8,7 +8,7 @@ use std::rc::Rc;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint::platform::{Key, WindowEvent};
-use space_ui::slint_ui::{AppShell, SessionPhase, app_shell};
+use space_ui::slint_ui::{AppWindow, SessionPhase, app_shell};
 use space_ui::theme::ThemeMode;
 
 const PROVISION_TEXT: &str = "Your account does not have access to Rimelight Space. Ask an admin.";
@@ -20,7 +20,7 @@ fn window() -> space_ui::slint_ui::app_shell::App {
 pub fn sign_in_screen_states_render() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
 
     // A window built with the desktop wiring defaults to the shell: the screen is not placed.
     assert_eq!(ui.get_session_phase(), SessionPhase::SignedIn);
@@ -73,7 +73,7 @@ pub fn sign_in_screen_states_render() {
 pub fn sign_in_button_invokes_callback_only_when_enabled() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
     let signed_in_clicks = Rc::new(Cell::new(0u32));
     let cancels = Rc::new(Cell::new(0u32));
     let clicks = signed_in_clicks.clone();
@@ -105,7 +105,7 @@ mod profile_form {
 pub fn avatar_menu_shows_the_injected_user() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
     ui.set_user_name("Ana Souza".into());
     ui.set_user_initials("AS".into());
     ui.set_user_email("ana.souza@example.com".into());
@@ -133,7 +133,7 @@ pub fn avatar_menu_shows_the_injected_user() {
 pub fn sign_out_calls_back_and_returns_to_sign_in() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
     let signouts = Rc::new(Cell::new(0u32));
     let count = signouts.clone();
     ui.on_sign_out_clicked(move || count.set(count.get() + 1));
@@ -161,7 +161,7 @@ pub fn sign_out_calls_back_and_returns_to_sign_in() {
 }
 
 /// Control, a key, and Control released, as an OS key event would deliver them.
-fn press_ctrl(ui: &AppShell, key: &str) {
+fn press_ctrl(ui: &AppWindow, key: &str) {
     let control: SharedString = Key::Control.into();
     ui.window().dispatch_event(WindowEvent::KeyPressed {
         text: control.clone(),
@@ -179,7 +179,7 @@ fn press_ctrl(ui: &AppShell, key: &str) {
 pub fn shell_shortcuts_are_off_while_signed_out() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
 
     ui.set_session_phase(SessionPhase::SignedOut);
     assert!(ui.get_sign_in_placed());
@@ -203,7 +203,7 @@ pub fn shell_shortcuts_are_off_while_signed_out() {
 pub fn start_up_unreachable_shows_the_screen_and_retry_recovers() {
     crate::support::init();
     let app = window();
-    let ui: &AppShell = &app.ui;
+    let ui: &AppWindow = &app.ui;
     let retries = Rc::new(Cell::new(0u32));
     let count = retries.clone();
     ui.on_sign_in_retry_clicked(move || count.set(count.get() + 1));

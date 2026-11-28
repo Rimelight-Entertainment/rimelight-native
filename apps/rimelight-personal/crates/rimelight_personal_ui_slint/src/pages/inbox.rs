@@ -20,13 +20,13 @@ use slint::{
     TimerMode, VecModel,
 };
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{
     InboxAttachment, InboxChoice, InboxFolder, InboxHeader, InboxLine, InboxListRow, InboxMailbox,
     InboxMessage, InboxState,
 };
 
-rimelight_ui_kit::wire_clipboard!(crate::RimelightPersonalShell);
+rimelight_ui_kit::wire_clipboard!(crate::AppWindow);
 
 pub struct Inbox {
     controller: InboxController,
@@ -52,7 +52,7 @@ const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
 impl Inbox {
     /// Connects `ui` to a controller that calls `api`, with the system shell (browser, file dialogs).
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn InboxApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn InboxApi>) -> Self {
         let weak = ui.as_weak();
         let notify_weak = weak.clone();
         let controller = InboxController::new(
@@ -105,7 +105,7 @@ fn to_image(picture: &ImageView) -> Image {
     Image::from_rgba8(buffer)
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &InboxView) {
+fn show_view(ui: &AppWindow, view: &InboxView) {
     let state = ui.global::<InboxState>();
     state.set_loading(view.loading);
     state.set_banner(text(&view.banner));
@@ -237,7 +237,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &InboxView) {
 
 /// Keeps the player in step with the viewer. A media attachment (kind 2) opens its file and starts it; a different
 /// file replaces the open one; leaving the viewer stops it (dropping the player).
-fn sync_media(ui: &RimelightPersonalShell, viewer: Option<&ViewerView>) {
+fn sync_media(ui: &AppWindow, viewer: Option<&ViewerView>) {
     let state = ui.global::<InboxState>();
     let wanted = viewer.filter(|v| v.kind == 2).map(|v| v.path.clone());
     MEDIA.with(|cell| {
@@ -269,7 +269,7 @@ fn sync_media(ui: &RimelightPersonalShell, viewer: Option<&ViewerView>) {
 
 /// Runs on the frame timer: the newest video frame goes into the viewer, and the position, length and play state
 /// follow the player. A decode or sound error shows in the banner once.
-fn tick_media(ui: &RimelightPersonalShell) {
+fn tick_media(ui: &AppWindow) {
     MEDIA.with(|cell| {
         let slot = cell.borrow();
         let Some(session) = slot.as_ref() else { return };
@@ -388,7 +388,7 @@ fn show_viewer(state: &InboxState<'_>, viewer: Option<&ViewerView>) {
     }
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &InboxController) {
+fn wire(ui: &AppWindow, controller: &InboxController) {
     let state = ui.global::<InboxState>();
 
     let c = controller.clone();

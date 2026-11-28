@@ -10,7 +10,7 @@ use slint::{ComponentHandle, Model as _, SharedString};
 use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, MenuKind};
+use space_ui::slint_ui::{AppWindow, MenuKind};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its workspace is the first one.
@@ -20,7 +20,7 @@ const START: &str = "/home";
 const HOME: &str = "/home";
 
 /// One key press and release, as an OS key event would deliver them.
-fn press(ui: &AppShell, text: impl Into<SharedString>) {
+fn press(ui: &AppWindow, text: impl Into<SharedString>) {
     let text: SharedString = text.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -29,19 +29,19 @@ fn press(ui: &AppShell, text: impl Into<SharedString>) {
 }
 
 /// Holds a modifier key down, as the OS does while another key is pressed.
-fn hold(ui: &AppShell, key: Key) {
+fn hold(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: key.into() });
 }
 
 /// Lets go of a modifier key.
-fn release(ui: &AppShell, key: Key) {
+fn release(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyReleased { text: key.into() });
 }
 
 /// Ctrl+Alt+`key` (Cmd+Option+`key` on macOS), with the modifiers held as the OS holds them.
-fn chord(ui: &AppShell, key: &str) {
+fn chord(ui: &AppWindow, key: &str) {
     let modifier = if cfg!(target_os = "macos") {
         Key::Meta
     } else {
@@ -73,17 +73,17 @@ fn open_in_new_tab(app: &App, route: &str) {
 }
 
 /// The number of open workspaces, as the strip shows them.
-fn workspace_count(ui: &AppShell) -> usize {
+fn workspace_count(ui: &AppWindow) -> usize {
     ui.get_workspace_tabs().row_count()
 }
 
 /// The number of page tabs of the active workspace, as the page strip shows them.
-fn page_tab_count(ui: &AppShell) -> usize {
+fn page_tab_count(ui: &AppWindow) -> usize {
     ui.get_open_tabs().row_count()
 }
 
 /// The workspace menu rows as the window holds them: (label, enabled, separator).
-fn workspace_menu_rows(ui: &AppShell) -> Vec<(String, bool, bool)> {
+fn workspace_menu_rows(ui: &AppWindow) -> Vec<(String, bool, bool)> {
     ui.get_open_workspace_menu()
         .iter()
         .map(|item| {

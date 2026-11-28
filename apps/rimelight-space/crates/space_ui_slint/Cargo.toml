@@ -16,7 +16,7 @@ all = { level = "warn", priority = -1 }
 
 [dependencies]
 slint = { workspace = true }
-# The Company area (ST5.2): its `wire_company!` is expanded here, where AppShell is generated.
+# The Company area (ST5.2): its `wire_company!` is expanded here, where AppWindow is generated.
 space_area_company = { path = "../../areas/company" }
 space_area_management = { path = "../../areas/management" }
 # The Admin area (SP.3e): its `wire_admin!` is expanded here, and its markup has library path `space_area_admin`.

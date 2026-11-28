@@ -26,8 +26,8 @@ pub mod color {
 /// The theme setters on the generated `Tokens` global of the root window: `set_mode`, `is_dark`, `set_reduced_motion`
 /// and `set_text_scale`.
 pub mod theme {
-    use crate::slint_ui::{AppShell, ThemeChoice, Tokens};
-    rimelight_ui_kit::wire_theme!(AppShell, Tokens, ThemeChoice);
+    use crate::slint_ui::{AppWindow, ThemeChoice, Tokens};
+    rimelight_ui_kit::wire_theme!(AppWindow, Tokens, ThemeChoice);
 }
 
 impl From<crate::theme::ThemeMode> for rimelight_ui_kit::theme::Mode {

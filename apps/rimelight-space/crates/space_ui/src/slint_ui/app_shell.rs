@@ -1,6 +1,6 @@
 //! App shell wiring (S9.4; PLAN 6.1). The window `apps/desktop` opens: rail and sidebar from the
 //! `space_nav` manifest, a placeholder page per route, the shell screens (About, Report Issue, Settings), the command
-//! palette (Ctrl+K), the theme switch, the toast stack and the status bar. The markup is `ui/app-shell.slint`; this module
+//! palette (Ctrl+K), the theme switch, the toast stack and the status bar. The markup is `ui/app.slint`; this module
 //! fills its models and answers its callbacks.
 //!
 //! Page header and panes (SF.4; IA section 6): the breadcrumbs are Area, Section, Page. Each navigation opens or activates a
@@ -34,7 +34,7 @@ use crate::slint_ui::tiles::{
 use crate::slint_ui::webviews::WebHost;
 use crate::slint_ui::workspace::{MemoryStore, Saver, Store, Workspaces, startup};
 use crate::slint_ui::{
-    AppShell, HomeState, Icons, MenuChecked, MenuItem, MenuKind, PaletteRow, ProjectChoice,
+    AppWindow, HomeState, Icons, MenuChecked, MenuItem, MenuKind, PaletteRow, ProjectChoice,
     QuickCategory, QuickItem, RailItem, TabItem, TileGroup, TileHandle, ToastEntry, ToastTone,
 };
 use crate::theme::ThemeMode;
@@ -89,43 +89,43 @@ const TILE_HANDLE: f32 = 6.0;
 
 /// The window and the timer that ticks its toasts. Keep it alive while the window runs: dropping the timer stops the ticks.
 pub struct App {
-    pub ui: AppShell,
+    pub ui: AppWindow,
     /// The id of the last quick action item picked (`space_nav::quick`). Nothing acts on it yet (no create dialogs).
     pub last_quick_pick: Rc<RefCell<Option<String>>>,
     /// The page data slot (SP.3b): the session driver fills it when the window is attached to a session.
     pub data: DataCell,
     /// Home > Dashboard (S2): the Assigned to me and Recent canvases cards.
-    pub home: Home<AppShell>,
+    pub home: Home<AppWindow>,
     /// Company > Employees (SP.3b).
-    pub employees: Employees<AppShell>,
+    pub employees: Employees<AppWindow>,
     /// Company > Employees > one person's profile (SP.3c).
-    pub profile: Profile<AppShell>,
+    pub profile: Profile<AppWindow>,
     /// Company > Teams: the team list and the org chart (SP.3d).
-    pub teams: Teams<AppShell>,
+    pub teams: Teams<AppWindow>,
     /// Company > Teams > one team (SP.3d).
-    pub team: TeamPage<AppShell>,
+    pub team: TeamPage<AppWindow>,
     /// Company > Departments (SP.3d).
-    pub departments: Departments<AppShell>,
+    pub departments: Departments<AppWindow>,
     /// Company > Locations.
-    pub locations: Locations<AppShell>,
+    pub locations: Locations<AppWindow>,
     /// Canvas page at `/home/canvases/{id}` and `/p/{KEY}/canvases/{id}` (CV.6): the editor and its live room.
     pub canvas: CanvasPage,
     /// Canvas lists at `/home/canvases` and `/p/{KEY}/canvases` (CV.6).
-    pub canvas_list: CanvasList<AppShell>,
+    pub canvas_list: CanvasList<AppWindow>,
     /// Admin > Users (SP.3e).
-    pub admin_users: space_area_admin::users::Page<AppShell>,
+    pub admin_users: space_area_admin::users::Page<AppWindow>,
     /// Admin > Organisation (SP.3e).
-    pub admin_org: space_area_admin::organisation::Page<AppShell>,
+    pub admin_org: space_area_admin::organisation::Page<AppWindow>,
     /// Admin > Roles (SP.3e).
-    pub admin_roles: space_area_admin::roles::Page<AppShell>,
+    pub admin_roles: space_area_admin::roles::Page<AppWindow>,
     /// Projects > Overview: the summary of one project at `/p/:key`.
-    pub overview: Overview<AppShell>,
+    pub overview: Overview<AppWindow>,
     /// Projects > Issues: the issue list of one project (S1.3).
-    pub issues: Issues<AppShell>,
+    pub issues: Issues<AppWindow>,
     /// Projects > Issue: one issue at `/p/:key/issues/:id` (S1.3, part 3).
-    pub issue: IssueDetail<AppShell>,
+    pub issue: IssueDetail<AppWindow>,
     /// Projects > New issue (S1.5c): the dialog, opened by the issues page and the quick action.
-    pub new_issue: NewIssue<AppShell>,
+    pub new_issue: NewIssue<AppWindow>,
     tabs: Rc<Tabs>,
     _timer: Timer,
     /// Returns the content web views after a popup closes (CMS.6). Dropping it stops the ticks.
@@ -168,7 +168,7 @@ impl App {
 /// How long after the last change the workspaces are saved (planned feature B3): one second, so a burst of changes writes once.
 pub const SAVE_DELAY: Duration = Duration::from_secs(1);
 
-/// The strip tab menu rows as the window shows them (`AppShell.open-tab-menu` or `open-workspace-menu`).
+/// The strip tab menu rows as the window shows them (`AppWindow.open-tab-menu` or `open-workspace-menu`).
 fn tab_menu_items(rows: &[TabMenuRow]) -> ModelRc<MenuItem> {
     let items: Vec<MenuItem> = rows
         .iter()
@@ -331,14 +331,14 @@ struct Tabs {
     /// This tab list, for the timer's callback (set by `Rc::new_cyclic`, so the timer does not keep it alive).
     me: Weak<Tabs>,
     /// The window, read for the rail area and sidebar selection when the workspaces are saved.
-    window: slint::Weak<AppShell>,
+    window: slint::Weak<AppWindow>,
 }
 
 impl Tabs {
     /// The tab list for `workspaces`, bound to the window's tab strip, that writes the active route to `location` and saves
     /// through `saver`.
     fn new(
-        ui: &AppShell,
+        ui: &AppWindow,
         location: Rc<dyn Location>,
         workspaces: Workspaces,
         saver: Saver,
@@ -448,7 +448,7 @@ impl Tabs {
 
     /// Lands the active tab on the route for a browser `location` (a popstate). The address bar is not written for it, since
     /// it already shows the location. An unknown location shows Home, and the address bar is replaced with that route.
-    fn land(&self, ui: &AppShell, location: &str) {
+    fn land(&self, ui: &AppWindow, location: &str) {
         let route = history::route_from_location(location);
         let Some(matched) = parse(&route) else {
             return;
@@ -562,12 +562,12 @@ impl Tabs {
 
     /// Brings the tab strip, the active tab and the split pane's second page in line with the open pages, and pushes a new
     /// active route to the address bar.
-    fn sync(&self, ui: &AppShell) {
+    fn sync(&self, ui: &AppWindow) {
         self.sync_with(ui, UrlStep::Push);
     }
 
     /// [`Tabs::sync`] with the address bar step given: Back and Forward inside the app replace the entry instead.
-    fn sync_with(&self, ui: &AppShell, step: UrlStep) {
+    fn sync_with(&self, ui: &AppWindow, step: UrlStep) {
         self.sync_strip(ui);
         self.record_url(step);
     }
@@ -596,7 +596,7 @@ impl Tabs {
 
     /// The drag preview (ghost, overlay, strip mark) as root properties. A pointer move during a drag calls only this, never
     /// `sync_strip`: the `tile-groups` model stays untouched, so no repeater item is rebuilt under the pointer.
-    fn sync_drag(&self, ui: &AppShell) {
+    fn sync_drag(&self, ui: &AppWindow) {
         let drag = self.drag.borrow();
         let (group, zone, mark, refused) = drag
             .as_ref()
@@ -615,7 +615,7 @@ impl Tabs {
         ui.set_tile_ghost_refused(drag.as_ref().is_some_and(|d| d.plan == Plan::Refused));
     }
 
-    fn sync_strip(&self, ui: &AppShell) {
+    fn sync_strip(&self, ui: &AppWindow) {
         // Every change to the page tabs, the groups or the active workspace ends here, so it is the save's choke point.
         self.schedule_save();
         let phone = ui.get_phone();
@@ -890,7 +890,7 @@ impl Tabs {
     }
 
     /// The page tab menu rows for tab `index` of the focused group.
-    fn page_menu_rows(&self, ui: &AppShell, index: usize) -> Vec<TabMenuRow> {
+    fn page_menu_rows(&self, ui: &AppWindow, index: usize) -> Vec<TabMenuRow> {
         let split = self.split_rows(ui.get_phone());
         self.view(|pages| pages.tab_menu_rows(index, split))
             .unwrap_or_default()
@@ -898,7 +898,7 @@ impl Tabs {
 
     /// The workspace strip: one tab per workspace (its display name, pinned state and the "+" limit). Named after the active
     /// page, unless the user named it (see [`Workspaces::display_name`]).
-    fn sync_workspaces(&self, ui: &AppShell) {
+    fn sync_workspaces(&self, ui: &AppWindow) {
         self.schedule_save();
         let workspaces = self.workspaces.borrow();
         let rows: Vec<TabItem> = (0..workspaces.len())
@@ -921,7 +921,7 @@ impl Tabs {
 }
 
 /// The rail area on screen (the index in `shell-area`).
-fn shell_area_of(ui: &AppShell) -> Area {
+fn shell_area_of(ui: &AppWindow) -> Area {
     Area::ALL
         .get(ui.get_shell_area().max(0) as usize)
         .copied()
@@ -930,7 +930,7 @@ fn shell_area_of(ui: &AppShell) -> Area {
 
 /// Keeps the window's rail area and sidebar selection in the active workspace, before the window leaves it (planned feature
 /// B2: switching a workspace saves its area and selection, and [`restore_shell`] brings them back).
-fn save_shell(ui: &AppShell, tabs: &Tabs) {
+fn save_shell(ui: &AppWindow, tabs: &Tabs) {
     let area = shell_area_of(ui);
     let selected = ui.get_sidebar_selected();
     let mut workspaces = tabs.workspaces.borrow_mut();
@@ -944,8 +944,8 @@ fn save_shell(ui: &AppShell, tabs: &Tabs) {
 
 /// Shows the active workspace on screen: its active page, or, when it has no page, its rail area with no row picked. The
 /// sidebar selection the workspace kept is used when its page is in that area. With no workspace open the page area is
-/// cleared (the window shows the empty state, see `AppShell.no-workspace`). The URL is replaced, not pushed.
-fn restore_shell(ui: &AppShell, tabs: &Tabs) {
+/// cleared (the window shows the empty state, see `AppWindow.no-workspace`). The URL is replaced, not pushed.
+fn restore_shell(ui: &AppWindow, tabs: &Tabs) {
     let kept = {
         let workspaces = tabs.workspaces.borrow();
         workspaces
@@ -980,7 +980,7 @@ fn restore_shell(ui: &AppShell, tabs: &Tabs) {
 /// Runs a change to the workspaces (a switch, a new or closed workspace, Reopen, Duplicate, pin, a bulk close) and brings
 /// the window to the active workspace afterwards. Returns what `change` returned.
 fn change_workspaces(
-    ui: &AppShell,
+    ui: &AppWindow,
     tabs: &Tabs,
     change: impl FnOnce(&mut Workspaces) -> bool,
 ) -> bool {
@@ -992,28 +992,28 @@ fn change_workspaces(
 
 /// Opens a workspace on Home and makes it active (the "+" button, the empty state's button and Ctrl+Alt+T). Nothing happens at
 /// the cap of 10.
-fn new_workspace(ui: &AppShell, tabs: &Tabs) {
+fn new_workspace(ui: &AppWindow, tabs: &Tabs) {
     change_workspaces(ui, tabs, |ws| ws.new_workspace().is_some());
 }
 
 /// Makes workspace `index` active. Returns false when there is no such workspace.
-fn switch_workspace(ui: &AppShell, tabs: &Tabs, index: usize) -> bool {
+fn switch_workspace(ui: &AppWindow, tabs: &Tabs, index: usize) -> bool {
     change_workspaces(ui, tabs, |ws| ws.activate(index))
 }
 
 /// Closes workspace `index` (pinned or not, no confirmation). Its contents go on the closed stack.
-fn close_workspace(ui: &AppShell, tabs: &Tabs, index: usize) {
+fn close_workspace(ui: &AppWindow, tabs: &Tabs, index: usize) {
     change_workspaces(ui, tabs, |ws| ws.close(index));
 }
 
 /// Reopens the last closed workspace (the menu's Reopen, and Ctrl+Alt+Shift+W). Does nothing when the closed stack is empty.
-fn reopen_workspace(ui: &AppShell, tabs: &Tabs) {
+fn reopen_workspace(ui: &AppWindow, tabs: &Tabs) {
     change_workspaces(ui, tabs, |ws| ws.reopen().is_some());
 }
 
 /// Runs a workspace menu pick on workspace `index`. "Rename" opens the rename dialog; "Copy link" copies the link of the
 /// workspace's active page.
-fn workspace_menu_pick(ui: &AppShell, tabs: &Tabs, copier: &LinkCopier, index: usize, id: &str) {
+fn workspace_menu_pick(ui: &AppWindow, tabs: &Tabs, copier: &LinkCopier, index: usize, id: &str) {
     match id {
         "copy_link" => {
             if let Some(route) = tabs.workspace_route(index) {
@@ -1061,7 +1061,7 @@ fn workspace_menu_pick(ui: &AppShell, tabs: &Tabs, copier: &LinkCopier, index: u
 }
 
 /// Sets the name of workspace `index` from the rename dialog. An empty name clears it (the name becomes automatic).
-fn rename_workspace(ui: &AppShell, tabs: &Tabs, index: usize, name: &str) {
+fn rename_workspace(ui: &AppWindow, tabs: &Tabs, index: usize, name: &str) {
     let renamed = tabs
         .workspaces
         .borrow_mut()
@@ -1114,7 +1114,7 @@ pub fn build_with_store(
     location: Rc<dyn Location>,
     store: Rc<dyn Store>,
 ) -> Result<App, slint::PlatformError> {
-    let ui = AppShell::new()?;
+    let ui = AppWindow::new()?;
     // The page data slot and the Employees page. Wired before the start route opens, so its first load is not missed.
     let data: DataCell = Rc::default();
     let home = home_dashboard::wire(&ui, data.clone());
@@ -1350,7 +1350,7 @@ fn page_header(route: &str) -> Option<PageHeader> {
 
 /// Shows the page at `route`: the rail area, the sidebar of that area with its row selected, the breadcrumbs, and the
 /// placeholder. Returns false when `route` is not a known page, and then changes nothing.
-pub fn show_route(ui: &AppShell, route: &str) -> bool {
+pub fn show_route(ui: &AppWindow, route: &str) -> bool {
     let Some(matched) = parse(route) else {
         return false;
     };
@@ -1480,7 +1480,7 @@ enum Overlay {
 }
 
 /// Shows one shell screen over the page, or none (`None` returns to the page). Only one is open at a time.
-fn set_overlay(ui: &AppShell, overlay: Option<Overlay>) {
+fn set_overlay(ui: &AppWindow, overlay: Option<Overlay>) {
     ui.set_about_open(overlay == Some(Overlay::About));
     ui.set_feedback_open(overlay == Some(Overlay::Feedback));
     ui.set_report_open(overlay == Some(Overlay::Report));
@@ -1488,14 +1488,14 @@ fn set_overlay(ui: &AppShell, overlay: Option<Overlay>) {
 }
 
 /// True while a shell screen (About, Give Feedback, Report Issue or Settings) is open over the page.
-fn overlay_screen_open(ui: &AppShell) -> bool {
+fn overlay_screen_open(ui: &AppWindow) -> bool {
     ui.get_about_open() || ui.get_feedback_open() || ui.get_report_open() || ui.get_settings_open()
 }
 
 /// Shows `route` in the active page tab: the route replaces the tab's route and is pushed onto its history (IA section 6,
 /// P1). Used by a plain pick: a sidebar row, a rail area, the palette, a breadcrumb and the phone tabs. Returns false when
 /// `route` is not a known page, and then changes nothing.
-fn navigate_to(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
+fn navigate_to(ui: &AppWindow, tabs: &Tabs, route: &str) -> bool {
     let Some(matched) = parse(route) else {
         return false;
     };
@@ -1509,7 +1509,7 @@ fn navigate_to(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
 
 /// Shows `route` in a new page tab, which becomes the active one (Ctrl+click, Cmd+click or a middle-button click). Returns
 /// false when `route` is not a known page, and then changes nothing.
-fn open_in_new_tab(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
+fn open_in_new_tab(ui: &AppWindow, tabs: &Tabs, route: &str) -> bool {
     let Some(matched) = parse(route) else {
         return false;
     };
@@ -1523,7 +1523,7 @@ fn open_in_new_tab(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
 
 /// Opens the start route (or the fallback) as the first page tab, or activates the tab that already shows it. Returns false
 /// when `route` is not a known page, and then changes nothing.
-fn open_tab(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
+fn open_tab(ui: &AppWindow, tabs: &Tabs, route: &str) -> bool {
     let Some(matched) = parse(route) else {
         return false;
     };
@@ -1537,7 +1537,7 @@ fn open_tab(ui: &AppShell, tabs: &Tabs, route: &str) -> bool {
 
 /// Shows the active tab after a close or a bulk change: its page, or the empty state when no tab is left. Then the strip is
 /// brought in line.
-fn show_active(ui: &AppShell, tabs: &Tabs) {
+fn show_active(ui: &AppWindow, tabs: &Tabs) {
     if tabs.is_empty() {
         clear_page(ui);
     } else {
@@ -1558,7 +1558,7 @@ pub(crate) struct LinkCopier {
 impl LinkCopier {
     /// Copies the web link of `route` (`history::link_for`). The toast follows the outcome: at once on desktop and Android,
     /// and when the browser answers on the web.
-    fn copy(&self, ui: &AppShell, route: &str) {
+    fn copy(&self, ui: &AppWindow, route: &str) {
         let copier = self.clone();
         clipboard::write_link(ui, &history::link_for(route), move |copied| {
             copier.report(copied);
@@ -1575,7 +1575,7 @@ impl LinkCopier {
 }
 
 /// Runs a page tab menu pick on tab `index`. "Copy link" copies that tab's route as a web link.
-fn tab_menu_pick(ui: &AppShell, tabs: &Tabs, copier: &LinkCopier, index: usize, id: &str) {
+fn tab_menu_pick(ui: &AppWindow, tabs: &Tabs, copier: &LinkCopier, index: usize, id: &str) {
     match id {
         "copy_link" => {
             if let Some(route) = tabs.route(index) {
@@ -1631,7 +1631,7 @@ fn tab_menu_pick(ui: &AppShell, tabs: &Tabs, copier: &LinkCopier, index: usize, 
 }
 
 /// Reopens the last closed tab (the menu's Reopen, and Ctrl+Alt+Shift+T). Does nothing when the closed stack is empty.
-fn reopen_tab(ui: &AppShell, tabs: &Tabs) {
+fn reopen_tab(ui: &AppWindow, tabs: &Tabs) {
     let reopened = tabs.edit(|pages| pages.reopen()).flatten();
     if reopened.is_some() {
         show_active(ui, tabs);
@@ -1640,7 +1640,7 @@ fn reopen_tab(ui: &AppShell, tabs: &Tabs) {
 
 /// Goes back one step in the active page tab's history and shows that route (the top bar button, Alt+Left, Ctrl+[ and
 /// mouse button 4). Does nothing when there is no step back.
-fn go_back(ui: &AppShell, tabs: &Tabs) {
+fn go_back(ui: &AppWindow, tabs: &Tabs) {
     if let Some(route) = tabs.back() {
         show_route(ui, &route);
         tabs.sync_with(ui, UrlStep::Replace);
@@ -1649,7 +1649,7 @@ fn go_back(ui: &AppShell, tabs: &Tabs) {
 
 /// Goes forward one step in the active page tab's history and shows that route (the top bar button, Alt+Right, Ctrl+] and
 /// mouse button 5). Does nothing when there is no step forward.
-fn go_forward(ui: &AppShell, tabs: &Tabs) {
+fn go_forward(ui: &AppWindow, tabs: &Tabs) {
     if let Some(route) = tabs.forward() {
         show_route(ui, &route);
         tabs.sync_with(ui, UrlStep::Replace);
@@ -1658,7 +1658,7 @@ fn go_forward(ui: &AppShell, tabs: &Tabs) {
 
 /// A sidebar row pick at `index` in the active area. A plain pick replaces the active tab's route; `new_tab` opens the row in
 /// a new tab. A Chat row takes its route from the Chat tree.
-fn sidebar_pick(ui: &AppShell, tabs: &Tabs, index: i32, new_tab: bool) {
+fn sidebar_pick(ui: &AppWindow, tabs: &Tabs, index: i32, new_tab: bool) {
     let area = Area::ALL
         .get(ui.get_shell_area().max(0) as usize)
         .copied()
@@ -1686,7 +1686,7 @@ fn sidebar_pick(ui: &AppShell, tabs: &Tabs, index: i32, new_tab: bool) {
 }
 
 /// Activates tab `index` and shows its page.
-fn show_tab(ui: &AppShell, tabs: &Tabs, index: usize) {
+fn show_tab(ui: &AppWindow, tabs: &Tabs, index: usize) {
     let Some(route) = tabs.route(index) else {
         return;
     };
@@ -1699,7 +1699,7 @@ fn show_tab(ui: &AppShell, tabs: &Tabs, index: usize) {
 /// Focuses tile group `group` (a click in it, or a press or a right press on one of its tabs). When the focus moves, the page
 /// header, the sidebar and the address bar follow the group's active page, since the shared controls act on the focused
 /// group. Returns false when there is no such group.
-fn focus_group(ui: &AppShell, tabs: &Tabs, group: i32) -> bool {
+fn focus_group(ui: &AppWindow, tabs: &Tabs, group: i32) -> bool {
     let Ok(id) = u32::try_from(group) else {
         return false;
     };
@@ -1712,7 +1712,7 @@ fn focus_group(ui: &AppShell, tabs: &Tabs, group: i32) -> bool {
 
 /// Clears the page header for the empty state (no open tab). The rail and sidebar stay as they are,
 /// with no sidebar row selected.
-fn clear_page(ui: &AppShell) {
+fn clear_page(ui: &AppWindow) {
     ui.set_page_crumbs(ModelRc::new(VecModel::<SharedString>::default()));
     ui.set_page_title("".into());
     ui.set_page_route("".into());
@@ -1725,7 +1725,7 @@ fn clear_page(ui: &AppShell) {
 
 /// Shows the Chat area with its tree and no page (used while no Chat route parses). The rail and the sidebar change; the
 /// page area clears.
-fn show_chat_area(ui: &AppShell) {
+fn show_chat_area(ui: &AppWindow) {
     let area_index = Area::ALL.iter().position(|a| *a == Area::Chat).unwrap_or(0);
     let tree = chat_sidebar::rows(&ui.global::<Icons>(), "");
     ui.set_shell_area(area_index as i32);
@@ -1738,7 +1738,7 @@ fn show_chat_area(ui: &AppShell) {
 
 /// Shows `area`'s tree in the sidebar (the phone drawer, or the desktop sidebar) with no row selected and no page change.
 /// The area becomes the active one, so a row pick opens its page.
-fn show_area_tree(ui: &AppShell, area: Area) {
+fn show_area_tree(ui: &AppWindow, area: Area) {
     let area_index = Area::ALL.iter().position(|a| *a == area).unwrap_or(0);
     ui.set_shell_area(area_index as i32);
     ui.set_tab_selected(-1);
@@ -1753,7 +1753,7 @@ fn show_area_tree(ui: &AppShell, area: Area) {
 
 /// The sidebar's header for `area` (tail C3; IA section 3): the area's title, or on Projects the current project's name with
 /// the project switcher on. The current project's key goes with it, for the switcher's mark.
-fn set_sidebar_header(ui: &AppShell, area: Area) {
+fn set_sidebar_header(ui: &AppWindow, area: Area) {
     let switcher = area == Area::Projects;
     ui.set_sidebar_switcher(switcher);
     let title = if switcher {
@@ -1767,7 +1767,7 @@ fn set_sidebar_header(ui: &AppShell, area: Area) {
 }
 
 /// The header's picture: the current project's, drawn left of its name in the switcher (empty when it has none).
-fn set_current_project_picture(ui: &AppShell) {
+fn set_current_project_picture(ui: &AppWindow) {
     let picture = projects::picture(&projects::current_key());
     ui.set_project_has_image(picture.is_some());
     ui.set_project_image(picture.unwrap_or_default());
@@ -1776,7 +1776,7 @@ fn set_current_project_picture(ui: &AppShell) {
 
 /// Draws the pictures that just arrived: each switcher row takes its picture (the rows keep the filter they have), and the
 /// header takes the current project's.
-fn refresh_project_pictures(ui: &AppShell) {
+fn refresh_project_pictures(ui: &AppWindow) {
     let rows: Vec<ProjectChoice> = ui
         .get_project_choices()
         .iter()
@@ -1796,7 +1796,7 @@ fn refresh_project_pictures(ui: &AppShell) {
 }
 
 /// Starts the loads of the project pictures that are not cached yet. Each one, when it arrives, draws the switcher again.
-fn fetch_project_pictures(source: &Arc<DataSource>, ui: &AppShell) {
+fn fetch_project_pictures(source: &Arc<DataSource>, ui: &AppWindow) {
     for path in projects::take_pictures_to_fetch() {
         let key = path.clone();
         source.fetch(
@@ -1817,7 +1817,7 @@ fn fetch_project_pictures(source: &Arc<DataSource>, ui: &AppShell) {
 /// The session driver asks for it when the person signs in. A failed load keeps the list the window has.
 /// The Create New Project dialog: the switcher's row opens it empty, Save validates and creates the project, and a
 /// successful create closes it and refreshes the project list.
-fn wire_create_project(ui: &AppShell, data: DataCell) {
+fn wire_create_project(ui: &AppWindow, data: DataCell) {
     let weak = ui.as_weak();
     let open = weak.clone();
     ui.set_create_project_picture_supported(PHOTO_NATIVE);
@@ -1898,13 +1898,13 @@ fn wire_create_project(ui: &AppShell, data: DataCell) {
 }
 
 /// Forgets the picture chosen in the create dialog and clears its row.
-fn clear_picture(ui: &AppShell) {
+fn clear_picture(ui: &AppWindow) {
     create_project::set_picked(None);
     ui.set_create_project_picture_name("".into());
     ui.set_create_project_picture_has_preview(false);
 }
 
-fn wire_projects(ui: &AppShell, data: DataCell) {
+fn wire_projects(ui: &AppWindow, data: DataCell) {
     let weak = ui.as_weak();
     ui.on_projects_refresh(move || {
         let Some(source) = data.borrow().clone() else {
@@ -1936,7 +1936,7 @@ fn wire_projects(ui: &AppShell, data: DataCell) {
 }
 
 /// Draws the Projects sidebar again when it is the active area, so its rows and header follow the list.
-fn refresh_projects_sidebar(ui: &AppShell) {
+fn refresh_projects_sidebar(ui: &AppWindow) {
     let active = usize::try_from(ui.get_shell_area())
         .ok()
         .and_then(|index| Area::ALL.get(index).copied());
@@ -1970,7 +1970,7 @@ fn project_choices(query: &str) -> ModelRc<ProjectChoice> {
 /// Makes project `key` the current one (tail C3). Every Projects row takes the new key. An active project page moves to the
 /// same page of the new project, as a new step in the history. Any other active page keeps its route, and the sidebar is
 /// drawn again for the new key. An unknown key changes nothing.
-fn switch_project(ui: &AppShell, tabs: &Tabs, key: &str) {
+fn switch_project(ui: &AppWindow, tabs: &Tabs, key: &str) {
     if !projects::set_current(key) {
         return;
     }
@@ -2031,7 +2031,7 @@ fn section_route(area: Area, section: &str) -> Option<String> {
         .map(listed_route)
 }
 
-fn wire_navigation(ui: &AppShell, tabs: Rc<Tabs>, copier: LinkCopier) {
+fn wire_navigation(ui: &AppWindow, tabs: Rc<Tabs>, copier: LinkCopier) {
     let weak = ui.as_weak();
     let open = tabs.clone();
     ui.on_rail_activated(move |index| {
@@ -2540,8 +2540,8 @@ fn wire_navigation(ui: &AppShell, tabs: Rc<Tabs>, copier: LinkCopier) {
 
 /// The workspace strip (planned feature B2, desktop): a click switches, the middle button or the X closes, a right press opens
 /// the workspace menu, "+" and the empty state open a workspace on Home, and the shortcuts (Ctrl+Alt+T, W, Shift+W and 1 to 9)
-/// do the same. Rename is a dialog (`AppShell.open-workspace-rename`), answered by `workspace-renamed`.
-fn wire_workspaces(ui: &AppShell, tabs: Rc<Tabs>, copier: LinkCopier) {
+/// do the same. Rename is a dialog (`AppWindow.open-workspace-rename`), answered by `workspace-renamed`.
+fn wire_workspaces(ui: &AppWindow, tabs: Rc<Tabs>, copier: LinkCopier) {
     // A workspace tab dragged in the strip (T2b): the insertion bar follows the pointer, and the drop moves the workspace in
     // the pinned rules. Strip x is the strip's own px.
     let weak = ui.as_weak();
@@ -2663,7 +2663,7 @@ fn wire_workspaces(ui: &AppShell, tabs: Rc<Tabs>, copier: LinkCopier) {
 
 /// The palette: Ctrl+K opens it with an empty query and every page. Typing filters, Up and Down move the highlight, Enter
 /// or a click opens the highlighted page, and Escape closes it.
-fn wire_palette(ui: &AppShell, tabs: Rc<Tabs>) {
+fn wire_palette(ui: &AppWindow, tabs: Rc<Tabs>) {
     // The entries follow the current project (tail C3), so they are read again each time the palette opens.
     let all: Rc<RefCell<Vec<Entry>>> = Rc::new(RefCell::new(palette::entries()));
 
@@ -2723,7 +2723,7 @@ fn wire_palette(ui: &AppShell, tabs: Rc<Tabs>) {
 }
 
 /// The theme switch cycles system, light, dark. The mode is applied at once; no restart and no toast.
-fn wire_theme(ui: &AppShell, mode: Rc<Cell<ThemeMode>>) {
+fn wire_theme(ui: &AppWindow, mode: Rc<Cell<ThemeMode>>) {
     let weak = ui.as_weak();
     ui.on_theme_clicked(move || {
         let Some(ui) = weak.upgrade() else { return };
@@ -2737,7 +2737,7 @@ fn wire_theme(ui: &AppShell, mode: Rc<Cell<ThemeMode>>) {
 
 /// The toast stack: the close control, the action and the exit animation drive the queue, and hover or focus pauses a
 /// toast's countdown.
-fn wire_toasts(ui: &AppShell, queue: Rc<RefCell<ToastQueue>>, toasts: Rc<VecModel<ToastEntry>>) {
+fn wire_toasts(ui: &AppWindow, queue: Rc<RefCell<ToastQueue>>, toasts: Rc<VecModel<ToastEntry>>) {
     let (q, m) = (queue.clone(), toasts.clone());
     ui.on_toast_action(move |id| {
         q.borrow_mut().action(id);
@@ -2809,7 +2809,7 @@ fn theme_icon(icons: &Icons<'_>, mode: ThemeMode) -> slint::Image {
 
 /// Draws the quick action menu again, and its item count. Called at start and when the project list loads, since New issue
 /// is disabled while the person may create issues in no project.
-fn refresh_quick_categories(ui: &AppShell) {
+fn refresh_quick_categories(ui: &AppWindow) {
     let categories = quick_categories(&ui.global::<Icons>(), !projects::editable().is_empty());
     let item_count: usize = categories.iter().map(|c| c.items.row_count()).sum();
     ui.set_quick_item_count(item_count as i32);
@@ -2867,7 +2867,7 @@ fn quick_icon(id: &str) -> &'static str {
 
 /// The quick action pick: records the item id (`space_nav::quick`). The menu closes in the markup. New issue opens its
 /// dialog (src/pages/projects/new_issue.rs); the other items have no dialog yet, so nothing else happens.
-fn wire_quick_action(ui: &AppShell) -> Rc<RefCell<Option<String>>> {
+fn wire_quick_action(ui: &AppWindow) -> Rc<RefCell<Option<String>>> {
     let last = Rc::new(RefCell::new(None));
     let record = last.clone();
     let weak = ui.as_weak();
@@ -2892,7 +2892,7 @@ fn wire_quick_action(ui: &AppShell) -> Rc<RefCell<Option<String>>> {
 
 /// The Language menu (status bar). A pick records the checked locale in `language-index`. Switching the Slint translation
 /// is not wired: the project has no `@tr` strings or bundled translations yet, so the choice is only recorded.
-fn wire_language(ui: &AppShell) {
+fn wire_language(ui: &AppWindow) {
     let weak = ui.as_weak();
     ui.on_language_picked(move |index| {
         if let Some(ui) = weak.upgrade() {
@@ -2911,7 +2911,7 @@ fn next_mode(mode: ThemeMode) -> ThemeMode {
 }
 
 /// Toggles the window between fullscreen and windowed (the status bar Fullscreen button).
-fn toggle_fullscreen(ui: &AppShell) {
+fn toggle_fullscreen(ui: &AppWindow) {
     let window = ui.window();
     window.set_fullscreen(!window.is_fullscreen());
 }

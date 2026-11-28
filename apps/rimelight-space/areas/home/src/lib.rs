@@ -23,7 +23,7 @@ pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 #[macro_export]
 macro_rules! wire_home {
     (
-        $AppShell:ident, $PageLoadState:ident, $HomeState:ident, $HomeIssueRow:ident, $HomeCanvasRow:ident $(,)?
+        $AppWindow:ident, $PageLoadState:ident, $HomeState:ident, $HomeIssueRow:ident, $HomeCanvasRow:ident $(,)?
     ) => {
         /// The load-state helper of the home glue (expanded in the app crate).
         pub mod home_glue {
@@ -33,7 +33,7 @@ macro_rules! wire_home {
             $crate::space_page_kit::load_glue!($PageLoadState);
         }
 
-        impl $crate::dashboard::HomeWindow for $AppShell {
+        impl $crate::dashboard::HomeWindow for $AppWindow {
             fn show_assigned(
                 &self,
                 state: $crate::space_page_kit::load::LoadState,

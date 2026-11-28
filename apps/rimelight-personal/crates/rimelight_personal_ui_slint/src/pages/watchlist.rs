@@ -14,7 +14,7 @@ use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::clipboard;
 use crate::generated::{
-    PageLoadState as SlintPageLoad, RimelightPersonalShell, SelectOption, TableColumn, TableRow,
+    PageLoadState as SlintPageLoad, AppWindow, SelectOption, TableColumn, TableRow,
     WatchlistCategory, WatchlistColumn, WatchlistState,
 };
 
@@ -29,7 +29,7 @@ pub struct Watchlist {
 
 impl Watchlist {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Watchlist::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn WatchlistApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn WatchlistApi>) -> Self {
         let state = ui.global::<WatchlistState>();
         state.set_section_options(options(&section_choices()));
         state.set_status_options(options(&table_status_choices()));
@@ -51,7 +51,7 @@ impl Watchlist {
 
     /// Opens the add form for the current year, as the page's New button does. The quick-action menu's "New Watchlist
     /// Item" calls it.
-    pub fn open_add(&self, ui: &RimelightPersonalShell) {
+    pub fn open_add(&self, ui: &AppWindow) {
         let draft = self.controller.open_add(current_year());
         set_draft(ui, &draft);
     }
@@ -80,7 +80,7 @@ fn options(choices: &[Choice]) -> ModelRc<SelectOption> {
 
 /// Fills the WatchlistState properties from a view. The form's draft fields are not touched here: the page owns them
 /// while it is open, and [`open_draft`] fills them when a form opens.
-fn show_view(ui: &RimelightPersonalShell, view: &WatchlistView) {
+fn show_view(ui: &AppWindow, view: &WatchlistView) {
     let state = ui.global::<WatchlistState>();
 
     let columns: Vec<TableColumn> = view
@@ -193,7 +193,7 @@ fn column_index(column: Column) -> usize {
 }
 
 /// Fills the draft fields from a draft, when a form opens.
-fn set_draft(ui: &RimelightPersonalShell, draft: &Draft) {
+fn set_draft(ui: &AppWindow, draft: &Draft) {
     let state = ui.global::<WatchlistState>();
     state.set_draft_title(draft.title.as_str().into());
     state.set_draft_creator(draft.creator.as_str().into());
@@ -210,7 +210,7 @@ fn set_draft(ui: &RimelightPersonalShell, draft: &Draft) {
 }
 
 /// The draft the form's fields hold now.
-fn read_draft(ui: &RimelightPersonalShell) -> Draft {
+fn read_draft(ui: &AppWindow) -> Draft {
     let state = ui.global::<WatchlistState>();
     Draft {
         title: state.get_draft_title().to_string(),
@@ -234,7 +234,7 @@ fn current_year() -> i64 {
 }
 
 /// Connects the WatchlistState callbacks to the controller.
-fn wire(ui: &RimelightPersonalShell, controller: &WatchlistController) {
+fn wire(ui: &AppWindow, controller: &WatchlistController) {
     let state = ui.global::<WatchlistState>();
 
     let c = controller.clone();
@@ -446,7 +446,7 @@ pub(crate) mod tests {
     /// Run by `pages::tests::page_scenarios`, on the thread that installed the testing backend. The section and status
     /// choices are filled at once, and a failed load puts the page in its error state.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let api = Arc::new(Down::default());
         let watchlist = Watchlist::new(&ui, api.clone());
         let state = ui.global::<WatchlistState>();

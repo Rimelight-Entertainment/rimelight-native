@@ -7,7 +7,7 @@ use slint::{ComponentHandle as _, Model as _};
 use space_nav::{Area, pages_in, parse};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, TileGroup};
+use space_ui::slint_ui::{AppWindow, TileGroup};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its workspace is the first one, and its tab is the first tab of the first group.
@@ -46,12 +46,12 @@ fn open_in_new_tab(app: &App, route: &str) {
 }
 
 /// The tile groups of the active workspace, in model order.
-fn groups(ui: &AppShell) -> Vec<TileGroup> {
+fn groups(ui: &AppWindow) -> Vec<TileGroup> {
     ui.get_tile_groups().iter().collect()
 }
 
 /// The group with id `id`.
-fn group(ui: &AppShell, id: i32) -> TileGroup {
+fn group(ui: &AppWindow, id: i32) -> TileGroup {
     groups(ui)
         .into_iter()
         .find(|group| group.id == id)
@@ -59,7 +59,7 @@ fn group(ui: &AppShell, id: i32) -> TileGroup {
 }
 
 /// The id of the focused group.
-fn focused_id(ui: &AppShell) -> i32 {
+fn focused_id(ui: &AppWindow) -> i32 {
     groups(ui)
         .iter()
         .find(|group| group.focused)

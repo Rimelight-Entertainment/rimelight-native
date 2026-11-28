@@ -11,7 +11,7 @@ use rimelight_personal_feature_housing::{
 };
 use slint::{ComponentHandle as _, ModelRc, VecModel};
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{
     CalendarDay, HousingChip, HousingField, HousingRow, HousingSection, HousingStat, HousingState,
     SelectOption,
@@ -23,7 +23,7 @@ pub struct Housing {
 
 impl Housing {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Housing::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn HousingApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn HousingApi>) -> Self {
         let weak = ui.as_weak();
         let controller = HousingController::new(api, move |view: HousingView| {
             let _ = weak.upgrade_in_event_loop(move |ui| show_view(&ui, &view));
@@ -38,7 +38,7 @@ impl Housing {
     }
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &HousingView) {
+fn show_view(ui: &AppWindow, view: &HousingView) {
     let state = ui.global::<HousingState>();
     state.set_tab(view.tab.key().into());
     state.set_loading(view.loading);
@@ -150,7 +150,7 @@ fn form_fields(form: &FormView) -> Vec<HousingField> {
         .collect()
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &HousingController) {
+fn wire(ui: &AppWindow, controller: &HousingController) {
     let state = ui.global::<HousingState>();
 
     let c = controller.clone();

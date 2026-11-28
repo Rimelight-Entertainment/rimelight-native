@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^personal-v', ''
-          pwsh apps/rimelight-personal/tools/pack-windows.ps1 -Version $version -VpkVersion $env:VPK_VERSION
+          cargo run -p xtask -- personal pack --version $version
       - name: Upload to R2 (the Personal update feed)
         shell: bash
         env:

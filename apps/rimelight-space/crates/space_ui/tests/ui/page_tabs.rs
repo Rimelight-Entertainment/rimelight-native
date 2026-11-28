@@ -10,14 +10,14 @@ use slint::{ComponentHandle, Model as _, SharedString};
 use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, MenuKind};
+use space_ui::slint_ui::{AppWindow, MenuKind};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its tab is the first one.
 const START: &str = "/home";
 
 /// One key press and release, as an OS key event would deliver them.
-fn press_key(ui: &AppShell, key: Key) {
+fn press_key(ui: &AppWindow, key: Key) {
     let text: SharedString = key.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -45,7 +45,7 @@ fn open_in_new_tab(app: &App, route: &str) {
 }
 
 /// The labels of the open page tabs, in strip order.
-fn tab_labels(ui: &AppShell) -> Vec<String> {
+fn tab_labels(ui: &AppWindow) -> Vec<String> {
     ui.get_open_tabs()
         .iter()
         .map(|tab| tab.label.to_string())
@@ -54,7 +54,7 @@ fn tab_labels(ui: &AppShell) -> Vec<String> {
 
 /// A right press on tab `index` of the focused group: the strip's context request, then its menu opens (the same path as
 /// the strip's own right press, without its pointer position).
-fn right_click_tab(ui: &AppShell, index: usize) {
+fn right_click_tab(ui: &AppWindow, index: usize) {
     let group = ui
         .get_tile_groups()
         .iter()
@@ -66,7 +66,7 @@ fn right_click_tab(ui: &AppShell, index: usize) {
 }
 
 /// The page tab menu rows as the window holds them: (label, enabled, separator).
-fn menu_rows(ui: &AppShell) -> Vec<(String, bool, bool)> {
+fn menu_rows(ui: &AppWindow) -> Vec<(String, bool, bool)> {
     ui.get_open_tab_menu()
         .iter()
         .map(|item| {

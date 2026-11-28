@@ -8,7 +8,7 @@ use std::sync::Arc;
 use rimelight_personal_feature_todos::{TodoApi, TodosController, TodosView};
 use slint::{ComponentHandle as _, ModelRc, VecModel};
 
-use crate::generated::{RimelightPersonalShell, TodoRow, TodoTab, TodosState};
+use crate::generated::{AppWindow, TodoRow, TodoTab, TodosState};
 
 /// The Todos page of the shell: one controller, wired to the TodosState global.
 pub struct Todos {
@@ -17,7 +17,7 @@ pub struct Todos {
 
 impl Todos {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Todos::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn TodoApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn TodoApi>) -> Self {
         let weak = ui.as_weak();
         let controller = TodosController::new(api, move |view: TodosView| {
             // Runs on a worker thread. The view is plain data, so it can move to the event loop.
@@ -41,7 +41,7 @@ impl Todos {
 
 /// Fills the TodosState properties from a view. Models are rebuilt each time, so every row starts again from the
 /// server's flags (a checkbox keeps its own state after the user clicks it).
-fn show_view(ui: &RimelightPersonalShell, view: &TodosView) {
+fn show_view(ui: &AppWindow, view: &TodosView) {
     let state = ui.global::<TodosState>();
     let rows: Vec<TodoRow> = view
         .rows
@@ -77,7 +77,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &TodosView) {
 }
 
 /// Connects the TodosState callbacks to the controller.
-fn wire(ui: &RimelightPersonalShell, controller: &TodosController) {
+fn wire(ui: &AppWindow, controller: &TodosController) {
     let state = ui.global::<TodosState>();
 
     let c = controller.clone();
@@ -181,7 +181,7 @@ pub(crate) mod tests {
     /// Run by `pages::tests::page_scenarios`, on the thread that installed the testing backend. A failed load shows its
     /// error on the page, and the error can be dismissed.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let api = Arc::new(Down::default());
         let todos = Todos::new(&ui, api.clone());
         todos.activate();

@@ -2,7 +2,7 @@
 //! side. See the crate README, section "Slint port".
 //!
 //! - [`assets`]: tests that the shared `icons.slint` names exactly the icons the Rust lists map. Always compiled.
-//! - The Slint types (`Tokens`, `Type`, `Icons`, `AboutScreen`, `AppShell`, ...) are compiled from `ui/main.slint` by
+//! - The Slint types (`Tokens`, `Type`, `Icons`, `AboutScreen`, `AppWindow`, ...) are compiled from `ui/main.slint` by
 //!   `build.rs`. The `Tokens` global comes from the shared `rimelight_design` markup.
 //! - The shared rules (toast, color, table, tree, display, select, menu, theme) are in `rimelight_ui_kit`. [`glue`]
 //!   wires them to the types above.
@@ -20,7 +20,7 @@ pub mod content;
 // The native web views of the editor's web-only blocks (CMS.6): the WebViewHost adapter (src/slint_ui/webviews.rs).
 pub mod webviews;
 
-// Whole-shell captures (review captures, not kept): the real AppShell driven into named states. Headless builds only.
+// Whole-shell captures (review captures, not kept): the real AppWindow driven into named states. Headless builds only.
 #[cfg(feature = "headless")]
 pub mod shell_capture;
 

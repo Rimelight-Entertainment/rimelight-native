@@ -4,6 +4,7 @@
 import { Button, Palette, ProgressIndicator } from "std-widgets.slint";
 
 export component SetupWindow inherits Window {
+    icon: @image-url("../../../assets/logo/logo_color.svg");
     in property <string> status: "Sign in to Cloudflare. The backend is set up in your own Cloudflare account.";
     in property <bool> busy: false;
     in property <bool> failed: false;

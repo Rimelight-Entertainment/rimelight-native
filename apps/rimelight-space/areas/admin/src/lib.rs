@@ -74,7 +74,7 @@ pub trait AdminCompany {
 #[macro_export]
 macro_rules! wire_admin {
     (
-        $AppShell:ident, $PageLoadState:ident, $SelectOption:ident, $TableColumn:ident, $TableRow:ident, $CalendarDay:ident,
+        $AppWindow:ident, $PageLoadState:ident, $SelectOption:ident, $TableColumn:ident, $TableRow:ident, $CalendarDay:ident,
         $AdminRow:ident, $AdminOrgState:ident, $AdminUserRow:ident, $AdminUsersState:ident, $AdminRolesState:ident,
         $RolePerson:ident, $AdminTypesTagsState:ident, $TypeRow:ident, $AreaRow:ident $(,)?
     ) => {
@@ -141,7 +141,7 @@ macro_rules! wire_admin {
             }
         }
 
-        impl $crate::AdminCompany for $AppShell {
+        impl $crate::AdminCompany for $AppWindow {
             fn refresh_company(&self) {
                 if self.get_employees_state() != $PageLoadState::Loading {
                     self.invoke_employees_retry();
@@ -161,7 +161,7 @@ macro_rules! wire_admin {
             }
         }
 
-        impl $crate::roles::RolesWindow for $AppShell {
+        impl $crate::roles::RolesWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 let g = $crate::space_page_kit::__slint::ComponentHandle::global::<$AdminRolesState>(self);
                 g.set_state(admin_glue::load_state(state));
@@ -224,7 +224,7 @@ macro_rules! wire_admin {
             }
         }
 
-        impl $crate::users::UsersWindow for $AppShell {
+        impl $crate::users::UsersWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 let g = $crate::space_page_kit::__slint::ComponentHandle::global::<$AdminUsersState>(self);
                 g.set_state(admin_glue::load_state(state));
@@ -432,7 +432,7 @@ macro_rules! wire_admin {
             }
         }
 
-        impl $crate::organisation::OrganisationWindow for $AppShell {
+        impl $crate::organisation::OrganisationWindow for $AppWindow {
             fn tab(&self) -> i32 {
                 let g = $crate::space_page_kit::__slint::ComponentHandle::global::<$AdminOrgState>(self);
                 g.get_tab()
@@ -556,7 +556,7 @@ macro_rules! wire_admin {
             }
         }
 
-        impl $crate::types_tags::TypesTagsWindow for $AppShell {
+        impl $crate::types_tags::TypesTagsWindow for $AppWindow {
             fn show_new_colour(&self, hex: &str) {
                 let g = $crate::space_page_kit::__slint::ComponentHandle::global::<$AdminTypesTagsState>(self);
                 g.set_new_colour($crate::types_tags::colour_of(hex));

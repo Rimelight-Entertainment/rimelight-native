@@ -77,8 +77,9 @@ export struct SubTab {
     active: bool,
 }
 
-export component RimelightPersonalShell inherits Window {
+export component AppWindow inherits Window {
     title: "Rimelight Personal";
+    icon: @image-url("../../../assets/logo/logo_color.svg");
     preferred-width: 1200px;
     preferred-height: 800px;
     min-width: 320px;

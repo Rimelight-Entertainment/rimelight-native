@@ -10,7 +10,7 @@ use slint::{ComponentHandle as _, ModelRc, VecModel};
 
 use crate::generated::{
     HabitCategoryRow, HabitDay, HabitRow, HabitWeek, HabitYearTab, HabitsState,
-    RimelightPersonalShell, SelectOption,
+    AppWindow, SelectOption,
 };
 
 /// The grids show this many day cells per line.
@@ -25,7 +25,7 @@ impl Habits {
     /// Connects `ui` to a controller that calls `api`. `today` is `(year, month, day)`, as [`rimelight_personal_feature_habits::today`]
     /// returns it. Nothing is fetched until [`Habits::activate`].
     pub fn new(
-        ui: &RimelightPersonalShell,
+        ui: &AppWindow,
         api: Arc<dyn HabitApi>,
         today: (i32, u32, u32),
     ) -> Self {
@@ -67,7 +67,7 @@ impl Habits {
 
 /// Fills the HabitsState properties from a view. Every model is built anew, so each control starts from the server's
 /// state.
-fn show_view(ui: &RimelightPersonalShell, view: &HabitsView) {
+fn show_view(ui: &AppWindow, view: &HabitsView) {
     let state = ui.global::<HabitsState>();
     let years: Vec<HabitYearTab> = view
         .years
@@ -145,7 +145,7 @@ fn weeks(days: &[DayView]) -> ModelRc<HabitWeek> {
 
 /// Connects the HabitsState callbacks to the controller. The year and category fields are cleared only when the
 /// controller accepts their text, as the egui page did.
-fn wire(ui: &RimelightPersonalShell, controller: &HabitsController) {
+fn wire(ui: &AppWindow, controller: &HabitsController) {
     let state = ui.global::<HabitsState>();
 
     let c = controller.clone();
@@ -242,7 +242,7 @@ pub(crate) mod tests {
     /// Run by `pages::tests::page_scenarios`, on the thread that installed the testing backend. The month list is filled
     /// at once, and a failed load shows its error and stops the loading flag.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let api = Arc::new(Down::default());
         let habits = Habits::new(&ui, api.clone(), (2026, 11, 22));
         let state = ui.global::<HabitsState>();

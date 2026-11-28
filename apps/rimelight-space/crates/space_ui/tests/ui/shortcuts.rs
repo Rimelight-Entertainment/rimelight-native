@@ -7,7 +7,7 @@
 
 use slint::platform::{Key, WindowEvent};
 use slint::{ComponentHandle, LogicalSize, Model as _, SharedString};
-use space_ui::slint_ui::AppShell;
+use space_ui::slint_ui::AppWindow;
 use space_ui::slint_ui::app_shell;
 use space_ui::theme::ThemeMode;
 
@@ -22,7 +22,7 @@ fn press(ui: &impl ComponentHandle, text: impl Into<SharedString>) {
 
 /// Every row of the list as (group title, label, planned, has a second chord), in group order. Read from the model
 /// `shortcut-sections`, which the drawn rows are built from.
-fn rows(ui: &AppShell) -> Vec<(String, String, bool, bool)> {
+fn rows(ui: &AppWindow) -> Vec<(String, String, bool, bool)> {
     let mut out = Vec::new();
     for section in ui.get_shortcut_sections().iter() {
         let title = section.title.to_string();
@@ -39,7 +39,7 @@ fn rows(ui: &AppShell) -> Vec<(String, String, bool, bool)> {
 }
 
 /// The list's group titles, in order.
-fn titles(ui: &AppShell) -> Vec<String> {
+fn titles(ui: &AppWindow) -> Vec<String> {
     ui.get_shortcut_sections()
         .iter()
         .map(|section| section.title.to_string())
@@ -47,11 +47,11 @@ fn titles(ui: &AppShell) -> Vec<String> {
 }
 
 /// How many rows carry the label `label`.
-fn rows_labelled(ui: &AppShell, label: &str) -> usize {
+fn rows_labelled(ui: &AppWindow, label: &str) -> usize {
     rows(ui).iter().filter(|row| row.1 == label).count()
 }
 
-fn has(ui: &AppShell, label: &str) -> bool {
+fn has(ui: &AppWindow, label: &str) -> bool {
     rows_labelled(ui, label) > 0
 }
 

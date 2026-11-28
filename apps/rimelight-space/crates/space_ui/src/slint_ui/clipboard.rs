@@ -1,6 +1,6 @@
 //! Copy link (gaps D2): the one way the shell writes a link to the clipboard.
 //!
-//! Desktop and Android: the AppShell's `copy-link` function (`ui/components/clipboard-writer.slint`) selects its hidden
+//! Desktop and Android: the AppWindow's `copy-link` function (`ui/components/clipboard-writer.slint`) selects its hidden
 //! TextInput's text and calls the TextInput's `copy()`, which Slint hands to the platform clipboard. That path is synchronous,
 //! so its outcome is known at once.
 //!

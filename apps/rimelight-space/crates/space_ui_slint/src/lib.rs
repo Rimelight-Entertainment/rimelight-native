@@ -12,10 +12,10 @@ pub use generated::*;
 pub mod clipboard;
 
 // Company area window glue (ST5.2, rimelight-rs `rimelight_ui_kit` pattern): `wire_company!` implements the company pages'
-// window traits (`space_area_company`) for the generated `AppShell`, and emits the `company_glue` helpers. It is expanded
-// here, in the crate that defines `AppShell` (a trait impl for a generated type must live in the crate that generates it).
+// window traits (`space_area_company`) for the generated `AppWindow`, and emits the `company_glue` helpers. It is expanded
+// here, in the crate that defines `AppWindow` (a trait impl for a generated type must live in the crate that generates it).
 space_area_company::wire_company!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     TableColumn,
     TableRow,
@@ -37,7 +37,7 @@ space_area_company::wire_company!(
 
 // Management area window glue (ST5.2): the project settings and members pages (`space_area_management`).
 space_area_management::wire_management!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     ProjectSettingsState,
     ProjectMembersState,
@@ -47,7 +47,7 @@ space_area_management::wire_management!(
 
 // Admin area window glue (SP.3e): Users, Organisation, Roles and Types & tags (`space_area_admin`).
 space_area_admin::wire_admin!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     SelectOption,
     TableColumn,
@@ -66,7 +66,7 @@ space_area_admin::wire_admin!(
 
 // Home area window glue: the Dashboard's Assigned to me and Recent canvases cards (`space_area_home`).
 space_area_home::wire_home!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     HomeState,
     HomeIssueRow,
@@ -75,7 +75,7 @@ space_area_home::wire_home!(
 
 // Projects area window glue: Create project, Overview, Issues, New issue, New sprint and the Issue page (`space_area_projects`).
 space_area_projects::wire_projects!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     SelectOption,
     MultiOption,
@@ -100,7 +100,7 @@ space_area_projects::wire_projects!(
 
 // Canvas area window glue: the canvas page, its pop-out window and the canvas lists (`space_area_canvas`).
 space_area_canvas::wire_canvas!(
-    AppShell,
+    AppWindow,
     CanvasPopout,
     PageLoadState,
     CanvasState,
@@ -122,7 +122,7 @@ space_area_canvas::wire_canvas!(
 
 // Content area window glue (CMS.6): the content pages (space_area_content).
 space_area_content::wire_content!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     ContentHomeState,
     ContentPageState,
@@ -142,16 +142,16 @@ space_area_content::wire_content!(
     crate::clipboard::write_link
 );
 
-/// The shared block editor (CMS.5, rimelight-rs `rimelight_editor`) on the generated `AppShell` and its `EditorBridge` global:
+/// The shared block editor (CMS.5, rimelight-rs `rimelight_editor`) on the generated `AppWindow` and its `EditorBridge` global:
 /// `bind_block_editor` (the page's controller and host callback) and `BlockEditorBinding` (`refresh`, `set_remote_cursors`,
 /// `swap_controller`).
 pub mod block_editor {
     use crate::{
-        AppShell, BlockMenuItem, CommentItem, EditorBridge, EditorRow, EmojiItem, InsertItem,
+        AppWindow, BlockMenuItem, CommentItem, EditorBridge, EditorRow, EmojiItem, InsertItem,
         InspectorField, KeyOutcome, LocaleItem, MentionItem, PresenceItem, RemoteCaret,
     };
     rimelight_editor::wire_block_editor!(
-        AppShell,
+        AppWindow,
         EditorBridge,
         EditorRow,
         RemoteCaret,

@@ -32,7 +32,7 @@ pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 #[macro_export]
 macro_rules! wire_company {
     (
-        $AppShell:ident, $PageLoadState:ident, $TableColumn:ident, $TableRow:ident, $SelectNav:ident,
+        $AppWindow:ident, $PageLoadState:ident, $TableColumn:ident, $TableRow:ident, $SelectNav:ident,
         $SelectOption:ident, $EmployeesTable:ident, $EmployeeRow:ident, $TeamsTable:ident, $OrgRow:ident,
         $TeamRow:ident, $TeamView:ident, $DeptsTable:ident, $DeptView:ident, $LocationsState:ident,
         $ProfileView:ident, $ProfileDraft:ident, $PersonLink:ident $(,)?
@@ -129,7 +129,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::employees::EmployeesWindow for $AppShell {
+        impl $crate::employees::EmployeesWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 self.set_employees_state(company_glue::load_state(state));
             }
@@ -165,7 +165,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::teams::TeamsWindow for $AppShell {
+        impl $crate::teams::TeamsWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 self.set_teams_state(company_glue::load_state(state));
             }
@@ -203,7 +203,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::team::TeamWindow for $AppShell {
+        impl $crate::team::TeamWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 self.set_team_state(company_glue::load_state(state));
             }
@@ -240,7 +240,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::departments::DeptWindow for $AppShell {
+        impl $crate::departments::DeptWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 self.set_dept_state(company_glue::load_state(state));
             }
@@ -287,7 +287,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::locations::LocationsWindow for $AppShell {
+        impl $crate::locations::LocationsWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 let g = $crate::space_page_kit::__slint::ComponentHandle::global::<$LocationsState>(
                     self,
@@ -418,7 +418,7 @@ macro_rules! wire_company {
             }
         }
 
-        impl $crate::profile::ProfileWindow for $AppShell {
+        impl $crate::profile::ProfileWindow for $AppWindow {
             fn show_photo_supported(&self, on: bool) {
                 self.set_profile_photo_supported(on);
             }

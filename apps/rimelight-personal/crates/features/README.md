@@ -69,17 +69,17 @@ One module per page, declared in `apps/desktop/src/pages/mod.rs`. It has three j
 1. `apps/desktop/build.rs`: add the feature's markup folder to the library map. The Todos line is:
    `manifest.join("../../crates/features/todos/ui")`, under the key `rimelight_personal_todos`. Use the key `rimelight_personal_<page>` and
    add a `rerun-if-changed` line for the folder. Keep the `with_debug_info(true)` call.
-2. `apps/desktop/ui/app-shell.slint`: `import { <Page>Page, <Row> } from "@rimelight_personal_<page>/<page>.slint";`. Add the
+2. `crates/rimelight_personal_ui_slint/ui/app.slint`: `import { <Page>Page, <Row> } from "@rimelight_personal_<page>/<page>.slint";`. Add the
    properties (`in property <[Row]>`, the flags, `in-out` for field text) and the forwarding callbacks. Then show the
    page with `if root.page-route == "/<page>" : <Page>Page { ... }` and hide the placeholder for that route.
-3. `apps/desktop/ui/main.slint`: `export { <Row> } from "@rimelight_personal_<page>/<page>.slint";` so Rust gets the struct.
+3. `crates/rimelight_personal_ui_slint/ui/app.slint`: `export { <Row> } from "@rimelight_personal_<page>/<page>.slint";` so Rust gets the struct.
 4. `apps/desktop/src/main.rs`: create the glue in `run()` and call its `activate()` from `show()` on the route.
 
 ## The test (`apps/desktop/src/pages/<page>.rs`, `#[cfg(test)]`)
 
 - `init_integration_test_with_mock_time()` from `i_slint_backend_testing`. The testing backend can be installed once
   per process, so keep one test function per module, or guard it.
-- Create the shell with `RimelightPersonalShell::new()`, wire the glue with a recording fake API, set the route
+- Create the shell with `AppWindow::new()`, wire the glue with a recording fake API, set the route
   (`ui.set_page_route(...)`), and `ui.show()`.
 - Click with `ElementHandle::find_by_accessible_label(&ui, "<label>").next().unwrap().mock_single_click(PointerEventButton::Left)`.
   Label the controls with `accessible-name` (or the button text). Keys go in as
@@ -94,7 +94,7 @@ One module per page, declared in `apps/desktop/src/pages/mod.rs`. It has three j
 
 - [ ] `crates/features/<page>`: Cargo.toml, `ui/<page>.slint`, `src/lib.rs` with the trait, controller and unit tests
 - [ ] root `Cargo.toml`: member and workspace dependency
-- [ ] `apps/desktop`: dependency, build.rs library line, app-shell.slint properties and page, main.slint struct export,
+- [ ] `apps/desktop`: dependency, build.rs library line, app.slint properties and page, app.slint struct export,
       `pages/<page>.rs` glue and its test, `pages/mod.rs` line, `main.rs` activation
 - [ ] `cargo build -p personal_desktop`, `cargo clippy --workspace -- -D warnings`, `cargo test --workspace`
 
@@ -121,20 +121,20 @@ owns. Nothing else in the shell changes per page.
    - `export global <Page>State { in-out property <...> ...; callback <verb>-requested(...); }` mirrors the page's
      properties and callbacks one for one, so Rust reaches them as `ui.global::<<Page>State>()`.
    - `export component <Page>Route inherits Rectangle` forwards: `<Page>Page { rows: <Page>State.rows; <verb>-requested(...) => { <Page>State.<verb>-requested(...); } }`.
-   - `export { <Row> } from ...` only where `main.slint` needs to re-export the struct for Rust.
+   - `export { <Row> } from ...` only where `app.slint` needs to re-export the struct for Rust.
 
 3. **Glue (`crates/rimelight_personal_ui_slint/src/pages/<page>.rs`)**
    - `pub struct <Page>Glue { controller: <Page>Controller }`.
-   - `pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn <Page>Api>) -> Self`: builds the controller with a `notify` that
+   - `pub fn new(ui: &AppWindow, api: Arc<dyn <Page>Api>) -> Self`: builds the controller with a `notify` that
      posts the view with `ui.as_weak().upgrade_in_event_loop(...)` and calls `show_view`, then calls `wire`.
-   - `fn show_view(ui: &RimelightPersonalShell, view: &<Page>View)`: sets `ui.global::<<Page>State>()` properties. Build new
+   - `fn show_view(ui: &AppWindow, view: &<Page>View)`: sets `ui.global::<<Page>State>()` properties. Build new
      models each time.
    - `fn wire(ui, controller)`: each `ui.global::<<Page>State>().on_<verb>_requested(...)` calls a controller method.
    - `pub fn activate(&self)`: called by the shell when the route opens (refreshes the data).
    - `#[cfg(test)]`: one `scenario()` run from `pages/mod.rs`'s single headless test (see the todos reference).
 
 4. **Route registration (owned by the main session, not the page agent)**
-   - `crates/rimelight_personal_ui_slint/ui/main.slint`: one `if route == "/<page>" : <Page>Route {}` line and an export line.
+   - `crates/rimelight_personal_ui_slint/ui/app.slint`: one `if route == "/<page>" : <Page>Route {}` line and an export line.
    - `crates/rimelight_personal_ui_slint/build.rs` already maps every `@rimelight_personal_feature_<page>` library. A new page adds its
      `UI_DIR` line there in the same step.
 

@@ -13,7 +13,7 @@ use rimelight_personal_feature_health::{
 };
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{
     CalendarDay, ChartPoint, HealthExerciseDay, HealthExerciseRow, HealthHistoryBar,
     HealthMetricRow, HealthRoutine, HealthSetRow, HealthStageRow, HealthState, HealthStretchRow,
@@ -21,7 +21,7 @@ use crate::generated::{
 
 pub struct Health {
     controller: HealthController,
-    ui: slint::Weak<RimelightPersonalShell>,
+    ui: slint::Weak<AppWindow>,
 }
 
 impl Health {
@@ -29,7 +29,7 @@ impl Health {
     /// with its steps in order, so the shell can pass them to the Focus page's `start_stretches`. Nothing is fetched
     /// until [`Health::activate`].
     pub fn new(
-        ui: &RimelightPersonalShell,
+        ui: &AppWindow,
         api: Arc<dyn HealthApi>,
         feedback: Arc<dyn Feedback>,
         on_routine_started: impl Fn(Vec<Stretch>) + 'static,
@@ -79,7 +79,7 @@ fn text(value: &str) -> SharedString {
     SharedString::from(value)
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &HealthView) {
+fn show_view(ui: &AppWindow, view: &HealthView) {
     let state = ui.global::<HealthState>();
     state.set_loading(view.loading);
     state.set_error(view.error.clone().unwrap_or_default().into());
@@ -279,7 +279,7 @@ fn routine_steps(categories: &[StretchCategoryView], category_id: &str) -> Vec<S
 }
 
 fn wire(
-    ui: &RimelightPersonalShell,
+    ui: &AppWindow,
     controller: &HealthController,
     on_routine_started: impl Fn(Vec<Stretch>) + 'static,
 ) {

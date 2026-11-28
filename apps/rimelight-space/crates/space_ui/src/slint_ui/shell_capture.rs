@@ -1,4 +1,4 @@
-//! Whole-shell captures for visual review (review captures, not kept). The real `AppShell` is built with
+//! Whole-shell captures for visual review (review captures, not kept). The real `AppWindow` is built with
 //! [`app_shell::build`] on the headless testing backend (software renderer, no OS window). The window is then driven
 //! into one named state with the same callbacks and clicks the UI tests use, and the frame is written as a PNG.
 //!
@@ -15,7 +15,7 @@ use space_nav::{Area, pages_in};
 use crate::slint_ui::app_shell::{self, App};
 use crate::slint_ui::palette::DEFAULT_PROJECT_KEY;
 use crate::slint_ui::shell::{rail_badges, sidebar_entries};
-use crate::slint_ui::{AppShell, ConnectionState, JobItem, TileGroup};
+use crate::slint_ui::{AppWindow, ConnectionState, JobItem, TileGroup};
 use crate::theme::ThemeMode;
 use space_page_kit::projects;
 
@@ -163,7 +163,7 @@ pub fn capture(
 }
 
 /// Sets the window size as an OS resize would, then runs the update that sets `phone` from the width.
-fn resize(ui: &AppShell, (width, height): (u32, u32)) {
+fn resize(ui: &AppWindow, (width, height): (u32, u32)) {
     let size = LogicalSize::new(width as f32, height as f32);
     ui.window().set_size(size);
     ui.window().dispatch_event(WindowEvent::Resized { size });
@@ -195,7 +195,7 @@ fn job(title: &str, state: &str) -> JobItem {
 }
 
 /// One key press and release, as an OS key event would deliver them.
-fn key(ui: &AppShell, key: Key) {
+fn key(ui: &AppWindow, key: Key) {
     let text: SharedString = key.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -204,7 +204,7 @@ fn key(ui: &AppShell, key: Key) {
 }
 
 /// Tab until a page-tab strip holds the keyboard focus, then Home and Right: the focus goes to the second tab of that group.
-fn focus_second_page_tab(ui: &AppShell) {
+fn focus_second_page_tab(ui: &AppWindow) {
     for _ in 0..200 {
         if ui.get_strip_focus_owner() >= 0 {
             break;
@@ -216,7 +216,7 @@ fn focus_second_page_tab(ui: &AppShell) {
 }
 
 /// The index of the workspace tab labelled `label`, read from the workspace model (the strip draws one tab per entry).
-fn workspace_index(ui: &AppShell, label: &str) -> Result<i32, String> {
+fn workspace_index(ui: &AppWindow, label: &str) -> Result<i32, String> {
     ui.get_workspace_tabs()
         .iter()
         .position(|tab| tab.label.as_str() == label)
@@ -225,7 +225,7 @@ fn workspace_index(ui: &AppShell, label: &str) -> Result<i32, String> {
 }
 
 /// The tile group id and the tab index of the page tab labelled `label`, read from the tile group model.
-fn page_tab_position(ui: &AppShell, label: &str) -> Result<(i32, i32), String> {
+fn page_tab_position(ui: &AppWindow, label: &str) -> Result<(i32, i32), String> {
     for group in ui.get_tile_groups().iter() {
         if let Some(index) = group
             .tabs
@@ -239,7 +239,7 @@ fn page_tab_position(ui: &AppShell, label: &str) -> Result<(i32, i32), String> {
 }
 
 /// The right press on the page tab `label`: the strip's context request, then its tab menu opens.
-fn right_click_tab(ui: &AppShell, label: &str) -> Result<(), String> {
+fn right_click_tab(ui: &AppWindow, label: &str) -> Result<(), String> {
     let (group, index) = page_tab_position(ui, label)?;
     ui.invoke_test_open_tab_menu(group, index);
     slint::platform::update_timers_and_animations();
@@ -305,11 +305,11 @@ fn pick_on_tab(app: &App, id: i32, index: i32, item: &str) {
     app.ui.invoke_open_tab_menu_picked(index, item.into());
 }
 
-fn groups(ui: &AppShell) -> Vec<TileGroup> {
+fn groups(ui: &AppWindow) -> Vec<TileGroup> {
     ui.get_tile_groups().iter().collect()
 }
 
-fn focused_id(ui: &AppShell) -> i32 {
+fn focused_id(ui: &AppWindow) -> i32 {
     groups(ui)
         .iter()
         .find(|group| group.focused)
@@ -318,7 +318,7 @@ fn focused_id(ui: &AppShell) -> i32 {
 }
 
 /// Group ids with their tab counts, for the log line, for example `groups 3 [2 1 2]`.
-fn layout_summary(ui: &AppShell) -> String {
+fn layout_summary(ui: &AppWindow) -> String {
     let counts: Vec<String> = groups(ui)
         .iter()
         .map(|group| group.tabs.row_count().to_string())
@@ -333,7 +333,7 @@ fn layout_summary(ui: &AppShell) -> String {
 }
 
 /// Takes the frame, refuses a blank one, and writes the PNG.
-fn snapshot(ui: &AppShell, out: &Path) -> Result<(), String> {
+fn snapshot(ui: &AppWindow, out: &Path) -> Result<(), String> {
     // Mock time: a second lets slides and fades finish (the More drawer, the workspace sheet) before the frame is taken.
     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_secs(1));
     slint::platform::update_timers_and_animations();
@@ -361,14 +361,14 @@ fn snapshot(ui: &AppShell, out: &Path) -> Result<(), String> {
 }
 
 /// Sets the interface zoom as Ctrl+plus and Ctrl+minus do: the slider value and the applied zoom at once.
-fn set_zoom(ui: &AppShell, percent: f32) {
+fn set_zoom(ui: &AppWindow, percent: f32) {
     ui.set_zoom_percent(percent);
     ui.set_zoom_applied(percent);
 }
 
 /// The content scope home (Company > Knowledge Base) with rows shaped like the live API's, and optionally the New page
 /// dialog.
-fn content_home(ui: &AppShell, new_dialog: bool) {
+fn content_home(ui: &AppWindow, new_dialog: bool) {
     use space_area_content::home::HomeWindow as _;
     use space_area_content::scope::Access;
     use space_area_content::view::{PageRow, TabView};
@@ -471,7 +471,7 @@ fn content_home(ui: &AppShell, new_dialog: bool) {
 }
 
 /// A content page in edit mode: the header and the shared block editor holding a realistic docs page.
-fn content_page(ui: &AppShell) {
+fn content_page(ui: &AppWindow) {
     use space_area_content::page::{PageHeader, PageWindow as _};
     use space_page_kit::load::LoadState;
     slint::platform::update_timers_and_animations();

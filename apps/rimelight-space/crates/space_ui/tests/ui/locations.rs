@@ -39,7 +39,7 @@ fn wait(ms: u64) {
 }
 
 /// The cell texts of row `i` of the locations table.
-fn cells(ui: &space_ui::slint_ui::AppShell, i: usize) -> Vec<String> {
+fn cells(ui: &space_ui::slint_ui::AppWindow, i: usize) -> Vec<String> {
     let row = ui
         .global::<LocationsState>()
         .get_table_rows()

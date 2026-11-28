@@ -2,7 +2,7 @@
 //! the web link of the right page through the clipboard writer and shows the "Link copied" toast. The Ctrl+K shortcut still
 //! works after a copy.
 //!
-//! The headless testing backend has no readback of the OS clipboard, so the text is checked on the AppShell's `last-copied`
+//! The headless testing backend has no readback of the OS clipboard, so the text is checked on the AppWindow's `last-copied`
 //! property, which the clipboard writer sets. The OS clipboard itself is not verified by these tests.
 
 use slint::platform::{Key, WindowEvent};
@@ -11,7 +11,7 @@ use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::history::link_for;
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, MenuItem};
+use space_ui::slint_ui::{AppWindow, MenuItem};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its tab is the first one.
@@ -47,7 +47,7 @@ fn enabled(items: &ModelRc<MenuItem>, id: &str) -> bool {
 }
 
 /// The number of toasts with the copy title on the toast stack.
-fn toast_count(ui: &AppShell) -> usize {
+fn toast_count(ui: &AppWindow) -> usize {
     ui.get_toasts()
         .iter()
         .filter(|toast| toast.title == TOAST)
@@ -55,7 +55,7 @@ fn toast_count(ui: &AppShell) -> usize {
 }
 
 /// Ctrl+K, as the OS delivers it: Control down, K, Control up.
-fn ctrl_k(ui: &AppShell) {
+fn ctrl_k(ui: &AppWindow) {
     let control: SharedString = Key::Control.into();
     ui.window().dispatch_event(WindowEvent::KeyPressed {
         text: control.clone(),

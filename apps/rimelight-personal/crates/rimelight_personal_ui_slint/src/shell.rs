@@ -20,7 +20,7 @@ use rimelight_ui_kit::toast::{Record, Toast, ToastQueue, Tone, sync_model, take_
 use slint::{ComponentHandle as _, Model as _, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::generated::{
-    FocusState, Icons, OverviewState, PaletteRow, RimelightPersonalShell, SidebarItem, SidebarKind,
+    FocusState, Icons, OverviewState, PaletteRow, AppWindow, SidebarItem, SidebarKind,
     SubTab, ToastEntry, ToastTone, TodosState,
 };
 use crate::pages::{
@@ -218,7 +218,7 @@ fn link_entry(link: &Link, indented: bool) -> NavEntry {
     }
 }
 
-fn to_item(ui: &RimelightPersonalShell, entry: &NavEntry) -> SidebarItem {
+fn to_item(ui: &AppWindow, entry: &NavEntry) -> SidebarItem {
     SidebarItem {
         label: entry.label.into(),
         header: entry.heading,
@@ -240,7 +240,7 @@ fn to_item(ui: &RimelightPersonalShell, entry: &NavEntry) -> SidebarItem {
 
 /// Shows `route` in the window: the route, its title, the sidebar row that is highlighted, and the sub-tab strip. It does
 /// not fetch the page's data; [`Shell::navigate`] does both.
-pub fn navigate(ui: &RimelightPersonalShell, route: &str) {
+pub fn navigate(ui: &AppWindow, route: &str) {
     let entries = nav_entries();
     let Some(route) = parse(route) else { return };
     ui.set_route(route.into());
@@ -262,7 +262,7 @@ pub fn navigate(ui: &RimelightPersonalShell, route: &str) {
 
 /// Fills the palette's rows with the commands whose title, subtitle or category contains `query` (case-insensitive), and
 /// records their routes in the same order, so a picked row index maps to its route.
-fn fill_palette(ui: &RimelightPersonalShell, query: &str, routes: &RefCell<Vec<&'static str>>) {
+fn fill_palette(ui: &AppWindow, query: &str, routes: &RefCell<Vec<&'static str>>) {
     let needle = query.trim().to_lowercase();
     let matches: Vec<&Command> = COMMANDS
         .iter()
@@ -290,7 +290,7 @@ fn fill_palette(ui: &RimelightPersonalShell, query: &str, routes: &RefCell<Vec<&
 
 /// The page glue of the shell: one value per page, built once when the window opens.
 pub struct Shell {
-    ui: RimelightPersonalShell,
+    ui: AppWindow,
     todos: todos::Todos,
     habits: habits::Habits,
     watchlist: watchlist::Watchlist,
@@ -416,7 +416,7 @@ pub fn run(
     instance: InstanceConfig,
     about: About,
 ) -> Result<(), slint::PlatformError> {
-    let ui = RimelightPersonalShell::new()?;
+    let ui = AppWindow::new()?;
     let entries = nav_entries();
     let items: Vec<SidebarItem> = entries.iter().map(|entry| to_item(&ui, entry)).collect();
     ui.set_nav_items(ModelRc::new(VecModel::from(items)));
@@ -730,7 +730,7 @@ pub fn run(
 }
 
 /// The About overlay: the version, and the update check run on a worker thread (the check blocks on the network).
-fn wire_about(ui: &RimelightPersonalShell, about: About) {
+fn wire_about(ui: &AppWindow, about: About) {
     ui.set_about_version(about.version.into());
     ui.set_about_can_check(about.check.is_some());
     let Some(check) = about.check else { return };

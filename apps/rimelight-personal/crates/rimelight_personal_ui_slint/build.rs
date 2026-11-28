@@ -1,4 +1,4 @@
-// Compiles ui/main.slint, the app shell. Library paths let the markup import by name:
+// Compiles ui/app.slint, the app shell. Library paths let the markup import by name:
 // - `rimelight_design`: the design tokens (`@rimelight_design/tokens.slint`).
 // - `rimelight_ui`: the component library (`@rimelight_ui/components/...`).
 // - `rimelight_shell`: the shared shell components (`@rimelight_shell/components/...`).
@@ -54,6 +54,6 @@ fn main() {
     let config = slint_build::CompilerConfiguration::new()
         .with_library_paths(libraries)
         .with_debug_info(true);
-    slint_build::compile_with_config("ui/main.slint", config)
-        .expect("slint: ui/main.slint failed to compile");
+    slint_build::compile_with_config("ui/app.slint", config)
+        .expect("slint: ui/app.slint failed to compile");
 }

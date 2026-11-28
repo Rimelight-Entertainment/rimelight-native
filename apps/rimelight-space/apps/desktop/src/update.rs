@@ -9,7 +9,7 @@
 //! installed, so the updater is `None` and the gate lets it through.
 //!
 //! The feed is the website Worker route `/v1/releases/win/` (files in R2 under `space/releases/win/`). Next to Velopack's
-//! own files it carries `min-version.stable.txt`: one version line. `watch` re-checks it while the app runs, and an
+//! own files it carries `min-version.win.txt`: one version line. `watch` re-checks it while the app runs, and an
 //! installed copy below it updates and restarts at once (a backend change that old clients cannot work with).
 
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use rimelight_update::{Config, DEFAULT_WATCH_INTERVAL, Feed, Updater};
 /// The update feed. `RIMELIGHT_UPDATE_URL` overrides it (a local folder served over HTTP, or staging).
 const DEFAULT_FEED_URL: &str = "https://rimelight.com/v1/releases/win";
 /// The Velopack channel this build is packaged for (`vpk pack --channel`), and the channel of its minimum-version file.
-const CHANNEL: &str = "stable";
+const CHANNEL: &str = "win";
 
 // The start-up window: defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module.
 rimelight_update::update_window_gate!(space_update_slint::UpdateWindow, "Rimelight Space");

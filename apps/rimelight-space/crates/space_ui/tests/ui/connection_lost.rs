@@ -5,7 +5,7 @@
 
 use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, LogicalSize};
-use space_ui::slint_ui::{AppShell, ConnectionState, app_shell};
+use space_ui::slint_ui::{AppWindow, ConnectionState, app_shell};
 use space_ui::theme::ThemeMode;
 
 /// Sets the window size as a resize from the OS would, then runs the update that sets `phone` from the width.
@@ -16,18 +16,18 @@ fn resize(ui: &impl ComponentHandle, width: f32, height: f32) {
     slint::platform::update_timers_and_animations();
 }
 
-fn set_state(ui: &AppShell, state: ConnectionState) {
+fn set_state(ui: &AppWindow, state: ConnectionState) {
     ui.set_connection(state);
     slint::platform::update_timers_and_animations();
 }
 
 /// The overlay (with its "Connection lost" text) is drawn: visible and with a width.
-fn overlay_text_visible(ui: &AppShell) -> bool {
+fn overlay_text_visible(ui: &AppWindow) -> bool {
     ui.get_test_lost_overlay_drawn()
 }
 
 /// Clicks the centre of the quick action button: a press and a release, as a pointer does.
-fn click_quick_action(ui: &AppShell) {
+fn click_quick_action(ui: &AppWindow) {
     let at = LogicalPosition::new(
         ui.get_test_quick_x() + ui.get_test_quick_w() / 2.0,
         ui.get_test_quick_y() + ui.get_test_quick_h() / 2.0,

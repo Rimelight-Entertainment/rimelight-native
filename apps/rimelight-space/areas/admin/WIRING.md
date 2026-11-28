@@ -21,7 +21,7 @@ The area is moved, nothing was built (owner rule). The lead applies these edits,
 
 ## 3. Slint imports and exports
 
-`crates/space_ui/ui/app-shell.slint`, lines 65-68 become:
+`crates/space_ui/ui/app.slint`, lines 65-68 become:
 
 ```slint
 import { AdminUsersPage } from "@space_area_admin/users.slint";
@@ -42,7 +42,7 @@ export { RolePerson, AdminRolesState } from "@space_area_admin/roles.slint";
 export { AreaRow, TypeRow, AdminTypesTagsState } from "@space_area_admin/types-tags.slint";
 ```
 
-The route strings in app-shell.slint (`"/admin/users"` and so on) do not change.
+The route strings in app.slint (`"/admin/users"` and so on) do not change.
 
 ## 4. `crates/space_ui/src/slint_ui/app_shell.rs`
 
@@ -55,9 +55,9 @@ use space_area_admin::{organisation, roles, types_tags, users};
 Struct fields, lines 114-118, become (the types are the pages' `Page` structs, generic over the window):
 
 ```rust
-    pub admin_users: space_area_admin::users::Page<AppShell>,
-    pub admin_org: space_area_admin::organisation::Page<AppShell>,
-    pub admin_roles: space_area_admin::roles::Page<AppShell>,
+    pub admin_users: space_area_admin::users::Page<AppWindow>,
+    pub admin_org: space_area_admin::organisation::Page<AppWindow>,
+    pub admin_roles: space_area_admin::roles::Page<AppWindow>,
 ```
 
 Call sites, lines 1124-1127, become:
@@ -69,7 +69,7 @@ Call sites, lines 1124-1127, become:
     types_tags::wire(&ui, data.clone());
 ```
 
-(The old `users::wire(&ui, ...)` took `&AppShell`; the new one is generic, so the same expressions compile.)
+(The old `users::wire(&ui, ...)` took `&AppWindow`; the new one is generic, so the same expressions compile.)
 
 Line 1139-1140 (`SelectNav` wiring) stays. `organisation::wire` used to call `wire_nav` a second time; that call is gone from the page, so this line is the only one.
 
@@ -82,7 +82,7 @@ Put it right after the `wire_management!` block (around line 44). It must sit in
 ```rust
 // Admin area window glue (SP.3e): Users, Organisation, Roles and Types & tags (`space_area_admin`).
 space_area_admin::wire_admin!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     SelectOption,
     TableColumn,
@@ -102,7 +102,7 @@ space_area_admin::wire_admin!(
 
 Argument order matches the macro: window, `PageLoadState`, `SelectOption`, `TableColumn`, `TableRow`, `CalendarDay`, `AdminRow`, `AdminOrgState`, `AdminUserRow`, `AdminUsersState`, `AdminRolesState`, `RolePerson`, `AdminTypesTagsState`, `TypeRow`, `AreaRow`. All are exported from `main.slint` already.
 
-The macro also implements `AdminCompany` for `AppShell`, using the window's `employees-state`, `profile-state`, `teams-state`, `team-state`, `dept-state` and their `invoke_*_retry` methods (the same ones the old `refresh_company` called). Nothing else in `space_ui` needs `refresh_company` any more.
+The macro also implements `AdminCompany` for `AppWindow`, using the window's `employees-state`, `profile-state`, `teams-state`, `team-state`, `dept-state` and their `invoke_*_retry` methods (the same ones the old `refresh_company` called). Nothing else in `space_ui` needs `refresh_company` any more.
 
 ## 6. Tests: `crates/space_ui/tests/ui/admin.rs` (not edited, as instructed)
 
@@ -122,7 +122,7 @@ The page methods the tests call (`generation`, `write_generation`, `deliver`, `d
 ## Not resolved / check at the one build
 
 - Nothing compiled. The first build will show any slip in the new glue.
-- The window traits name methods `tab`, `areas`, `show_state`, `show_error`, `picked` and so on. If `AppShell` has an inherent method with one of those names, the inherent one wins and the trait impl will not be called. Rename the trait method if the build shows it.
+- The window traits name methods `tab`, `areas`, `show_state`, `show_error`, `picked` and so on. If `AppWindow` has an inherent method with one of those names, the inherent one wins and the trait impl will not be called. Rename the trait method if the build shows it.
 - `picker_glue!`, `load_glue!`, `table_glue!` and `calendar_glue!` are not used by name except through `load_glue!`, `picker_glue!` and `table_glue!` (inside `admin_glue`). `calendar_glue!` is not used at all: the admin macro maps `CalendarCell` to `CalendarDay` itself.
 - `rimelight_ui_kit` (toast) is now a dependency of `space_area_admin` (workspace dep, same as the company area).
 - The pages' markup (`areas/admin/ui/*.slint`) is unchanged except for comment paths. Its imports are all `@rimelight_*` library paths, so no sibling imports were needed.

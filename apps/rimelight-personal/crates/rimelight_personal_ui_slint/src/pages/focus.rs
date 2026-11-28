@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use rimelight_personal_feature_focus::{FocusController, FocusView, Mode};
 use slint::{ComponentHandle as _, Timer, TimerMode};
 
-use crate::generated::{FocusMode, FocusState, RimelightPersonalShell};
+use crate::generated::{FocusMode, FocusState, AppWindow};
 
 /// How often the timer wakes to advance the countdown. The elapsed time is measured from the clock, so this only sets
 /// how often the card redraws.
@@ -23,7 +23,7 @@ pub struct Focus {
 
 impl Focus {
     /// Connects `ui` to a new controller, starts the countdown and shows the starting view.
-    pub fn new(ui: &RimelightPersonalShell) -> Self {
+    pub fn new(ui: &AppWindow) -> Self {
         let weak = ui.as_weak();
         let controller = FocusController::new(move |view: FocusView| {
             // Runs on whichever thread changed the state. The view is plain data, so it can move to the event loop.
@@ -53,7 +53,7 @@ impl Focus {
 }
 
 /// Fills the FocusState properties from a view.
-fn show_view(ui: &RimelightPersonalShell, view: &FocusView) {
+fn show_view(ui: &AppWindow, view: &FocusView) {
     let state = ui.global::<FocusState>();
     state.set_mode(focus_mode(view.mode));
     state.set_time_text(view.time_text.as_str().into());
@@ -78,7 +78,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &FocusView) {
 }
 
 /// Connects the FocusState callbacks to the controller.
-fn wire(ui: &RimelightPersonalShell, controller: &FocusController) {
+fn wire(ui: &AppWindow, controller: &FocusController) {
     let state = ui.global::<FocusState>();
 
     let c = controller.clone();
@@ -129,7 +129,7 @@ pub(crate) mod tests {
     /// The card's controller is reachable from the glue, and a preset switch is what the card then shows.
     /// Run by `pages::tests::page_scenarios`, on the thread that installed the testing backend.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let focus = Focus::new(&ui);
         focus.controller().select_mode(Mode::ShortBreak);
         show_view(&ui, &focus.controller().view());

@@ -13,7 +13,7 @@ use rimelight_editor::{HostEvent, WebViewHost};
 use rimelight_platform::webview::WebViews;
 use slint::{ComponentHandle, Weak};
 
-use crate::slint_ui::{AppShell, ContentHomeState};
+use crate::slint_ui::{AppWindow, ContentHomeState};
 
 /// One web view's placement: the block key, the logical box, the window's scale and the URL it loads.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,7 +30,7 @@ pub struct Shot {
 /// The app's web views: the window it draws over, the native views, and the last placement of each block.
 pub struct WebHost {
     views: WebViews,
-    window: Weak<AppShell>,
+    window: Weak<AppWindow>,
     /// The last placement of each shown block, so its view comes back after a popup closes.
     placed: BTreeMap<String, Shot>,
     /// True while the views are hidden for a popup, until [`WebHost::tick`] shows them again.
@@ -38,7 +38,7 @@ pub struct WebHost {
 }
 
 impl WebHost {
-    pub fn new(window: Weak<AppShell>) -> Self {
+    pub fn new(window: Weak<AppWindow>) -> Self {
         Self {
             views: WebViews::new(),
             window,

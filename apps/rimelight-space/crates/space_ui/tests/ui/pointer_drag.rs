@@ -3,7 +3,7 @@
 //! a `tile-drag-*` or `workspace-drag-*` callback: every step is what an OS mouse sends, so the TabStrip's own press, move
 //! and release handling is part of what is tested. Positions come from the laid out elements, not from the model.
 //!
-//! Targets are read through the `test-*` geometry hooks of AppShell (app-shell.slint, components/tabs.slint and
+//! Targets are read through the `test-*` geometry hooks of AppWindow (app.slint, components/tabs.slint and
 //! components/quick-action.slint), not from the accessibility tree. Labels come from the `tile-groups` and `workspace-tabs`
 //! models.
 
@@ -12,7 +12,7 @@ use slint::{ComponentHandle as _, LogicalPosition, Model as _, SharedString};
 use space_nav::{Area, pages_in, parse};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, TileGroup};
+use space_ui::slint_ui::{AppWindow, TileGroup};
 use space_ui::theme::ThemeMode;
 
 const START: &str = "/home";
@@ -50,18 +50,18 @@ fn window() -> App {
     app
 }
 
-fn groups(ui: &AppShell) -> Vec<TileGroup> {
+fn groups(ui: &AppWindow) -> Vec<TileGroup> {
     ui.get_tile_groups().iter().collect()
 }
 
-fn group(ui: &AppShell, id: i32) -> TileGroup {
+fn group(ui: &AppWindow, id: i32) -> TileGroup {
     groups(ui)
         .into_iter()
         .find(|group| group.id == id)
         .unwrap_or_else(|| panic!("no group {id}"))
 }
 
-fn focused_group(ui: &AppShell) -> i32 {
+fn focused_group(ui: &AppWindow) -> i32 {
     groups(ui)
         .iter()
         .find(|g| g.focused)
@@ -87,7 +87,7 @@ fn centre_of(rect: Rect) -> LogicalPosition {
 }
 
 /// The page tab labelled `label`, as (row in `tile-groups`, tab index). The labels are read from the group models.
-fn page_tab_at(ui: &AppShell, label: &str) -> (i32, i32) {
+fn page_tab_at(ui: &AppWindow, label: &str) -> (i32, i32) {
     for (row, group) in groups(ui).iter().enumerate() {
         if let Some(index) = group
             .tabs
@@ -101,7 +101,7 @@ fn page_tab_at(ui: &AppShell, label: &str) -> (i32, i32) {
 }
 
 /// The rectangle of the page tab labelled `label`.
-fn page_tab(ui: &AppShell, label: &str) -> Rect {
+fn page_tab(ui: &AppWindow, label: &str) -> Rect {
     let (row, index) = page_tab_at(ui, label);
     Rect {
         x: ui.invoke_test_page_tab_x(row, index),
@@ -112,7 +112,7 @@ fn page_tab(ui: &AppShell, label: &str) -> Rect {
 }
 
 /// The workspace tab `index` (left to right, as the `workspace-tabs` model).
-fn workspace_tab(ui: &AppShell, index: i32) -> Rect {
+fn workspace_tab(ui: &AppWindow, index: i32) -> Rect {
     Rect {
         x: ui.invoke_test_ws_tab_x(index),
         y: ui.invoke_test_ws_y(),
@@ -122,14 +122,14 @@ fn workspace_tab(ui: &AppShell, index: i32) -> Rect {
 }
 
 /// The workspace tabs, left to right: one rectangle per entry of the `workspace-tabs` model.
-fn workspace_tabs(ui: &AppShell) -> Vec<Rect> {
+fn workspace_tabs(ui: &AppWindow) -> Vec<Rect> {
     (0..ui.get_workspace_tabs().row_count())
         .map(|index| workspace_tab(ui, index as i32))
         .collect()
 }
 
 /// The index in `tile-groups` of the group with `id`.
-fn group_row(ui: &AppShell, id: i32) -> i32 {
+fn group_row(ui: &AppWindow, id: i32) -> i32 {
     groups(ui)
         .iter()
         .position(|group| group.id == id)
@@ -137,7 +137,7 @@ fn group_row(ui: &AppShell, id: i32) -> i32 {
 }
 
 /// The window position of the top left corner of group `id`: the corner of its first tab (slot 0 starts at the strip's x).
-fn group_origin(ui: &AppShell, id: i32) -> LogicalPosition {
+fn group_origin(ui: &AppWindow, id: i32) -> LogicalPosition {
     let row = group_row(ui, id);
     LogicalPosition::new(
         ui.invoke_test_page_tab_x(row, 0),
@@ -146,25 +146,25 @@ fn group_origin(ui: &AppShell, id: i32) -> LogicalPosition {
 }
 
 /// A point inside group `id`, `dx` and `dy` from its top left corner in window px.
-fn in_group(ui: &AppShell, id: i32, dx: f32, dy: f32) -> LogicalPosition {
+fn in_group(ui: &AppWindow, id: i32, dx: f32, dy: f32) -> LogicalPosition {
     let o = group_origin(ui, id);
     LogicalPosition::new(o.x + dx, o.y + dy)
 }
 
 /// The right edge zone of group `id`: 2 px inside its right edge, halfway down the body.
-fn right_edge(ui: &AppShell, id: i32) -> LogicalPosition {
+fn right_edge(ui: &AppWindow, id: i32) -> LogicalPosition {
     let g = group(ui, id);
     in_group(ui, id, g.w - 2.0, g.h / 2.0)
 }
 
 // Real pointer events, as the OS delivers them to the window.
 
-fn pointer_move(ui: &AppShell, at: LogicalPosition) {
+fn pointer_move(ui: &AppWindow, at: LogicalPosition) {
     ui.window()
         .dispatch_event(WindowEvent::PointerMoved { position: at });
 }
 
-fn pointer_press(ui: &AppShell, at: LogicalPosition) {
+fn pointer_press(ui: &AppWindow, at: LogicalPosition) {
     pointer_move(ui, at);
     ui.window().dispatch_event(WindowEvent::PointerPressed {
         position: at,
@@ -172,7 +172,7 @@ fn pointer_press(ui: &AppShell, at: LogicalPosition) {
     });
 }
 
-fn pointer_release(ui: &AppShell, at: LogicalPosition) {
+fn pointer_release(ui: &AppWindow, at: LogicalPosition) {
     ui.window().dispatch_event(WindowEvent::PointerReleased {
         position: at,
         button: PointerEventButton::Left,
@@ -180,7 +180,7 @@ fn pointer_release(ui: &AppShell, at: LogicalPosition) {
     slint::platform::update_timers_and_animations();
 }
 
-fn key(ui: &AppShell, key: Key) {
+fn key(ui: &AppWindow, key: Key) {
     let text: SharedString = key.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -189,7 +189,7 @@ fn key(ui: &AppShell, key: Key) {
 }
 
 /// Presses the page tab `label`, then moves 10 px (past the 4 px threshold) and on to `target`, without a release.
-fn drag_tab(ui: &AppShell, label: &str, target: LogicalPosition) {
+fn drag_tab(ui: &AppWindow, label: &str, target: LogicalPosition) {
     let from = centre_of(page_tab(ui, label));
     pointer_press(ui, from);
     pointer_move(ui, LogicalPosition::new(from.x + 10.0, from.y));
@@ -197,7 +197,7 @@ fn drag_tab(ui: &AppShell, label: &str, target: LogicalPosition) {
 }
 
 /// Splits group 0 by dragging its tab `label` onto its right edge, with real pointer events, and releases.
-fn split_right_with_pointer(ui: &AppShell, label: &str) {
+fn split_right_with_pointer(ui: &AppWindow, label: &str) {
     let edge = right_edge(ui, 0);
     drag_tab(ui, label, edge);
     pointer_release(ui, edge);
@@ -378,8 +378,8 @@ fn advance(ms: u64) {
     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(ms));
 }
 
-/// The quick action button's window rectangle (test hooks of QuickAction, forwarded by AppShell).
-fn quick_button(ui: &AppShell) -> Rect {
+/// The quick action button's window rectangle (test hooks of QuickAction, forwarded by AppWindow).
+fn quick_button(ui: &AppWindow) -> Rect {
     Rect {
         x: ui.get_test_quick_x(),
         y: ui.get_test_quick_y(),
@@ -388,7 +388,7 @@ fn quick_button(ui: &AppShell) -> Rect {
     }
 }
 
-fn pinned_tab_title(ui: &AppShell, app: &App) -> String {
+fn pinned_tab_title(ui: &AppWindow, app: &App) -> String {
     let routes = home_routes();
     open_in_new_tab(app, routes[0]);
     open_in_new_tab(app, routes[1]);
@@ -530,7 +530,7 @@ pub fn quick_action_tooltip_does_not_return_after_a_menu_pick() {
 }
 
 /// The "New workspace" button's window rectangle (its x and width are read; the row gives its y and height).
-fn plus_button(ui: &AppShell) -> Rect {
+fn plus_button(ui: &AppWindow) -> Rect {
     Rect {
         x: ui.get_test_plus_x(),
         y: ui.invoke_test_ws_y(),
@@ -577,13 +577,13 @@ pub fn workspace_plus_button_follows_the_last_tab_and_pins_right_on_overflow() {
 }
 
 /// The centre of handle `index` in window px (the handle rows are in page area px, whose origin is group 0's corner).
-fn handle_centre(ui: &AppShell, index: usize) -> LogicalPosition {
+fn handle_centre(ui: &AppWindow, index: usize) -> LogicalPosition {
     let o = group_origin(ui, 0);
     let h = ui.get_tile_handles().row_data(index).expect("a handle");
     LogicalPosition::new(o.x + h.x + h.w / 2.0, o.y + h.y + h.h / 2.0)
 }
 
-fn two_groups(ui: &AppShell) -> (TileGroup, TileGroup) {
+fn two_groups(ui: &AppWindow) -> (TileGroup, TileGroup) {
     let all = groups(ui);
     assert_eq!(all.len(), 2, "two groups");
     (all[0].clone(), all[1].clone())

@@ -11,7 +11,7 @@ use rimelight_personal_feature_projects::{ProjectsApi, ProjectsController, Proje
 use rimelight_ui_kit::board::drop_column;
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{BoardItem, BoardLane, ProjectBoardTab, ProjectsState};
 
 pub struct Projects {
@@ -20,7 +20,7 @@ pub struct Projects {
 
 impl Projects {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Projects::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn ProjectsApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn ProjectsApi>) -> Self {
         let weak = ui.as_weak();
         let controller = ProjectsController::new(api, move |view: ProjectsView| {
             let _ = weak.upgrade_in_event_loop(move |ui| show_view(&ui, &view));
@@ -35,7 +35,7 @@ impl Projects {
     }
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &ProjectsView) {
+fn show_view(ui: &AppWindow, view: &ProjectsView) {
     let state = ui.global::<ProjectsState>();
     let boards: Vec<ProjectBoardTab> = view
         .boards
@@ -74,7 +74,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &ProjectsView) {
     state.set_error(view.error.clone().unwrap_or_default().into());
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &ProjectsController) {
+fn wire(ui: &AppWindow, controller: &ProjectsController) {
     let state = ui.global::<ProjectsState>();
 
     let c = controller.clone();

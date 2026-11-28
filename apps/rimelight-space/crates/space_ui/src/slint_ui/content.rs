@@ -17,12 +17,12 @@ use space_area_content::{collections, home, media, review};
 use space_page_kit::page_data::DataCell;
 use space_page_kit::projects;
 
-use crate::slint_ui::AppShell;
+use crate::slint_ui::AppWindow;
 use crate::slint_ui::block_editor::{BlockEditorBinding, bind_block_editor};
 use crate::slint_ui::webviews::WebHost;
 use slint::ComponentHandle as _;
 
-// wire_content! is expanded in space_ui_slint, where AppShell is generated (orphan rule), as the other areas do.
+// wire_content! is expanded in space_ui_slint, where AppWindow is generated (orphan rule), as the other areas do.
 
 /// The editor binding over the window's `EditorBridge`. The page's controller and host callback bind each time a page opens:
 /// one editor is live per window, and the newest binding takes over its callbacks (the editor's README).
@@ -48,7 +48,7 @@ impl EditorHandle for Detached {
 }
 
 /// The editor binder of the content page: binds the controller to the window's editor.
-fn editor_binder(window: slint::Weak<AppShell>) -> EditorBinder {
+fn editor_binder(window: slint::Weak<AppWindow>) -> EditorBinder {
     Box::new(
         move |controller: Rc<RefCell<EditorController>>,
               on_host: Box<dyn Fn(HostEvent)>|
@@ -103,7 +103,7 @@ fn review_scopes() -> Vec<(Scope, String)> {
 
 /// Wires the content page the route names onto the window, and loads it. The shell calls it when a content page reports
 /// `content-opened`. Routes that are not content pages do nothing.
-pub fn open(ui: &AppShell, cx: &Context, route: &str) {
+pub fn open(ui: &AppWindow, cx: &Context, route: &str) {
     let Some(parsed) = routes::parse(route) else {
         return;
     };

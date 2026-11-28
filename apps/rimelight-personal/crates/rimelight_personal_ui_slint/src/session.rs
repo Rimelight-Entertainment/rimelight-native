@@ -21,7 +21,7 @@ use rimelight_personal_core::auth::{Auth, SessionStore};
 use rimelight_personal_core::{ApiClient, InstanceConfig};
 use slint::ComponentHandle as _;
 
-use crate::generated::{ConnectionState, RimelightPersonalShell, Session, SessionPhase};
+use crate::generated::{ConnectionState, AppWindow, Session, SessionPhase};
 
 /// How often the server is checked while signed in and connected, in seconds.
 const CHECK_CONNECTED: u64 = 10;
@@ -34,7 +34,7 @@ thread_local! {
 }
 
 /// Connects the sign-in screen to the Access session and starts it. Returns the session for the API client.
-pub fn wire(ui: &RimelightPersonalShell, instance: InstanceConfig) -> Arc<Auth> {
+pub fn wire(ui: &AppWindow, instance: InstanceConfig) -> Arc<Auth> {
     let auth = Arc::new(Auth::new(default_store(), instance));
     // Load the saved token before any page asks for data, so the first requests already carry it. A store that cannot
     // be read leaves the user signed out here; `decide` reports the same result again after the server check.
@@ -115,7 +115,7 @@ fn default_store() -> Arc<dyn SessionStore> {
 
 /// Sets the first state: asks whether the server answers, then decides between signed in and signed out (or shows the
 /// unreachable screen). Also the unreachable screen's Retry and its timer.
-fn start(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
+fn start(ui: &AppWindow, auth: &Arc<Auth>) {
     let session = ui.global::<Session>();
     session.set_error("".into());
     // The unreachable screen keeps showing while it retries; every other start shows the loading spinner.
@@ -137,7 +137,7 @@ fn start(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
 
 /// The server answered: a stored token that is still valid signs the user in without a browser (desktop); on the web the
 /// API says whether the browser's Access cookie is accepted.
-fn decide(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
+fn decide(ui: &AppWindow, auth: &Arc<Auth>) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         // A store that cannot be read counts as signed out; the next sign-in reports its error.
@@ -175,7 +175,7 @@ fn decide(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
 /// The periodic check. A tick every second counts up to the interval of the state the window shows: the unreachable screen
 /// and a lost connection check often, a connected app rarely. Nothing is checked on the sign-in button or while loading
 /// or waiting (the sign-in itself reports a network failure).
-fn start_timer(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
+fn start_timer(ui: &AppWindow, auth: &Arc<Auth>) {
     let weak = ui.as_weak();
     let auth = auth.clone();
     let mut seconds = 0u64;
@@ -224,7 +224,7 @@ fn start_timer(ui: &RimelightPersonalShell, auth: &Arc<Auth>) {
 }
 
 /// Starts the sign-in: the screen shows "finish signing in in your browser" until the flow finishes or is cancelled.
-fn begin_sign_in(ui: &RimelightPersonalShell, auth: Arc<Auth>) {
+fn begin_sign_in(ui: &AppWindow, auth: Arc<Auth>) {
     let session = ui.global::<Session>();
     session.set_error("".into());
     session.set_phase(SessionPhase::Waiting);
@@ -261,7 +261,7 @@ fn begin_sign_in(ui: &RimelightPersonalShell, auth: Arc<Auth>) {
 /// again, so cancelling really leaves the app signed out.
 #[cfg(not(target_arch = "wasm32"))]
 fn finish_sign_in(
-    ui: &RimelightPersonalShell,
+    ui: &AppWindow,
     auth: &Arc<Auth>,
     result: Result<(), rimelight_personal_core::auth::AuthError>,
 ) {

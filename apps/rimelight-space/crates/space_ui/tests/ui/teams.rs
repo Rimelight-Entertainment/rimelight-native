@@ -109,7 +109,7 @@ fn cells(rows: &slint::ModelRc<space_ui::slint_ui::TableRow>, i: usize) -> Vec<S
 }
 
 /// The names of the org chart rows on show, in order.
-fn org_names(ui: &space_ui::slint_ui::AppShell) -> Vec<String> {
+fn org_names(ui: &space_ui::slint_ui::AppWindow) -> Vec<String> {
     let rows = ui.get_teams_org_rows();
     (0..rows.row_count())
         .map(|i| rows.row_data(i).expect("row").name.to_string())

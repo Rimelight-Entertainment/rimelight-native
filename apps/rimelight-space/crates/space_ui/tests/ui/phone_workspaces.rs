@@ -9,7 +9,7 @@
 
 use slint::platform::{Key, WindowEvent};
 use slint::{ComponentHandle, LogicalSize, Model as _, SharedString};
-use space_ui::slint_ui::AppShell;
+use space_ui::slint_ui::AppWindow;
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::theme::ThemeMode;
 
@@ -17,7 +17,7 @@ use space_ui::theme::ThemeMode;
 const START: &str = "/home";
 
 /// Sets the window size as a resize from the OS would, then runs the update that sets `phone` from the width.
-fn resize(ui: &AppShell, width: f32, height: f32) {
+fn resize(ui: &AppWindow, width: f32, height: f32) {
     let size = LogicalSize::new(width, height);
     ui.window().set_size(size);
     ui.window().dispatch_event(WindowEvent::Resized { size });
@@ -25,7 +25,7 @@ fn resize(ui: &AppShell, width: f32, height: f32) {
 }
 
 /// One key press and release, as an OS key event would deliver them.
-fn press(ui: &AppShell, text: impl Into<SharedString>) {
+fn press(ui: &AppWindow, text: impl Into<SharedString>) {
     let text: SharedString = text.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -34,19 +34,19 @@ fn press(ui: &AppShell, text: impl Into<SharedString>) {
 }
 
 /// Holds a modifier key down, as the OS does while another key is pressed.
-fn hold(ui: &AppShell, key: Key) {
+fn hold(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: key.into() });
 }
 
 /// Lets go of a modifier key.
-fn release(ui: &AppShell, key: Key) {
+fn release(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyReleased { text: key.into() });
 }
 
 /// Ctrl+Alt+`key` (Cmd+Option+`key` on macOS), with the modifiers held as the OS holds them.
-fn chord(ui: &AppShell, key: &str) {
+fn chord(ui: &AppWindow, key: &str) {
     let modifier = if cfg!(target_os = "macos") {
         Key::Meta
     } else {
@@ -60,12 +60,12 @@ fn chord(ui: &AppShell, key: &str) {
 }
 
 /// The number of open workspaces, as the window's model holds them.
-fn workspace_count(ui: &AppShell) -> usize {
+fn workspace_count(ui: &AppWindow) -> usize {
     ui.get_workspace_tabs().row_count()
 }
 
 /// The name of workspace `index` as the sheet shows it.
-fn workspace_name(ui: &AppShell, index: usize) -> String {
+fn workspace_name(ui: &AppWindow, index: usize) -> String {
     ui.get_workspace_tabs()
         .row_data(index)
         .expect("the workspace is open")
@@ -209,7 +209,7 @@ pub fn web_hides_the_strip_and_reaches_the_switcher_with_two_workspaces() {
 }
 
 /// The sheet row menu's rows as the window holds them (labels; a separator is an empty label).
-fn sheet_menu_labels(ui: &AppShell) -> Vec<String> {
+fn sheet_menu_labels(ui: &AppWindow) -> Vec<String> {
     ui.get_open_workspace_menu()
         .iter()
         .map(|item| item.label.to_string())

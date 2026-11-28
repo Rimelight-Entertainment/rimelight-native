@@ -21,13 +21,13 @@ use slint::{
     TimerMode, VecModel,
 };
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{
     SelectOption, StorageCrumb, StorageFileRow, StorageFolderCard, StorageFolderRow,
     StorageInspector, StorageState,
 };
 
-rimelight_ui_kit::wire_clipboard!(crate::RimelightPersonalShell);
+rimelight_ui_kit::wire_clipboard!(crate::AppWindow);
 
 /// How long the "copied" mark stays on a file card.
 const COPIED_FOR: Duration = Duration::from_secs(2);
@@ -38,7 +38,7 @@ pub struct Storage {
 
 impl Storage {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Storage::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn StorageApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn StorageApi>) -> Self {
         // The notify closure is built before the controller exists, so it reads the controller from this slot. The
         // slot is filled right after construction; the first view is only ever sent by a call made after that.
         let slot: Arc<OnceLock<StorageController>> = Arc::new(OnceLock::new());
@@ -83,7 +83,7 @@ fn to_image(thumb: &Thumb) -> Image {
 }
 
 fn show_view(
-    ui: &RimelightPersonalShell,
+    ui: &AppWindow,
     controller: Option<&StorageController>,
     view: &StorageView,
 ) {
@@ -204,7 +204,7 @@ fn show_view(
     }
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &StorageController) {
+fn wire(ui: &AppWindow, controller: &StorageController) {
     let state = ui.global::<StorageState>();
 
     let c = controller.clone();

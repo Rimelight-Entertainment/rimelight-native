@@ -1,4 +1,4 @@
-//! The Rimelight Personal app shell: the one Slint window (`ui/main.slint`) that the desktop and web apps open, the nav routes
+//! The Rimelight Personal app shell: the one Slint window (`ui/app.slint`) that the desktop and web apps open, the nav routes
 //! from `rimelight_personal_nav`, and the glue that connects each page's controller to its markup.
 //!
 //! Each page owns three files (crates/features/README.md, "Wiring into rimelight_personal_ui_slint"): its markup under
@@ -19,4 +19,4 @@ mod generated {
     slint::include_modules!();
 }
 
-pub use generated::{RimelightPersonalShell, SidebarItem, SidebarKind, ThemeChoice, Tokens};
+pub use generated::{AppWindow, SidebarItem, SidebarKind, ThemeChoice, Tokens};

@@ -63,7 +63,7 @@ jobs:
           ls -l "$out"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*.nupkg"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "*-Setup.exe" --include "*-Portable.zip"
-          aws s3 cp "$out/min-version.stable.txt" "$dest/min-version.stable.txt" --endpoint-url "$endpoint"
+          aws s3 cp "$out/min-version.win.txt" "$dest/min-version.win.txt" --endpoint-url "$endpoint"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "assets.*.json" --include "RELEASES-*"
           aws s3 sync "$out" "$dest" --endpoint-url "$endpoint" --exclude "*" --include "releases.*.json"
       - name: Attach the installer to a GitHub Release (download and notes only; updates come from R2)

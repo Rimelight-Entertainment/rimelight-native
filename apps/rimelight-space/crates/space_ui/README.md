@@ -34,7 +34,7 @@ The shared components moved to the `rimelight_ui` crate in rimelight-rs (ST2.3):
 Space keeps these pieces until ST2.4 and ST2.5 move them (the shell, the app glue and the rules that know about Space):
 
 - Shell, in rimelight-rs `crates/rimelight_shell` since ST2.5a (`@rimelight_shell/components/...`): `rail`, `sidebar`, `tab-bar`, `split-pane`, `status-bar`, `command-palette`, `more-drawer`, `quick-action`, `connection-state`, `shortcuts-dialog`, and `about.slint`.
-- Still in Space (`ui/components/`): `issue-card`, `kanban-board`, `kanban-column`. The account menu and sign-in screen moved to `rimelight_shell` (ST2.5b). In `ui/`: `app-shell.slint` and `main.slint`.
+- Still in Space (`ui/components/`): `issue-card`, `kanban-board`, `kanban-column`. The account menu and sign-in screen moved to `rimelight_shell` (ST2.5b). In `ui/`: `app.slint` and `main.slint`.
 - Space's own work surfaces (`ui/components/`): `issue-card`, `kanban-board` and `kanban-column`.
 - Area pages live in the `areas/*` crates (`space_area_*`). Space's app stories for the shared gallery are in `ui/stories/` (`stories.txt` and `stories.slint`, the `AppStories` component). The gallery window and the design system's stories are in rimelight-rs, not here.
 

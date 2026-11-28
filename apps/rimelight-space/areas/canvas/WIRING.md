@@ -67,7 +67,7 @@ Add to the `with_library_paths(HashMap::from([...]))` list, after the `space_are
 ),
 ```
 
-### 4. `crates/space_ui/ui/app-shell.slint`
+### 4. `crates/space_ui/ui/app.slint`
 
 ```
 -import { CanvasPage } from "pages/canvas/canvas.slint";
@@ -99,7 +99,7 @@ After the `wire_admin!` invocation (the crate that generates the types):
 ```rust
 // Canvas area window glue: the canvas page, its pop-out window and the canvas lists (`space_area_canvas`).
 space_area_canvas::wire_canvas!(
-    AppShell,
+    AppWindow,
     CanvasPopout,
     PageLoadState,
     CanvasState,
@@ -134,9 +134,9 @@ Argument types in order: the main window, `CanvasPopout`, `PageLoadState`, `Canv
 +use space_area_canvas::page::{self as canvas_page, CanvasPage};
 ```
 
-- Line 109: `pub canvas_list: CanvasList,` becomes `pub canvas_list: CanvasList<AppShell>,`.
+- Line 109: `pub canvas_list: CanvasList,` becomes `pub canvas_list: CanvasList<AppWindow>,`.
 - Lines 1119 and 1120 (`canvas_page::wire(&ui, data.clone())`, `canvas_list::wire(&ui, data.clone())`) are unchanged: both are
-  generic over the window and infer `AppShell`.
+  generic over the window and infer `AppWindow`.
 - Lines 2022 and 2023 (`canvas_page::canvas_id_of`, `canvas_list::list_scope_of`) are unchanged.
 - `CanvasPage` keeps `deliver_live`, `sent_ops`, `set_image`, `add_assets_for_test`; `CanvasList<W>` keeps `generation` and
   `deliver`.
@@ -158,12 +158,12 @@ Remove the line `pub mod canvas;` (the directory no longer exists). Not edited, 
 ### 10. Tests in `crates/space_ui/tests/ui/`
 
 `tests/ui/canvas.rs` and `tests/ui/main.rs` use `space_ui::pages::canvas::{page, list}` (`CanvasPage`, `CanvasList`,
-`canvas_page::wire`). Repoint them to `space_area_canvas::{page, list}`; the types are `CanvasPage` and `CanvasList<AppShell>`.
+`canvas_page::wire`). Repoint them to `space_area_canvas::{page, list}`; the types are `CanvasPage` and `CanvasList<AppWindow>`.
 
 ## Unresolved / to look at in the one build pass
 
 - Nothing compiled. Likely spots if something fails: the `__canvas_state_table!` macro chain in `window.rs` (trait and impl are
-  generated from one table; `lib.rs` `wire_canvas!` expands it for `AppShell` and `CanvasPopout`), the `Ui::fetch` type erasure
+  generated from one table; `lib.rs` `wire_canvas!` expands it for `AppWindow` and `CanvasPopout`), the `Ui::fetch` type erasure
   (`window.rs`), and `Weak<W>` being `Send` for `WeakWindow<W>` (`Mutex<Weak<W>>` inside an `Arc<dyn UiBackend>`).
 - `popout::window()` now returns `Option<Rc<dyn PopoutDyn>>` (was a weak `CanvasPopout`); nothing in the repo used it.
 - `popout_platform` is a process-global registry; the desktop app installs it at startup (item 8).

@@ -263,7 +263,7 @@ macro_rules! __canvas_state_models {
 #[macro_export]
 macro_rules! wire_canvas {
     (
-        $AppShell:ident, $CanvasPopout:ident, $PageLoadState:ident, $CanvasState:ident, $CanvasItemView:ident,
+        $AppWindow:ident, $CanvasPopout:ident, $PageLoadState:ident, $CanvasState:ident, $CanvasItemView:ident,
         $CanvasGuide:ident, $CanvasMenuPanel:ident, $CanvasMenuRow:ident, $CanvasHierarchyRow:ident,
         $CanvasPeer:ident, $CanvasPeerBox:ident, $CanvasVideoControl:ident, $CanvasAssetRow:ident,
         $CanvasWindowItem:ident, $CanvasListState:ident, $TableColumn:ident, $TableRow:ident,
@@ -383,12 +383,12 @@ macro_rules! wire_canvas {
         }
 
         // The page's `CanvasState` properties and callbacks, for the main window and for the pop-out window.
-        $crate::__canvas_state_table!(__canvas_state_impl [$AppShell, $CanvasState,]);
+        $crate::__canvas_state_table!(__canvas_state_impl [$AppWindow, $CanvasState,]);
         $crate::__canvas_state_table!(__canvas_state_impl [$CanvasPopout, $CanvasState,]);
 
         // The page's models, for both windows.
         $crate::__canvas_state_models!(
-            $AppShell, $CanvasState, $CanvasGuide, $CanvasMenuPanel, $CanvasMenuRow, $CanvasHierarchyRow,
+            $AppWindow, $CanvasState, $CanvasGuide, $CanvasMenuPanel, $CanvasMenuRow, $CanvasHierarchyRow,
             $CanvasPeer, $CanvasPeerBox, $CanvasVideoControl, $CanvasAssetRow, $CanvasWindowItem
         );
         $crate::__canvas_state_models!(
@@ -396,15 +396,15 @@ macro_rules! wire_canvas {
             $CanvasPeer, $CanvasPeerBox, $CanvasVideoControl, $CanvasAssetRow, $CanvasWindowItem
         );
 
-        impl $crate::window::CanvasWindow for $AppShell {
+        impl $crate::window::CanvasWindow for $AppWindow {
             type Popout = $CanvasPopout;
 
             fn canvas_open_route(&self, route: &str) {
-                <$AppShell>::invoke_canvas_open_route(self, route.into());
+                <$AppWindow>::invoke_canvas_open_route(self, route.into());
             }
 
             fn canvas_close_tab(&self) {
-                <$AppShell>::invoke_canvas_close_tab(self);
+                <$AppWindow>::invoke_canvas_close_tab(self);
             }
 
             fn new_items(&self) -> ::std::rc::Rc<dyn $crate::window::ItemsModel> {
@@ -474,9 +474,9 @@ macro_rules! wire_canvas {
             }
         }
 
-        impl $crate::window::CanvasListWindow for $AppShell {
+        impl $crate::window::CanvasListWindow for $AppWindow {
             fn canvas_open_route(&self, route: &str) {
-                <$AppShell>::invoke_canvas_open_route(self, route.into());
+                <$AppWindow>::invoke_canvas_open_route(self, route.into());
             }
 
             fn init_models(&self, role_options: Vec<$crate::window::ListChoice>) {

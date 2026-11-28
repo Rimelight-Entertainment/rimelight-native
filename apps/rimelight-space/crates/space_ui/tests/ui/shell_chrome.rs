@@ -51,7 +51,7 @@ pub fn sf4_top_bar_status_bar_and_sidebar_sections_headless() {
         ],
         "the profile menu has the Profile, About, Give Feedback, Report Issue, Settings and Sign out rows"
     );
-    // The profile popover is 400px tall with 8px of padding on each side (see app-shell.slint), so the menu must fit in 384px.
+    // The profile popover is 400px tall with 8px of padding on each side (see app.slint), so the menu must fit in 384px.
     assert!(
         form.get_content_height() <= 384.0,
         "the profile menu content ({}px) fits the 400px popover",

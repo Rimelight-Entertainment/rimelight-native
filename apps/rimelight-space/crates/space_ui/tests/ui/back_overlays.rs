@@ -9,7 +9,7 @@ use slint::{ComponentHandle, LogicalSize, Model as _, ModelRc, SharedString, Vec
 use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, JobItem};
+use space_ui::slint_ui::{AppWindow, JobItem};
 use space_ui::theme::ThemeMode;
 
 /// The start route of every test.
@@ -45,7 +45,7 @@ fn back(ui: &impl ComponentHandle) {
 }
 
 /// A phone-sized window (below the phone breakpoint).
-fn to_phone(ui: &AppShell) {
+fn to_phone(ui: &AppWindow) {
     let size = LogicalSize::new(390.0, 844.0);
     ui.window().set_size(size);
     ui.window().dispatch_event(WindowEvent::Resized { size });
@@ -68,7 +68,7 @@ fn home_pages() -> Vec<(String, &'static str)> {
 }
 
 /// A sidebar row pick of the Home page `route`, as the sidebar's row click does (its index in the Home rows).
-fn pick_home_row(ui: &AppShell, route: &str) {
+fn pick_home_row(ui: &AppWindow, route: &str) {
     let row = sidebar_entries(Area::Home)
         .iter()
         .position(|entry| entry.route.as_deref() == Some(route))
@@ -94,7 +94,7 @@ fn assert_back_closes_without_history(
     app: &App,
     route: &str,
     what: &str,
-    closed: impl Fn(&AppShell) -> bool,
+    closed: impl Fn(&AppWindow) -> bool,
 ) {
     let ui = &app.ui;
     assert!(!closed(ui), "{what} is open before Back");
@@ -353,7 +353,7 @@ pub fn back_with_nothing_open_steps_history_then_is_not_accepted() {
 }
 
 /// The right press on the first page tab of the focused group: the strip's context request, then its menu opens.
-fn right_click_first_tab(ui: &AppShell) {
+fn right_click_first_tab(ui: &AppWindow) {
     let group = ui
         .get_tile_groups()
         .iter()

@@ -1,5 +1,5 @@
 //! `cargo xtask release pack`: builds the desktop app in release mode and packages it with Velopack's `vpk` (REL.2, decision
-//! 0047). The output folder holds the installer (`RimelightSpace-stable-Setup.exe`), the full and delta packages and the
+//! 0047). The output folder holds the installer (`RimelightSpace-win-Setup.exe`), the full and delta packages and the
 //! feed files, ready to upload to `space/releases/win/` in R2 (the release workflow does that).
 //!
 //! Windows only. It needs `vpk` on the PATH, at the version pinned in `VPK_VERSION` (the workflow installs it with
@@ -17,7 +17,7 @@ const VPK_VERSION: &str = "1.3.39-g8d2844f";
 const PACK_ID: &str = "RimelightSpace";
 const TITLE: &str = "Rimelight Space";
 const AUTHORS: &str = "Rimelight Entertainment";
-const CHANNEL: &str = "stable";
+const CHANNEL: &str = "win";
 const MAIN_EXE: &str = "space_desktop.exe";
 /// Where the installed copies read the feed (apps/desktop/src/update.rs). `pack` downloads the previous releases from here
 /// so `vpk` can build delta packages.
@@ -196,6 +196,13 @@ fn pack(args: &[&str]) -> Result<(), String> {
         // Velopack makes the Start menu shortcut (in the author's folder) and the Desktop shortcut.
         .args(["--shortcuts", "Desktop,StartMenu"])
         .args(["--channel", CHANNEL])
+        .arg("--icon")
+        .arg(
+            repo_root()
+                .join("assets")
+                .join("logo")
+                .join("logo_color.ico"),
+        )
         .arg("--packDir")
         .arg(&stage)
         .arg("--outputDir")

@@ -22,12 +22,12 @@ pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 /// The arguments are the generated types, in this order: the window, `PageLoadState`, `SelectOption`, `MultiOption`,
 /// `CalendarDay`, `IssueRow`, `BoardChip`, `BoardItem`, `BoardLane`, `OverviewCountRow`, `OverviewAreaRow`, then the issue
 /// page's `AreaChip`, `IssueDetailView`, `IssueRef`, `LinkRow`, `CommentRow`, `WorkRow`, `AttachmentRow`, `AttachmentItem`
-/// and `ImageViewerItem`, and last the path of the app's clipboard function `fn(&AppShell, &str, impl FnOnce(bool) + 'static)`
+/// and `ImageViewerItem`, and last the path of the app's clipboard function `fn(&AppWindow, &str, impl FnOnce(bool) + 'static)`
 /// (the issue page's copy link).
 #[macro_export]
 macro_rules! wire_projects {
     (
-        $AppShell:ident, $PageLoadState:ident, $SelectOption:ident, $MultiOption:ident, $CalendarDay:ident,
+        $AppWindow:ident, $PageLoadState:ident, $SelectOption:ident, $MultiOption:ident, $CalendarDay:ident,
         $IssueRow:ident, $BoardChip:ident, $BoardItem:ident, $BoardLane:ident, $OverviewCountRow:ident,
         $OverviewAreaRow:ident, $AreaChip:ident, $IssueDetailView:ident, $IssueRef:ident, $LinkRow:ident,
         $CommentRow:ident, $WorkRow:ident, $AttachmentRow:ident, $AttachmentItem:ident,
@@ -84,7 +84,7 @@ macro_rules! wire_projects {
             }
         }
 
-        impl $crate::new_sprint::NewSprintWindow for $AppShell {
+        impl $crate::new_sprint::NewSprintWindow for $AppWindow {
             fn route(&self) -> String {
                 self.get_page_route().to_string()
             }
@@ -182,7 +182,7 @@ macro_rules! wire_projects {
             }
         }
 
-        impl $crate::overview::OverviewWindow for $AppShell {
+        impl $crate::overview::OverviewWindow for $AppWindow {
             fn show_state(&self, state: $crate::space_page_kit::load::LoadState) {
                 self.set_overview_state(projects_glue::load_state(state));
             }
@@ -266,7 +266,7 @@ macro_rules! wire_projects {
             }
         }
 
-        impl $crate::issues::IssuesWindow for $AppShell {
+        impl $crate::issues::IssuesWindow for $AppWindow {
             fn query(&self) -> String {
                 self.get_issues_query().to_string()
             }
@@ -386,7 +386,7 @@ macro_rules! wire_projects {
             }
         }
 
-        impl $crate::new_issue::NewIssueWindow for $AppShell {
+        impl $crate::new_issue::NewIssueWindow for $AppWindow {
             fn route(&self) -> String {
                 self.get_page_route().to_string()
             }
@@ -552,7 +552,7 @@ macro_rules! wire_projects {
             }
         }
 
-        impl $crate::issue::IssueWindow for $AppShell {
+        impl $crate::issue::IssueWindow for $AppWindow {
             fn issue_user_id(&self) -> String {
                 self.get_user_id().to_string()
             }

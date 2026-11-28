@@ -12,7 +12,7 @@ use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::history::link_for;
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, TileGroup};
+use space_ui::slint_ui::{AppWindow, TileGroup};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its workspace is the first one.
@@ -51,12 +51,12 @@ fn pick_on_tab(app: &App, id: i32, index: i32, item: &str) {
 }
 
 /// The tile groups of the active workspace, in model order.
-fn groups(ui: &AppShell) -> Vec<TileGroup> {
+fn groups(ui: &AppWindow) -> Vec<TileGroup> {
     ui.get_tile_groups().iter().collect()
 }
 
 /// The id of the focused group.
-fn focused_id(ui: &AppShell) -> i32 {
+fn focused_id(ui: &AppWindow) -> i32 {
     groups(ui)
         .iter()
         .find(|group| group.focused)
@@ -118,7 +118,7 @@ fn three_groups() -> App {
 }
 
 /// Each group of the model is a pane with its own page tabs and title. The pane count is the group count.
-fn check_panes(ui: &AppShell) -> Vec<TileGroup> {
+fn check_panes(ui: &AppWindow) -> Vec<TileGroup> {
     settle();
     let model = groups(ui);
     assert_eq!(model.len(), 3, "one pane per group");

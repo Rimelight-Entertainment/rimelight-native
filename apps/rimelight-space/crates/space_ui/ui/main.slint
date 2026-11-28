@@ -69,7 +69,7 @@ export { ColorHex } from "@rimelight_ui/components/color-picker.slint";
 // Action components (S3) are not exported here: Slint generates Rust only for exported Windows.
 // Feature markup imports them from "ui/components/*.slint"; the S3 tests import them into their own test window.
 // App shell (S9.4): the window apps/desktop opens. Its Rust side is src/slint_ui/app_shell.rs.
-export { AppShell } from "app-shell.slint";
+export { AppWindow } from "app.slint";
 // Content area (CMS.6): the page globals and the structs their Rust side fills (space_area_content). TabItem is renamed
 // ContentTabItem here, as the company tabs own TabItem.
 export { ContentHomeState } from "@space_area_content/home.slint";

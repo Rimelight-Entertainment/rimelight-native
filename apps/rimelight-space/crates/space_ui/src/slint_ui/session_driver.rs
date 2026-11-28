@@ -42,7 +42,7 @@ use space_client::web_signin;
 use super::app_shell::App;
 use super::session::{SignInProblem, sign_in_error_text};
 use super::{AdminOrgState, AdminRolesState, AdminUsersState, HomeState, LocationsState};
-use super::{AppShell, ConnectionState, SessionPhase};
+use super::{AppWindow, ConnectionState, SessionPhase};
 use space_page_kit::page_data::DataSource;
 use space_page_kit::person::initials;
 use space_page_kit::task::spawn_task;
@@ -216,7 +216,7 @@ fn wire(
 fn return_handler(
     api: Arc<ApiClient>,
     store: Arc<dyn SessionStore>,
-    weak: Weak<AppShell>,
+    weak: Weak<AppWindow>,
     dir: PathBuf,
 ) -> ReturnHandler {
     Box::new(move |url: &str| {
@@ -237,7 +237,7 @@ fn return_handler(
 
 /// Sends an update to the window. Native: from any thread, dropped when the window is gone. Web: already on the UI thread.
 #[cfg(not(target_arch = "wasm32"))]
-fn post(weak: &Weak<AppShell>, update: Update) {
+fn post(weak: &Weak<AppWindow>, update: Update) {
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(ui) = weak.upgrade() {
@@ -247,14 +247,14 @@ fn post(weak: &Weak<AppShell>, update: Update) {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn post(weak: &Weak<AppShell>, update: Update) {
+fn post(weak: &Weak<AppWindow>, update: Update) {
     if let Some(ui) = weak.upgrade() {
         apply(&ui, update);
     }
 }
 
 /// Applies an update. Runs on the UI thread only.
-fn apply(ui: &AppShell, update: Update) {
+fn apply(ui: &AppWindow, update: Update) {
     match update {
         Update::SignedOut(problem) => {
             let text = problem.map(|p| sign_in_error_text(&p)).unwrap_or_default();
@@ -295,7 +295,7 @@ fn apply(ui: &AppShell, update: Update) {
 }
 
 /// Asks every page that loads from the server to load again. Runs after sign-in and when the connection returns.
-fn reload_pages(ui: &AppShell) {
+fn reload_pages(ui: &AppWindow) {
     // A page that failed without a session (or opened before one) asks again now that there is one (SP.3b).
     // The Dashboard loads both of its cards again (S2).
     ui.global::<HomeState>().invoke_opened();
@@ -323,7 +323,7 @@ fn reload_pages(ui: &AppShell) {
 async fn startup(
     api: &ApiClient,
     store: &dyn SessionStore,
-    weak: &Weak<AppShell>,
+    weak: &Weak<AppWindow>,
     launch: Option<(PathBuf, String)>,
 ) {
     #[cfg(target_arch = "wasm32")]
@@ -345,7 +345,7 @@ async fn startup(
 }
 
 /// Shows the state `restore` found.
-fn show_restored(state: AuthState, weak: &Weak<AppShell>) {
+fn show_restored(state: AuthState, weak: &Weak<AppWindow>) {
     match state {
         AuthState::SignedIn(user) => {
             post(
@@ -365,7 +365,7 @@ fn show_restored(state: AuthState, weak: &Weak<AppShell>) {
 
 /// Checks the stored session again from the start (the unreachable screen's Retry, and its timer). The stored session is
 /// kept when the server still cannot be reached.
-fn retry_startup(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppShell>) {
+fn retry_startup(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppWindow>) {
     spawn_task(move || async move { show_restored(restore(&api, store.as_ref()).await, &weak) });
 }
 
@@ -374,7 +374,7 @@ fn retry_startup(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<A
 fn start_sign_in(
     api: Arc<ApiClient>,
     store: Arc<dyn SessionStore>,
-    weak: Weak<AppShell>,
+    weak: Weak<AppWindow>,
     attempt: Arc<AtomicU64>,
     mobile: Option<Rc<Mobile>>,
 ) {
@@ -402,7 +402,7 @@ fn start_sign_in(
 fn start_sign_in(
     api: Arc<ApiClient>,
     _store: Arc<dyn SessionStore>,
-    weak: Weak<AppShell>,
+    weak: Weak<AppWindow>,
     _attempt: Arc<AtomicU64>,
     _mobile: Option<Rc<Mobile>>,
 ) {
@@ -416,7 +416,7 @@ fn start_sign_in(
 fn finish_sign_in(
     result: Result<StoredSession, ClientError>,
     store: &dyn SessionStore,
-    weak: &Weak<AppShell>,
+    weak: &Weak<AppWindow>,
 ) {
     match result {
         Ok(stored) => match store.save(&stored) {
@@ -451,7 +451,7 @@ fn to_stored(session: space_proto::auth::SessionResponse) -> StoredSession {
 
 /// Sign out: tells the server, clears the stored session and shows the sign-in screen. A failed server call still clears the
 /// session on this machine.
-fn sign_out(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppShell>) {
+fn sign_out(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppWindow>) {
     spawn_task(move || async move {
         if let Ok(Some(stored)) = store.load() {
             let _ = api.signout(&stored.session_token).await;
@@ -462,7 +462,7 @@ fn sign_out(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppShe
 }
 
 /// The periodic check: `health` for the connection, and `me` for a stored session. A 401 on `me` ends the session.
-fn check(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppShell>) {
+fn check(api: Arc<ApiClient>, store: Arc<dyn SessionStore>, weak: Weak<AppWindow>) {
     spawn_task(move || async move {
         match api.health().await {
             Err(_) => post(&weak, Update::Online(false)),

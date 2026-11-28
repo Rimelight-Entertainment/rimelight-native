@@ -58,13 +58,13 @@ fn to_item(row: space_ui::slint_ui::SidebarItem) -> SidebarItem {
 /// The sidebar rows of `area`, with their icons from the crate's own `Icons` global (`sidebar_rows` takes it). The window
 /// only supplies the global; the rows keep their images after it is dropped.
 fn rows_of(area: Area) -> Vec<space_ui::slint_ui::SidebarItem> {
-    let window = space_ui::slint_ui::AppShell::new().expect("create the icon source");
+    let window = space_ui::slint_ui::AppWindow::new().expect("create the icon source");
     sidebar_rows(&window.global::<space_ui::slint_ui::Icons>(), area)
 }
 
 /// The house icon, loaded from the same Icons global the sidebar uses in production.
 fn house_icon() -> slint::Image {
-    let window = space_ui::slint_ui::AppShell::new().expect("create the icon source");
+    let window = space_ui::slint_ui::AppWindow::new().expect("create the icon source");
     icon(&window.global::<space_ui::slint_ui::Icons>(), "house")
 }
 

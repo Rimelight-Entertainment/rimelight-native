@@ -1,14 +1,14 @@
 //! Glue between the Overview controller (`rimelight_personal_feature_overview`) and the shell's `OverviewRoute`.
 //!
 //! The controller answers on a worker thread. `notify` posts the view to the Slint event loop, and only the event
-//! loop touches the window. Navigation links go to the shell's route switch (`RimelightPersonalShell::set_route`).
+//! loop touches the window. Navigation links go to the shell's route switch (`AppWindow::set_route`).
 
 use std::sync::Arc;
 
 use rimelight_personal_feature_overview::{OverviewApi, OverviewController, OverviewView};
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
-use crate::RimelightPersonalShell;
+use crate::AppWindow;
 use crate::generated::{OverviewNote, OverviewState, OverviewTask};
 
 /// The Overview page of the shell: one controller, wired to `OverviewState`.
@@ -18,7 +18,7 @@ pub struct Overview {
 
 impl Overview {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Overview::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn OverviewApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn OverviewApi>) -> Self {
         let weak = ui.as_weak();
         let controller = OverviewController::new(api, move |view: OverviewView| {
             let _ = weak.upgrade_in_event_loop(move |ui| show_view(&ui, &view));
@@ -33,7 +33,7 @@ impl Overview {
     }
 }
 
-fn show_view(ui: &RimelightPersonalShell, view: &OverviewView) {
+fn show_view(ui: &AppWindow, view: &OverviewView) {
     let state = ui.global::<OverviewState>();
     state.set_date(view.date.as_str().into());
     state.set_pending_count(view.pending_count as i32);
@@ -71,7 +71,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &OverviewView) {
     state.set_error(view.error.clone().unwrap_or_default().into());
 }
 
-fn wire(ui: &RimelightPersonalShell, controller: &OverviewController) {
+fn wire(ui: &AppWindow, controller: &OverviewController) {
     let state = ui.global::<OverviewState>();
 
     // The shell's route switch: the route and its navbar title. The sidebar highlight is not moved here (see report).

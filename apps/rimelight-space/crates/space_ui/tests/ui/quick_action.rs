@@ -8,7 +8,7 @@
 use slint::platform::{Key, WindowEvent};
 use slint::{ComponentHandle, LogicalSize, Model as _, SharedString};
 use space_nav::quick;
-use space_ui::slint_ui::{AppShell, app_shell};
+use space_ui::slint_ui::{AppWindow, app_shell};
 use space_ui::theme::ThemeMode;
 
 /// One key press and release, as an OS key event would deliver them.
@@ -33,7 +33,7 @@ fn release(ui: &impl ComponentHandle, key: Key) {
 }
 
 /// Whether the quick action button is drawn (the window's own condition for its visibility).
-fn quick_button_present(ui: &AppShell) -> bool {
+fn quick_button_present(ui: &AppWindow) -> bool {
     ui.get_quick_button_shown()
 }
 

@@ -25,7 +25,7 @@ use slint::{ComponentHandle as _, ModelRc, Timer, TimerMode, VecModel, Weak};
 
 use crate::generated::{
     MusicAttachmentRow, MusicBeatCell, MusicBlockItemRow, MusicBlockPair, MusicBlockRow,
-    MusicExerciseRow, MusicPieceRow, MusicState, RimelightPersonalShell, SelectOption,
+    MusicExerciseRow, MusicPieceRow, MusicState, AppWindow, SelectOption,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use crate::platform::{FileDrop, FileDrops, Platform, Subscription};
@@ -45,7 +45,7 @@ type Opener = Rc<dyn Fn(&str) -> Result<(), String>>;
 /// The Music page of the shell: one controller, wired to the shell's `MusicState` and its callbacks.
 pub struct Music {
     controller: MusicController,
-    ui: Weak<RimelightPersonalShell>,
+    ui: Weak<AppWindow>,
     /// The window's file drops. Native only: the browser delivers no OS file drops.
     #[cfg(not(target_arch = "wasm32"))]
     drops: FileDrops,
@@ -60,7 +60,7 @@ impl Music {
     /// Nothing is fetched until [`Music::activate`].
     #[cfg(not(target_arch = "wasm32"))]
     pub fn new(
-        ui: &RimelightPersonalShell,
+        ui: &AppWindow,
         api: Arc<dyn MusicApi>,
         platform: Rc<dyn Platform>,
         drops: FileDrops,
@@ -77,7 +77,7 @@ impl Music {
 
     /// The web build: there are no OS file drops, and an attachment's link opens in a new browser tab.
     #[cfg(target_arch = "wasm32")]
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn MusicApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn MusicApi>) -> Self {
         let (controller, weak) = Self::connect(ui, api, Rc::new(open_in_tab));
         Self {
             controller,
@@ -87,10 +87,10 @@ impl Music {
 
     /// The controller and the window's weak handle, with the page wired to both.
     fn connect(
-        ui: &RimelightPersonalShell,
+        ui: &AppWindow,
         api: Arc<dyn MusicApi>,
         open: Opener,
-    ) -> (MusicController, Weak<RimelightPersonalShell>) {
+    ) -> (MusicController, Weak<AppWindow>) {
         let weak = ui.as_weak();
         let controller = MusicController::new(api, move |view: MusicView| {
             // Runs on a worker thread. The view is plain data, so it can move to the event loop.
@@ -120,7 +120,7 @@ impl Music {
 
     /// Starts taking the window's file drops while the page is shown.
     #[cfg(not(target_arch = "wasm32"))]
-    fn subscribe_drops(&self, ui: &RimelightPersonalShell) {
+    fn subscribe_drops(&self, ui: &AppWindow) {
         ui.global::<MusicState>()
             .set_drag_hovering(self.drops.hovering());
         if self.drop_subscription.borrow().is_none() {
@@ -161,7 +161,7 @@ fn studio_index(studio: Studio) -> i32 {
 
 /// Fills the shell's Music state from a view. The lists are rebuilt only when the view's version changed (a list changed
 /// shape). A save result or a metronome tick does not rebuild them, so a field the user is typing in keeps its focus.
-fn show_view(ui: &RimelightPersonalShell, view: &MusicView) {
+fn show_view(ui: &AppWindow, view: &MusicView) {
     let state = ui.global::<MusicState>();
     state.set_loaded(view.loaded);
     state.set_notice(view.notice.clone().unwrap_or_default().into());
@@ -220,7 +220,7 @@ thread_local! {
 }
 
 /// The save status the page shows: `Saved` for [`SAVED_FLASH`] after a save lands, then `Idle`.
-fn shown_save_status(ui: &RimelightPersonalShell, save: SaveStatus) -> SaveStatus {
+fn shown_save_status(ui: &AppWindow, save: SaveStatus) -> SaveStatus {
     FLASH.with(|cell| {
         let mut slot = cell.borrow_mut();
         let flash = slot.get_or_insert_with(|| SaveFlash {
@@ -257,7 +257,7 @@ fn shown_save_status(ui: &RimelightPersonalShell, save: SaveStatus) -> SaveStatu
 }
 
 /// Builds the row models. A new model each time, so every row starts again from the controller's state.
-fn rebuild_lists(ui: &RimelightPersonalShell, view: &MusicView) {
+fn rebuild_lists(ui: &AppWindow, view: &MusicView) {
     let state = ui.global::<MusicState>();
     let exercises: Vec<MusicExerciseRow> = view
         .exercises
@@ -372,7 +372,7 @@ fn schedule_save(timer: &Timer, controller: &MusicController) {
 
 /// Connects the shell's Music callbacks to the controller.
 fn wire(
-    ui: &RimelightPersonalShell,
+    ui: &AppWindow,
     controller: &MusicController,
     save: &Rc<Timer>,
     tick: &Rc<Timer>,
@@ -516,7 +516,7 @@ fn wire(
 /// A file-drop event on the Music route, as egui handled it: the drop zones highlight while a file hovers, and a dropped
 /// file attaches to the open piece on the Repertoire tab. With no piece open, the drop shows a notice.
 #[cfg(not(target_arch = "wasm32"))]
-fn on_file_drop(controller: &MusicController, ui: &RimelightPersonalShell, drop: &FileDrop) {
+fn on_file_drop(controller: &MusicController, ui: &AppWindow, drop: &FileDrop) {
     match drop {
         FileDrop::Hovered(_) => ui.global::<MusicState>().set_drag_hovering(true),
         FileDrop::HoveredCancelled => ui.global::<MusicState>().set_drag_hovering(false),
@@ -652,7 +652,7 @@ pub(crate) mod tests {
     /// open piece, and the platform opens the attachment's link. Run by `pages::tests::page_scenarios`, on the thread
     /// that installed the testing backend.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let api = Arc::new(Recorder::default());
         let platform = Rc::new(FakePlatform::default());
         let drops = FileDrops::default();

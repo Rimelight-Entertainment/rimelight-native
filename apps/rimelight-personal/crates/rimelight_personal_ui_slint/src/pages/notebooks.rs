@@ -14,7 +14,7 @@ use rimelight_personal_feature_notebooks::{
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::generated::{
-    NotebookEntryRow, NotebooksState, PageLoadState, RimelightPersonalShell, TableColumn, TableRow,
+    NotebookEntryRow, NotebooksState, PageLoadState, AppWindow, TableColumn, TableRow,
 };
 
 /// The Notebooks page of the shell: one controller, wired to the shell's `NotebooksState` and its callbacks.
@@ -24,7 +24,7 @@ pub struct Notebooks {
 
 impl Notebooks {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Notebooks::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn NotebookApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn NotebookApi>) -> Self {
         let weak = ui.as_weak();
         let controller = NotebooksController::new(api, move |view: NotebooksView| {
             // Runs on a worker thread. The view is plain data, so it can move to the event loop.
@@ -148,7 +148,7 @@ fn page_state(view: &NotebooksView) -> PageLoadState {
 
 /// Fills the shell's notebooks state from a view. A text field is set only when it differs, so the caret stays put while
 /// the user types. Each dialog's fields are set before its open flag, so it opens with them.
-fn show_view(ui: &RimelightPersonalShell, view: &NotebooksView) {
+fn show_view(ui: &AppWindow, view: &NotebooksView) {
     let g = ui.global::<NotebooksState>();
     g.set_tab_labels(strings(&view.tabs));
     g.set_tab(view.tab as i32);
@@ -189,7 +189,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &NotebooksView) {
     }
 }
 
-fn show_thread(ui: &RimelightPersonalShell, thread: &ThreadView) {
+fn show_thread(ui: &AppWindow, thread: &ThreadView) {
     let g = ui.global::<NotebooksState>();
     g.set_thread_id(thread.id.as_str().into());
     if g.get_thread_title().as_str() != thread.title {
@@ -223,12 +223,12 @@ fn id_at(controller: &NotebooksController, index: i32) -> Option<String> {
 }
 
 /// The id of the open thread, as the shell's state holds it.
-fn thread_id(ui: &RimelightPersonalShell) -> String {
+fn thread_id(ui: &AppWindow) -> String {
     ui.global::<NotebooksState>().get_thread_id().to_string()
 }
 
 /// Connects the shell's notebooks callbacks to the controller.
-fn wire(ui: &RimelightPersonalShell, controller: &NotebooksController) {
+fn wire(ui: &AppWindow, controller: &NotebooksController) {
     let g = ui.global::<NotebooksState>();
 
     let c = controller.clone();
@@ -459,7 +459,7 @@ pub(crate) mod tests {
     /// The page's callbacks drive the controller, and the controller's view is what the shell then shows. Row indexes
     /// are display order (pinned first). Run by `pages::tests::page_scenarios`, on the thread with the testing backend.
     pub(crate) fn scenario() {
-        let ui = RimelightPersonalShell::new().expect("create the shell");
+        let ui = AppWindow::new().expect("create the shell");
         let api = Arc::new(Recorder::default());
         let notebooks = Notebooks::new(&ui, api.clone());
         ui.set_route("/notebooks".into());

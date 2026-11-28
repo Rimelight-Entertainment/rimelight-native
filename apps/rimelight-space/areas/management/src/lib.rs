@@ -18,7 +18,7 @@ pub const UI_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/ui");
 #[macro_export]
 macro_rules! wire_management {
     (
-        $AppShell:ident, $PageLoadState:ident, $ProjectSettingsState:ident, $ProjectMembersState:ident,
+        $AppWindow:ident, $PageLoadState:ident, $ProjectSettingsState:ident, $ProjectMembersState:ident,
         $MemberRow:ident, $SelectOption:ident $(,)?
     ) => {
         /// The load-state and select-option helpers of the management glue.
@@ -30,7 +30,7 @@ macro_rules! wire_management {
             $crate::space_page_kit::picker_glue!($SelectOption);
         }
 
-        impl $crate::settings::SettingsWindow for $AppShell {
+        impl $crate::settings::SettingsWindow for $AppWindow {
             fn route(&self) -> String {
                 self.get_page_route().to_string()
             }
@@ -127,7 +127,7 @@ macro_rules! wire_management {
             }
         }
 
-        impl $crate::members::MembersWindow for $AppShell {
+        impl $crate::members::MembersWindow for $AppWindow {
             fn route(&self) -> String {
                 self.get_page_route().to_string()
             }

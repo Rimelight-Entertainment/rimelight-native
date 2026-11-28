@@ -10,7 +10,7 @@ Status of the CMS.6 wiring pass (W8). Nothing was built or tested (owner rule); 
   `space_area_content` and `rimelight_editor` added to `crates/space_ui_slint` build-dependencies and to `crates/space_ui`
   dependencies, with `rimelight_platform`.
 - Section 2 (build.rs): the `space_area_content` and `rimelight_editor` library paths are registered.
-- Section 3 (imports): `app-shell.slint` imports the five content pages and `BlockEditor`. `TabItem` is renamed
+- Section 3 (imports): `app.slint` imports the five content pages and `BlockEditor`. `TabItem` is renamed
   `ContentTabItem` in the content markup, because `rimelight_ui`'s tab strip already exports `TabItem` and both would clash.
   `main.slint` exports the five page globals, the content structs, `EditorBridge` and the editor's structs.
 - Section 3 (callbacks): `content-kind(string) -> string` (pure), `content-opened(string)`, `navigate-requested(string)`.
@@ -62,7 +62,7 @@ Status of the CMS.6 wiring pass (W8). Nothing was built or tested (owner rule); 
 ## Not applied, or applied differently
 
 - NOT APPLIED: the WIRING's `ContentEditorPage` as a second window. The editor's `EditorBridge` is a per-window global, so
-  the page is inside `AppShell`.
+  the page is inside `AppWindow`.
 - NOT APPLIED: `space_i18n` keys (the placeholder crate, as before).
 
 ## Guesses to check at the first build (`// UNSURE:` in the source)
@@ -92,7 +92,7 @@ Strings are English literals, as in the company area (see section 7).
   `media.slint`, `reviews.slint`.
 - The editor is `rimelight_editor` (README read 2026-11-23, after the coordinator's API change). The page uses the editor's
   own emoji picker, link prompt, locale switcher, comment panel, block menu and presence strip. None is rebuilt here.
-- Not done: the app-shell wiring below (section 3 onward) and the `UNSURE` items in section 8.
+- Not done: the app wiring below (section 3 onward) and the `UNSURE` items in section 8.
 
 ## 1. Cargo (workspace and the two shells)
 
@@ -137,7 +137,7 @@ In the `with_library_paths` map, after the `space_area_projects` entry, same tup
 ),
 ```
 
-## 3. Slint imports (`crates/space_ui/ui/app-shell.slint`)
+## 3. Slint imports (`crates/space_ui/ui/app.slint`)
 
 ```slint
 import { ContentHomePage, ContentHomeState } from "@space_area_content/home.slint";
@@ -161,7 +161,7 @@ in property <string> content-route: "";        // set by Rust from routes::parse
 
 The window needs `get_user_id()` (the company profile already uses it on the same window).
 
-## 4. The `if group.route ...` blocks (`app-shell.slint`)
+## 4. The `if group.route ...` blocks (`app.slint`)
 
 Next to the Teams page block, add one block per content page. Use the same `content-route` kind string that Rust sets:
 
@@ -211,7 +211,7 @@ Existing and kept: `/p/:key/docs`, `/p/:key/docs/:page` (PROJECT_DOCS), `/compan
 
 The `T::` kinds and sort numbers follow the neighbouring rows; adjust the numbers to the section's order.
 
-## 6. The editor page (`app-shell.slint` and the app's Rust)
+## 6. The editor page (`app.slint` and the app's Rust)
 
 The editor component (the Slint page that `wire_block_editor!` binds) is an app component:
 
@@ -220,14 +220,14 @@ export component ContentEditorPage inherits BlockEditor {}
 ```
 
 **UNSURE, the main open question.** `ContentPageView` (in `page.slint`) has `@children`, so the editor element sits inside the
-page's markup in `app-shell.slint`. A child element of `AppShell` has no Rust handle that `bind_block_editor(&page, ...)` can
+page's markup in `app.slint`. A child element of `AppWindow` has no Rust handle that `bind_block_editor(&page, ...)` can
 take, because `bind_block_editor` calls `page.set_rows`, `page.on_text_edited` and so on on a `&$page`. Two ways out, the lead
 picks one:
 
 1. Make the editor a root window of its own (a second `ComponentHandle` shown next to the shell). Simple to wire, but a second
    window for the page.
 2. Ask rimelight_editor for a binder over an in-window property bridge (the editor's properties and callbacks forwarded through
-   `AppShell`'s properties). Needs a change in rimelight_editor.
+   `AppWindow`'s properties). Needs a change in rimelight_editor.
 
 The content crate does not depend on which: `page::PageDeps.binder` is an `EditorBinder` closure, and the page talks to the
 editor only through `EditorHandle`.
@@ -262,7 +262,7 @@ from section 3):
 
 ```rust
 space_area_content::wire_content!(
-    AppShell,
+    AppWindow,
     PageLoadState,
     ContentHomeState,
     ContentPageState,
@@ -380,7 +380,7 @@ here.
 - `page.rs`: `Inbox` is sent across threads through `ContentEventSink` (`Arc<dyn Fn + Send + Sync>`); the sink must be `Send`.
 - `review.rs` and `media.rs`: `space_page_kit::task::spawn_task` and `page_data::ui_thread` take the closures shown; check their
   exact bounds.
-- `lib.rs`: `wire_content!` implements the five traits for `$AppShell`; method names on the generated globals (`on_open_new`,
+- `lib.rs`: `wire_content!` implements the five traits for `$AppWindow`; method names on the generated globals (`on_open_new`,
   `on_new_item`, `on_open_folder`, `on_start_edit`, `set_edit_mode`, `set_behind`, `invoke_navigate_requested`) must match the
   Slint callbacks and properties in `ui/*.slint`. Those names were chosen to avoid callback/property name clashes.
 - `home.rs`: the New page dialog's template choice is passed through and ignored (section 8).

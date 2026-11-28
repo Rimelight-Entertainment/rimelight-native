@@ -16,7 +16,7 @@ use rimelight_personal_feature_notes::{
 };
 use slint::{ComponentHandle as _, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
-use crate::generated::{NoteCard, NotesState, RimelightPersonalShell};
+use crate::generated::{NoteCard, NotesState, AppWindow};
 
 /// Autosave debounce. Matches the Solid editor's 600 ms timer.
 const AUTOSAVE_DELAY: Duration = Duration::from_millis(600);
@@ -28,7 +28,7 @@ pub struct Notes {
 
 impl Notes {
     /// Connects `ui` to a controller that calls `api`. Nothing is fetched until [`Notes::activate`].
-    pub fn new(ui: &RimelightPersonalShell, api: Arc<dyn NoteApi>) -> Self {
+    pub fn new(ui: &AppWindow, api: Arc<dyn NoteApi>) -> Self {
         let weak = ui.as_weak();
         let controller = NotesController::new(api, move |view: NotesView| {
             // Runs on a worker thread. The view is plain data, so it can move to the event loop.
@@ -97,7 +97,7 @@ fn cards(items: &[CardView]) -> ModelRc<NoteCard> {
 /// starts again from the controller's selection.
 ///
 /// Order matters for the dialogs: the fields are set before the flag that opens the dialog, so it opens with them.
-fn show_view(ui: &RimelightPersonalShell, view: &NotesView) {
+fn show_view(ui: &AppWindow, view: &NotesView) {
     ui.global::<NotesState>()
         .set_tab_labels(strings(&view.tabs));
     ui.global::<NotesState>().set_tab(view.tab.index() as i32);
@@ -149,7 +149,7 @@ fn show_view(ui: &RimelightPersonalShell, view: &NotesView) {
     }
 }
 
-fn show_editor(ui: &RimelightPersonalShell, editor: &EditorView) {
+fn show_editor(ui: &AppWindow, editor: &EditorView) {
     // A text field is set only when it differs, so the caret stays put while the user types.
     if ui.global::<NotesState>().get_editor_title().as_str() != editor.title {
         ui.global::<NotesState>()
@@ -182,7 +182,7 @@ fn show_editor(ui: &RimelightPersonalShell, editor: &EditorView) {
 
 /// Connects the shell's notes callbacks to the controller. Editor edits also re-arm the autosave debounce.
 fn wire(
-    ui: &RimelightPersonalShell,
+    ui: &AppWindow,
     controller: &NotesController,
     autosave: &Rc<RefCell<Option<Timer>>>,
 ) {

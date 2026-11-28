@@ -11,7 +11,7 @@ use slint::{ComponentHandle, Model as _, SharedString};
 use space_nav::{Area, pages_in};
 use space_ui::slint_ui::app_shell::{self, App};
 use space_ui::slint_ui::shell::sidebar_entries;
-use space_ui::slint_ui::{AppShell, MenuKind};
+use space_ui::slint_ui::{AppWindow, MenuKind};
 use space_ui::theme::ThemeMode;
 
 /// The start route. Its tab is the first one.
@@ -23,7 +23,7 @@ const WORKSPACES: i32 = -1;
 const NONE: i32 = -2;
 
 /// One key press and release, as an OS key event would deliver them.
-fn press(ui: &AppShell, key: Key) {
+fn press(ui: &AppWindow, key: Key) {
     let text: SharedString = key.into();
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
@@ -32,26 +32,26 @@ fn press(ui: &AppShell, key: Key) {
 }
 
 /// Holds a modifier key down, as the OS does while another key is pressed.
-fn hold(ui: &AppShell, key: Key) {
+fn hold(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyPressed { text: key.into() });
 }
 
 /// Lets go of a modifier key.
-fn release(ui: &AppShell, key: Key) {
+fn release(ui: &AppWindow, key: Key) {
     ui.window()
         .dispatch_event(WindowEvent::KeyReleased { text: key.into() });
 }
 
 /// Shift+`key`, with Shift held as the OS holds it.
-fn shift_press(ui: &AppShell, key: Key) {
+fn shift_press(ui: &AppWindow, key: Key) {
     hold(ui, Key::Shift);
     press(ui, key);
     release(ui, Key::Shift);
 }
 
 /// Ctrl+K or Cmd+K, with the modifier held as the OS holds it.
-fn ctrl_press(ui: &AppShell, letter: &str) {
+fn ctrl_press(ui: &AppWindow, letter: &str) {
     let modifier = if cfg!(target_os = "macos") {
         Key::Meta
     } else {
@@ -86,7 +86,7 @@ fn open_in_new_tab(app: &App, route: &str) {
 }
 
 /// The labels of the focused group's page tabs, in strip order.
-fn tab_labels(ui: &AppShell) -> Vec<String> {
+fn tab_labels(ui: &AppWindow) -> Vec<String> {
     ui.get_open_tabs()
         .iter()
         .map(|tab| tab.label.to_string())
@@ -94,12 +94,12 @@ fn tab_labels(ui: &AppShell) -> Vec<String> {
 }
 
 /// The id of the first (and only) tile group.
-fn group_id(ui: &AppShell) -> i32 {
+fn group_id(ui: &AppWindow) -> i32 {
     ui.get_tile_groups().row_data(0).expect("one tile group").id
 }
 
 /// Presses Tab until `owner` holds the keyboard focus. Fails when Tab never gets there.
-fn tab_into(ui: &AppShell, owner: i32) {
+fn tab_into(ui: &AppWindow, owner: i32) {
     for _ in 0..200 {
         if ui.get_strip_focus_owner() == owner {
             return;
@@ -110,7 +110,7 @@ fn tab_into(ui: &AppShell, owner: i32) {
 }
 
 /// The page tab menu's selectable rows, as the Down key moves through them (the separators are skipped).
-fn selectable_rows(ui: &AppShell) -> Vec<(usize, String)> {
+fn selectable_rows(ui: &AppWindow) -> Vec<(usize, String)> {
     ui.get_open_tab_menu()
         .iter()
         .enumerate()
@@ -123,7 +123,7 @@ fn selectable_rows(ui: &AppShell) -> Vec<(usize, String)> {
 
 /// Presses Down in the open menu until the row labelled `label` is highlighted (the first row is highlighted on open),
 /// then Enter. Fails when the row is not there.
-fn pick_menu_row(ui: &AppShell, label: &str) {
+fn pick_menu_row(ui: &AppWindow, label: &str) {
     let rows = selectable_rows(ui);
     let steps = rows
         .iter()

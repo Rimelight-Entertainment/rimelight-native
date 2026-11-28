@@ -45,7 +45,9 @@ jobs:
           RIMELIGHT_SIGN_PARAMS: ${{ secrets.RIMELIGHT_SIGN_PARAMS }}
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^space-v', ''
-          cargo run -p xtask -- release pack --expect-version $version
+          # --no-download: the previous releases come from the feed, which answers 403 to GitHub's runners. Without it
+          # the pack ships full packages only (no deltas).
+          cargo run -p xtask -- release pack --expect-version $version --no-download
       - name: Upload to R2
         shell: bash
         env:

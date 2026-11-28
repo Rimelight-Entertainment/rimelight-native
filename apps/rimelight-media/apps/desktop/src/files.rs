@@ -106,7 +106,7 @@ pub fn sibling_pictures(path: &Path) -> Vec<PathBuf> {
                 .collect()
         })
         .unwrap_or_default();
-    out.sort_by(|a, b| natural_key(a).cmp(&natural_key(b)));
+    out.sort_by_key(|a| natural_key(a));
     if out.is_empty() {
         out.push(path.to_path_buf());
     }
@@ -130,7 +130,7 @@ pub fn sibling_media(path: &Path, want: Kind) -> Vec<PathBuf> {
     if !out.iter().any(|p| p == path) {
         out.push(path.to_path_buf());
     }
-    out.sort_by(|a, b| natural_key(a).cmp(&natural_key(b)));
+    out.sort_by_key(|a| natural_key(a));
     out
 }
 
@@ -287,12 +287,12 @@ mod tests {
 
     #[test]
     fn natural_order() {
-        let mut v = vec![
+        let mut v = [
             PathBuf::from("img10.png"),
             PathBuf::from("img2.png"),
             PathBuf::from("Img1.png"),
         ];
-        v.sort_by(|a, b| natural_key(a).cmp(&natural_key(b)));
+        v.sort_by_key(|a| natural_key(a));
         assert_eq!(v[0], PathBuf::from("Img1.png"));
         assert_eq!(v[2], PathBuf::from("img10.png"));
     }

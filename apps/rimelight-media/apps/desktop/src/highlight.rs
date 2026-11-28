@@ -155,17 +155,15 @@ pub fn layers(text: &str, syntax: &str, dark: bool) -> Option<Vec<(i32, String)>
     // One layer per colour, in the order the colours first show.
     let mut index: HashMap<i32, usize> = HashMap::new();
     let mut out: Vec<(i32, String)> = Vec::new();
-    for i in 0..text.len() {
-        if text.is_char_boundary(i) && !index.contains_key(&colour[i]) {
-            index.insert(colour[i], out.len());
-            out.push((colour[i], String::with_capacity(text.len())));
+    for (i, &colour_at) in colour.iter().enumerate().take(text.len()) {
+        if text.is_char_boundary(i) && !index.contains_key(&colour_at) {
+            index.insert(colour_at, out.len());
+            out.push((colour_at, String::with_capacity(text.len())));
         }
     }
     for (key, layer) in out.iter_mut() {
         for (i, c) in text.char_indices() {
-            if c == '\n' || c == '\t' {
-                layer.push(c);
-            } else if colour[i] == *key {
+            if c == '\n' || c == '\t' || colour[i] == *key {
                 layer.push(c);
             } else {
                 layer.push(' ');

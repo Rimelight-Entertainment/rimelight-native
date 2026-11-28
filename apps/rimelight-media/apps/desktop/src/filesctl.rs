@@ -114,7 +114,7 @@ pub fn wire(app: &Rc<App>) {
     let f = files_global(app);
     f.on_navigate(|i| with_app(move |a| navigate(a, i as usize)));
     f.on_up(|| with_app(up));
-    f.on_refresh(|| with_app(|a| reload(a)));
+    f.on_refresh(|| with_app(reload));
     f.on_picked(|row, shift, ctrl| with_app(move |a| pick(a, row as usize, shift, ctrl)));
     f.on_activated(|row| with_app(move |a| activate(a, row as usize)));
     f.on_sort_requested(|col| with_app(move |a| sort_by(a, col)));
@@ -555,7 +555,9 @@ fn parse_recycle_info(bytes: &[u8]) -> Option<RecycleInfo> {
 /// UTF-16 little-endian text up to the first zero.
 fn utf16_text(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
@@ -994,10 +996,10 @@ fn side_toggled(app: &Rc<App>, index: usize) {
     {
         let mut st = explorer(app);
         let path = st.side_paths.get(index).cloned().flatten();
-        if let Some(path) = path {
-            if !st.expanded.remove(&path) {
-                st.expanded.insert(path);
-            }
+        if let Some(path) = path
+            && !st.expanded.remove(&path)
+        {
+            st.expanded.insert(path);
         }
     }
     refresh_sidebar(app);

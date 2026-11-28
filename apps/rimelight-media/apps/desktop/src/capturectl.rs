@@ -783,7 +783,7 @@ fn takes(app: &Rc<App>) -> Vec<PathBuf> {
                 .collect()
         })
         .unwrap_or_default();
-    list.sort_by(|a, b| b.0.cmp(&a.0));
+    list.sort_by_key(|a| std::cmp::Reverse(a.0));
     list.into_iter().map(|(_, p)| p).collect()
 }
 
@@ -987,7 +987,7 @@ fn free_end(app: &Rc<App>) {
             resvg::tiny_skia::Transform::identity(),
             None,
         );
-        for (i, p) in pic.rgba.chunks_exact_mut(4).enumerate() {
+        for (i, p) in pic.rgba.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             let cover = mask.data()[i * 4 + 3] as u32;
             p[3] = ((p[3] as u32 * cover + 127) / 255) as u8;
         }

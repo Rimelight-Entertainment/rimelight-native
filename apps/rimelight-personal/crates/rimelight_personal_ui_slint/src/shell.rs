@@ -729,19 +729,6 @@ pub fn run(
     ui.run()
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-
-    /// The sidebar rows: the Overview row comes first, and the Assets footer is last. The palette has the web's 21 entries.
-    pub(crate) fn scenario() {
-        let entries = nav_entries();
-        assert_eq!(entries.first().and_then(|e| e.route), Some("/"));
-        assert_eq!(entries.last().and_then(|e| e.route), Some("/storage"));
-        assert_eq!(COMMANDS.len(), 21);
-    }
-}
-
 /// The About overlay: the version, and the update check run on a worker thread (the check blocks on the network).
 fn wire_about(ui: &RimelightPersonalShell, about: About) {
     ui.set_about_version(about.version.into());
@@ -762,4 +749,17 @@ fn wire_about(ui: &RimelightPersonalShell, about: About) {
             });
         });
     });
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// The sidebar rows: the Overview row comes first, and the Assets footer is last. The palette has the web's 21 entries.
+    pub(crate) fn scenario() {
+        let entries = nav_entries();
+        assert_eq!(entries.first().and_then(|e| e.route), Some("/"));
+        assert_eq!(entries.last().and_then(|e| e.route), Some("/storage"));
+        assert_eq!(COMMANDS.len(), 21);
+    }
 }

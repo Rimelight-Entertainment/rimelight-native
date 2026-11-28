@@ -2,6 +2,8 @@
 
 pub mod api;
 pub mod auth;
+/// The Cloudflare OAuth sign-in for the desktop setup. Native only: the browser, a loopback listener and native crates.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod cf_oauth;
 /// The live Cloudflare API client for the setup. Native only.
 #[cfg(not(target_arch = "wasm32"))]
@@ -22,6 +24,8 @@ pub mod rates;
 /// The desktop Access CLI login. Native only: the browser and a worker thread.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod settings;
+/// The desktop Access CLI login. Native only: the browser, the OS and the native crates.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod signin;
 pub mod storage;
 pub mod todo;

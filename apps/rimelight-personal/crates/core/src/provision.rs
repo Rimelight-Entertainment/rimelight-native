@@ -495,7 +495,7 @@ mod tests {
                 }
                 (CfMethod::Put, p) if p.contains("/workers/scripts/") => {
                     if let Body::WorkerUpload { metadata, module } = &body {
-                        assert_eq!(module.len() > 0, true, "the bundle is uploaded");
+                        assert!(!module.is_empty(), "the bundle is uploaded");
                         assert_eq!(metadata["main_module"], MODULE_NAME);
                     }
                     json!({ "result": {} })

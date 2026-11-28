@@ -491,16 +491,15 @@ fn run(
                 match &mut v.src {
                     FrameSrc::Screen(grabber) => {
                         if let Some(px) = grabber.grab(true) {
-                            copy_rows(&mut v.bgra, v.w as usize, v.h as usize, &px);
+                            copy_rows(&mut v.bgra, v.w as usize, v.h as usize, px);
                         }
                     }
                     // The camera's latest frame, when it is the size the encoder was opened for (else the last one stays).
                     FrameSrc::Camera(feed) => {
-                        if let Ok(guard) = feed.lock() {
-                            if let Some(frame) = guard.as_ref().filter(|f| f.w == v.w && f.h == v.h)
-                            {
-                                copy_rows(&mut v.bgra, v.w as usize, v.h as usize, &frame.bgra);
-                            }
+                        if let Ok(guard) = feed.lock()
+                            && let Some(frame) = guard.as_ref().filter(|f| f.w == v.w && f.h == v.h)
+                        {
+                            copy_rows(&mut v.bgra, v.w as usize, v.h as usize, &frame.bgra);
                         }
                     }
                 }

@@ -297,9 +297,9 @@ pub fn wire(app: &Rc<App>) {
     v.on_set_tool(|t| with_app(move |a| set_tool(a, t)));
     v.on_pick_colour(|c| with_app(move |a| pick_colour(a, [c.red(), c.green(), c.blue(), 255])));
     v.on_pick_hex(|t: SharedString| with_app(move |a| pick_hex(a, &t)));
-    v.on_picker_sync(|| with_app(|a| picker_sync(a)));
-    v.on_picker_changed(|| with_app(|a| picker_show(a)));
-    v.on_picker_use(|| with_app(|a| picker_use(a)));
+    v.on_picker_sync(|| with_app(picker_sync));
+    v.on_picker_changed(|| with_app(picker_show));
+    v.on_picker_use(|| with_app(picker_use));
     v.on_picker_field(|i, t: SharedString| {
         with_app(move |a| picker_field(a, i.max(0) as usize, &t))
     });
@@ -1001,12 +1001,12 @@ fn linear_to_srgb(c: f32) -> f32 {
 /// RGB to OKLCH (Ottosson's OKLab): L from 0 to 1, chroma about 0 to 0.4, hue in degrees.
 fn rgb_to_oklch(rgb: [u8; 3]) -> [f32; 3] {
     let [r, g, b] = rgb.map(|c| srgb_to_linear(f32::from(c) / 255.0));
-    let l = (0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b).cbrt();
-    let m = (0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b).cbrt();
-    let s = (0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b).cbrt();
-    let lightness = 0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s;
-    let a = 1.977_998_495_1 * l - 2.428_592_205_0 * m + 0.450_593_709_9 * s;
-    let bb = 0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766_0 * s;
+    let l = (0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
+    let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();
+    let s = (0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b).cbrt();
+    let lightness = 0.210_454_26 * l + 0.793_617_8 * m - 0.004_072_047 * s;
+    let a = 1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s;
+    let bb = 0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s;
     let chroma = (a * a + bb * bb).sqrt();
     let hue = if chroma < 1e-4 {
         0.0
@@ -1020,13 +1020,13 @@ fn rgb_to_oklch(rgb: [u8; 3]) -> [f32; 3] {
 fn oklch_to_rgb(lightness: f32, chroma: f32, hue: f32) -> [u8; 3] {
     let (sin, cos) = hue.to_radians().sin_cos();
     let (a, b) = (chroma * cos, chroma * sin);
-    let l = lightness + 0.396_337_777_4 * a + 0.215_803_757_3 * b;
-    let m = lightness - 0.105_561_345_8 * a - 0.063_854_172_8 * b;
-    let s = lightness - 0.089_484_177_5 * a - 1.291_485_548_0 * b;
+    let l = lightness + 0.396_337_78 * a + 0.215_803_76 * b;
+    let m = lightness - 0.105_561_346 * a - 0.063_854_17 * b;
+    let s = lightness - 0.089_484_18 * a - 1.291_485_5 * b;
     let (l, m, s) = (l * l * l, m * m * m, s * s * s);
-    let r = 4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s;
-    let g = -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s;
-    let bl = -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s;
+    let r = 4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_94 * s;
+    let g = -1.268_438 * l + 2.609_757_4 * m - 0.341_319_38 * s;
+    let bl = -0.004_196_086_3 * l - 0.703_418_6 * m + 1.707_614_7 * s;
     [r, g, bl].map(|v| to_u8(linear_to_srgb(v.clamp(0.0, 1.0))))
 }
 
@@ -1519,10 +1519,10 @@ fn erase_preview(app: &Rc<App>, s: &ViewState) -> bool {
     let (shown, showing) = ERASE_PREVIEW.with(|c| c.get());
     if print.0 > 0 {
         if !showing || (shown != print && !dragging) {
-            if let Some(pic) = s.pic.as_ref() {
-                if let Ok(out) = rimelight_picture::burn_marks(pic, &s.marks, s.canvas) {
-                    viewer(app).set_picture(picture::to_slint(&out));
-                }
+            if let Some(pic) = s.pic.as_ref()
+                && let Ok(out) = rimelight_picture::burn_marks(pic, &s.marks, s.canvas)
+            {
+                viewer(app).set_picture(picture::to_slint(&out));
             }
             ERASE_PREVIEW.with(|c| c.set((print, true)));
         }

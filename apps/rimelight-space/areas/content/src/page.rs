@@ -156,7 +156,7 @@ pub struct PropertyRow {
 /// What worker results and room events hand to the UI thread.
 enum Inbox {
     Loaded {
-        detail: PageDetail,
+        detail: Box<PageDetail>,
         collections: Vec<ContentCollection>,
         comments: Vec<CommentView>,
         drafts: Vec<DraftView>,
@@ -328,7 +328,7 @@ impl<W: PageWindow> Page<W> {
             move |_ui, result| {
                 let item = match result {
                     Ok((detail, collections, comments, drafts)) => Inbox::Loaded {
-                        detail,
+                        detail: Box::new(detail),
                         collections,
                         comments,
                         drafts,
@@ -747,7 +747,7 @@ impl<W: PageWindow> Page<W> {
                     self.inner.state.borrow_mut().collections = collections;
                     self.inner.state.borrow_mut().comments = comments;
                     let mine = drafts.into_iter().next();
-                    self.inner.state.borrow_mut().detail = Some(detail);
+                    self.inner.state.borrow_mut().detail = Some(*detail);
                     if !self.inner.state.borrow().edit {
                         self.bind_view();
                     }

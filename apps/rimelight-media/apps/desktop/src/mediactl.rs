@@ -444,16 +444,16 @@ fn start(app: &Rc<App>, path: &Path, info: MediaInfo) {
         let wave_cancel = Arc::clone(&cancel);
         let handle = std::thread::spawn(move || {
             // Only a track with real sound gets a waveform (an all-silent or undecodable track keeps none).
-            if let Ok(peaks) = player::peaks(&wave_path, idx, WAVE_BARS, &wave_cancel) {
-                if peaks.iter().any(|v| *v > 0.0) {
-                    post(move |a| {
-                        if a.media.borrow().path.as_deref() == Some(wave_path.as_path()) {
-                            let p = player_ui(a);
-                            p.set_wave_bars(ModelRc::new(VecModel::from(peaks)));
-                            p.set_has_wave(true);
-                        }
-                    });
-                }
+            if let Ok(peaks) = player::peaks(&wave_path, idx, WAVE_BARS, &wave_cancel)
+                && peaks.iter().any(|v| *v > 0.0)
+            {
+                post(move |a| {
+                    if a.media.borrow().path.as_deref() == Some(wave_path.as_path()) {
+                        let p = player_ui(a);
+                        p.set_wave_bars(ModelRc::new(VecModel::from(peaks)));
+                        p.set_has_wave(true);
+                    }
+                });
             }
         });
         track(&mut app.media.borrow_mut(), cancel, handle);
@@ -1081,7 +1081,7 @@ fn trim_save(app: &Rc<App>) {
     let mut d = rfd::FileDialog::new()
         .set_title("Save trimmed copy")
         .set_file_name(&suggested)
-        .add_filter(&ext.to_uppercase(), &[ext.as_str()]);
+        .add_filter(ext.to_uppercase(), &[ext.as_str()]);
     if let Some(dir) = path.parent() {
         d = d.set_directory(dir);
     }

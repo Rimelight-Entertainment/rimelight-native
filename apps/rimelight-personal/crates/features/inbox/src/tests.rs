@@ -665,7 +665,7 @@ fn a_text_attachment_opens_in_the_app_viewer() {
 
 #[test]
 fn an_other_attachment_is_saved_then_opened_by_plain_path() {
-    let (fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
+    let (_fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
     let target = test_dir().join("saved").join("plan.pdf");
     *shell.save_target.lock().unwrap() = Some(target.clone());
     assert!(c.open_attachment("a1", "att1"));
@@ -678,7 +678,7 @@ fn an_other_attachment_is_saved_then_opened_by_plain_path() {
 
 #[test]
 fn a_cancelled_save_leaves_nothing_behind() {
-    let (fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
+    let (_fake, shell, c) = loaded_with_attachment("plan.pdf", "application/pdf", b"%PDF-1.4");
     *shell.save_target.lock().unwrap() = None;
     assert!(c.open_attachment("a1", "att1"));
     assert!(shell.opened.lock().unwrap().is_empty());
@@ -696,7 +696,7 @@ fn a_failed_download_opens_the_address_in_the_browser() {
 
 #[test]
 fn an_unreadable_picture_says_so_in_the_banner() {
-    let (fake, _, c) = loaded_with_attachment("photo.png", "image/png", b"not a picture");
+    let (_fake, _, c) = loaded_with_attachment("photo.png", "image/png", b"not a picture");
     assert!(c.open_attachment("a1", "att1"));
     assert!(c.view().banner.contains("Could not show photo.png"));
     assert!(c.view().viewer.is_none());

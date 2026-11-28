@@ -475,9 +475,7 @@ fn apply_kind(app: &Rc<App>, k: i32) {
     d.set_json(json);
     if md && !was_md {
         d.set_view(1);
-    } else if json && !was_json {
-        d.set_view(0);
-    } else if !md && was_md {
+    } else if (json && !was_json) || (!md && was_md) {
         d.set_view(0);
     }
     refresh(app);
@@ -852,7 +850,12 @@ fn decode(bytes: &[u8]) -> (Enc, String) {
 }
 
 fn utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> String {
-    let units: Vec<u16> = bytes.chunks_exact(2).map(|c| unit([c[0], c[1]])).collect();
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| unit([c[0], c[1]]))
+        .collect();
     String::from_utf16_lossy(&units)
 }
 

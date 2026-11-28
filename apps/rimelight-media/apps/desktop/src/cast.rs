@@ -332,10 +332,10 @@ fn discover() -> Vec<Device> {
             continue;
         };
         let answer = String::from_utf8_lossy(&buf[..n]);
-        if let Some(location) = header(&answer, "location") {
-            if !locations.contains(&location) {
-                locations.push(location);
-            }
+        if let Some(location) = header(&answer, "location")
+            && !locations.contains(&location)
+        {
+            locations.push(location);
         }
     }
     locations.iter().filter_map(|l| describe(l)).collect()

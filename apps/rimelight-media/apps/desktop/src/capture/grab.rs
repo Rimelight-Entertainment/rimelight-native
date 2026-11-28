@@ -6,7 +6,7 @@ use rimelight_platform::{ScreenGrabber, ScreenRect};
 /// BGRA rows to RGBA with full alpha (GDI leaves alpha undefined).
 pub fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(bgra.len());
-    for px in bgra.chunks_exact(4) {
+    for px in bgra.as_chunks::<4>().0 {
         out.extend_from_slice(&[px[2], px[1], px[0], 255]);
     }
     out

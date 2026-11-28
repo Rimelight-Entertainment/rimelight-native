@@ -10,9 +10,9 @@
 //!
 //! The catalogue is plain, fixed-shape YAML, so a small line parser reads it and no YAML crate is needed.
 
-use rimelight_gallery::registry::{STORIES, Section};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use ui_gallery::registry::{STORIES, Section};
 
 /// Done on Slint but shown by another component's story: (component name, story id).
 const COVERED_BY: &[(&str, &str)] = &[
@@ -201,12 +201,18 @@ fn done_on_slint_has_a_file_and_a_story() {
     let mut problems = Vec::new();
     for e in catalogue().iter().filter(|e| e.slint_status == "done") {
         let file = e.slint_path.split('#').next().unwrap_or("");
+        // The catalogue names the design repo's layout (`crates/<lib>/...`). In this monorepo every such library lives
+        // under `packages/ui/<lib>/...`.
+        let candidates: Vec<PathBuf> = match file.strip_prefix("crates/") {
+            Some(rest) => vec![root.join("packages/ui").join(rest)],
+            None => vec![root.join(file)],
+        };
         if file.starts_with("ui/widgets.slint") {
             eprintln!(
                 "skipped {}: path {} is a Media (other repo) file",
                 e.name, e.slint_path
             );
-        } else if !root.join(file).is_file() {
+        } else if !candidates.iter().any(|p| p.is_file()) {
             problems.push(format!("{}: file {} does not exist", e.name, e.slint_path));
         }
         let allowed = NO_STORY_ALLOWED.iter().any(|(n, _)| *n == e.name);

@@ -170,11 +170,11 @@ fn compose(ictx: &mut ff::format::context::Input, grid: &Grid) -> Result<Picture
     };
     let mut decoded: HashMap<usize, Picture> = HashMap::new();
     for &(idx, x, y) in &grid.tiles {
-        if !decoded.contains_key(&idx) {
+        if let std::collections::hash_map::Entry::Vacant(slot) = decoded.entry(idx) {
             let packet = packets
                 .get(&idx)
                 .ok_or("a tile of the picture has no data")?;
-            decoded.insert(idx, decode_first(ictx, idx, packet)?);
+            slot.insert(decode_first(ictx, idx, packet)?);
         }
         if let Some(tile) = decoded.get(&idx) {
             place(&mut canvas, tile, x, y);

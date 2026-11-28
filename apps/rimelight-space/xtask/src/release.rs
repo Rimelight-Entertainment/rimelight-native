@@ -125,7 +125,10 @@ fn repo_root() -> PathBuf {
 }
 
 fn target_dir() -> PathBuf {
-    std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| repo_root().join("target"), PathBuf::from)
+    std::env::var_os("CARGO_TARGET_DIR").map_or_else(
+        || crate::ffmpeg::workspace_root().join("target"),
+        PathBuf::from,
+    )
 }
 
 fn run_step(label: &str, command: &mut Command) -> Result<(), String> {

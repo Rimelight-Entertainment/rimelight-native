@@ -45,11 +45,7 @@ pub fn run(args: &[&str]) -> ExitCode {
     }
     match ensure() {
         Ok(current) => {
-            println!(
-                "xtask ffmpeg: {} is in {}",
-                pin("asset"),
-                current.display()
-            );
+            println!("xtask ffmpeg: {} is in {}", pin("asset"), current.display());
             ExitCode::SUCCESS
         }
         Err(err) => {

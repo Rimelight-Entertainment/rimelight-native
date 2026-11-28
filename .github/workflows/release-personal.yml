@@ -35,10 +35,10 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}" -replace '^personal-v', ''
-          # The version lives once, in [workspace.package] of the root Cargo.toml; the app inherits it.
-          $cargo = Get-Content Cargo.toml -Raw
+          # Personal has its own version in its desktop crate's Cargo.toml.
+          $cargo = Get-Content apps/rimelight-personal/apps/desktop/Cargo.toml -Raw
           if ($cargo -notmatch "(?m)^version\s*=\s*`"$([regex]::Escape($tag))`"") {
-            throw "the tag $tag does not match [workspace.package] version in Cargo.toml"
+            throw "the tag $tag does not match the version in apps/rimelight-personal/apps/desktop/Cargo.toml"
           }
       - name: Fetch FFmpeg (the app loads its DLLs for Storage previews)
         run: cargo xtask ffmpeg

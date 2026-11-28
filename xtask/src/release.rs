@@ -41,7 +41,7 @@ pub fn run(args: &[&str]) -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        ["version"] => match workspace_version() {
+        ["version"] => match app_version() {
             Ok(version) => {
                 println!("{version}");
                 ExitCode::SUCCESS
@@ -89,25 +89,22 @@ fn parse(args: &[&str]) -> Result<Options, String> {
 }
 
 /// `version = "x.y.z"` under `[workspace.package]` in the root Cargo.toml.
-fn workspace_version() -> Result<String, String> {
-    // The workspace manifest is at the monorepo root, not in apps/rimelight-space (where `repo_root` points).
-    let manifest = crate::ffmpeg::workspace_root().join("Cargo.toml");
+fn app_version() -> Result<String, String> {
+    // Space's own version, in its desktop crate's manifest (not the shared workspace version).
+    let manifest =
+        crate::ffmpeg::workspace_root().join("apps/rimelight-space/apps/desktop/Cargo.toml");
     let text =
         fs::read_to_string(&manifest).map_err(|e| format!("read {}: {e}", manifest.display()))?;
-    version_from_manifest(&text).ok_or_else(|| {
-        format!(
-            "no version under [workspace.package] in {}",
-            manifest.display()
-        )
-    })
+    version_from_manifest(&text, "[package]")
+        .ok_or_else(|| format!("no version under [package] in {}", manifest.display()))
 }
 
-fn version_from_manifest(text: &str) -> Option<String> {
+fn version_from_manifest(text: &str, section: &str) -> Option<String> {
     let mut in_package = false;
     for line in text.lines() {
         let line = line.trim();
         if line.starts_with('[') {
-            in_package = line == "[workspace.package]";
+            in_package = line == section;
             continue;
         }
         if in_package && let Some(rest) = line.strip_prefix("version") {
@@ -147,7 +144,7 @@ fn pack(args: &[&str]) -> Result<(), String> {
     }
     let options = parse(args)?;
     println!("xtask release: expects vpk {VPK_VERSION} on the PATH");
-    let version = workspace_version()?;
+    let version = app_version()?;
     if let Some(expected) = &options.expect_version
         && *expected != version
     {
@@ -277,20 +274,23 @@ mod tests {
     #[test]
     fn reads_the_workspace_package_version() {
         let text = "[workspace]\nmembers = []\n\n[workspace.package]\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace.dependencies]\nversion = \"9\"\n";
-        assert_eq!(version_from_manifest(text).as_deref(), Some("0.1.0"));
+        assert_eq!(
+            version_from_manifest(text, "[workspace.package]").as_deref(),
+            Some("0.1.0")
+        );
     }
 
     #[test]
-    fn no_workspace_package_section_gives_none() {
+    fn no_matching_section_gives_none() {
         assert_eq!(
-            version_from_manifest("[package]\nversion = \"1.0.0\"\n"),
+            version_from_manifest("[package]\nversion = \"1.0.0\"\n", "[workspace.package]"),
             None
         );
     }
 
     #[test]
     fn the_real_manifest_has_a_version() {
-        assert!(workspace_version().is_ok());
+        assert!(app_version().is_ok());
     }
 
     #[test]

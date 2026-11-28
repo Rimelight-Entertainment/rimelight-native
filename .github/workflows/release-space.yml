@@ -1,7 +1,7 @@
 name: Release Rimelight Space
 
 # Pushing a version tag such as space-v0.2.0 builds the Windows installer and update feed and uploads them to R2 (REL.4, decision 0047).
-# The tag version (without `space-v`) must equal `[workspace.package] version` in Cargo.toml.
+# The tag version (without `space-v`) must equal the version in apps/rimelight-space/apps/desktop/Cargo.toml.
 #
 # Secrets (repository settings > Secrets and variables > Actions), never written to the repo:
 #   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY   an R2 API token with Object Read & Write on the bucket

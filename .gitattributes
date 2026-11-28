@@ -10,6 +10,3 @@
 *.apk binary
 *.jar binary
 *.mp4 binary
-
-# Generated FFmpeg bindings (CV-V.2): hidden from diffs and language stats.
-vendor/ffmpeg-sys-next/bindings/** linguist-generated=true -diff

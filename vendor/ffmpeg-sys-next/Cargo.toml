@@ -1,7 +1,3 @@
-# ffmpeg-sys-next 9.1.1 with its bindings checked in (CV-V.2, decision 0046). Replaces the crates.io package through
-# `[patch.crates-io]` in the workspace Cargo.toml, so no developer machine or CI runner needs clang (bindgen) or the
-# FFmpeg headers. `src/` is upstream's, unchanged; `build.rs` is ours (see its doc comment). Upstream licence: WTFPL.
-# Not a workspace member (it is in `workspace.exclude`), so the generated bindings are not linted.
 [package]
 name = "ffmpeg-sys-next"
 version = "9.1.1"
@@ -20,8 +16,6 @@ doctest = false
 [dependencies]
 libc = "0.2"
 
-# The features upstream has, so `ffmpeg-next` resolves against this crate. Only the library features mean anything
-# here; the `build*` features (building FFmpeg from source) are not supported.
 [features]
 default = ["avcodec", "avdevice", "avfilter", "avformat", "swresample", "swscale"]
 avcodec = []

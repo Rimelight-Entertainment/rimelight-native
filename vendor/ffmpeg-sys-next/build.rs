@@ -7,8 +7,8 @@
 //! - `<target>.cfg`: every `cargo:` line upstream printed except linking (cfg flags, check-cfg lines and the
 //!   `DEP_FFMPEG_*` metadata `ffmpeg-next` reads), printed again here.
 //!
-//! Linking: the FFmpeg build is `ffmpeg/current` at the workspace root, the folder that holds `ffmpeg-pin.txt`
-//! (the pin: which release to fetch, and the only place its version is written). `cargo xtask ffmpeg` fills the folder.
+//! Linking: the FFmpeg build is `ffmpeg/current` at the workspace root, the folder of the workspace `Cargo.toml`, whose
+//! `[workspace.metadata.ffmpeg]` table is the pin (which release to fetch, and the only place its version is written). `cargo xtask ffmpeg` fills the folder.
 //! Only `avutil` and the libraries whose cargo feature is on are linked, so an app without `device` or `filter`
 //! does not need avdevice or avfilter. The DLLs of those libraries are copied into the profile folder
 //! (`target/debug` or `target/release`), next to the app's exe, so it starts when run directly; that folder is also
@@ -86,9 +86,32 @@ fn main() {
     }
 }
 
-/// The workspace root: the nearest folder above this crate that holds `ffmpeg-pin.txt`.
+/// The workspace manifest: the nearest `Cargo.toml` above this crate with a `[workspace]` table. Cargo reruns this
+/// script when it changes, since it holds the pin.
+fn workspace_manifest(manifest: &Path) -> Option<PathBuf> {
+    let found = manifest.ancestors().skip(1).map(|a| a.join("Cargo.toml")).find(|toml| {
+        fs::read_to_string(toml).is_ok_and(|s| s.lines().any(|l| l.trim() == "[workspace]"))
+    })?;
+    println!("cargo:rerun-if-changed={}", found.display());
+    Some(found)
+}
+
+/// The workspace root: the folder of the workspace manifest.
 fn workspace_root(manifest: &Path) -> Option<PathBuf> {
-    manifest.ancestors().find(|a| a.join("ffmpeg-pin.txt").is_file()).map(Path::to_path_buf)
+    workspace_manifest(manifest)?.parent().map(Path::to_path_buf)
+}
+
+/// The value of one `key = "value"` line of the `[workspace.metadata.ffmpeg]` table (the pin).
+fn pin_value(toml: &str, key: &str) -> String {
+    toml.lines()
+        .skip_while(|line| line.trim() != "[workspace.metadata.ffmpeg]")
+        .skip(1)
+        .take_while(|line| !line.trim_start().starts_with('['))
+        .find_map(|line| {
+            let (k, v) = line.split_once('=')?;
+            (k.trim() == key).then(|| v.trim().trim_matches('"').to_owned())
+        })
+        .unwrap_or_default()
 }
 
 /// The FFmpeg folder (the one holding `lib/`, `bin/`): `ffmpeg/current` at the workspace root, when it has `lib/`.
@@ -97,20 +120,18 @@ fn ffmpeg_dir(manifest: &Path) -> Option<PathBuf> {
     dir.join("lib").is_dir().then_some(dir)
 }
 
-/// Warns when the folder was fetched for another release than `ffmpeg-pin.txt` names (`PINNED_RELEASE.txt`, written
-/// by `cargo xtask ffmpeg`).
+/// Warns when the folder was fetched for another release than `[workspace.metadata.ffmpeg]` names
+/// (`PINNED_RELEASE.txt`, written by `cargo xtask ffmpeg`).
 fn check_pin(dir: &Path) {
     let Ok(found) = fs::read_to_string(dir.join("PINNED_RELEASE.txt")) else { return };
     let found = found.trim();
-    let Some(pin) = workspace_root(dir).and_then(|root| fs::read_to_string(root.join("ffmpeg-pin.txt")).ok()) else {
+    let Some(toml) = workspace_manifest(dir).and_then(|m| fs::read_to_string(m).ok()) else {
         return;
     };
-    let release = pin.lines().find_map(|l| l.strip_prefix("release=")).unwrap_or_default();
-    let asset = pin.lines().find_map(|l| l.strip_prefix("asset=")).unwrap_or_default();
-    let wanted = format!("{release}/{asset}");
+    let wanted = format!("{}/{}", pin_value(&toml, "release"), pin_value(&toml, "asset"));
     if found != wanted {
         println!(
-            "cargo:warning=the FFmpeg folder {} holds {found}, but ffmpeg-pin.txt names {wanted}; run `cargo xtask ffmpeg`",
+            "cargo:warning=the FFmpeg folder {} holds {found}, but [workspace.metadata.ffmpeg] names {wanted}; run `cargo xtask ffmpeg`",
             dir.display()
         );
     }

@@ -82,11 +82,7 @@ fn to_image(thumb: &Thumb) -> Image {
     Image::from_rgba8(buffer)
 }
 
-fn show_view(
-    ui: &AppWindow,
-    controller: Option<&StorageController>,
-    view: &StorageView,
-) {
+fn show_view(ui: &AppWindow, controller: Option<&StorageController>, view: &StorageView) {
     let state = ui.global::<StorageState>();
 
     state.set_folders(model(

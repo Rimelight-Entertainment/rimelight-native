@@ -24,8 +24,8 @@ use rimelight_personal_feature_music::{
 use slint::{ComponentHandle as _, ModelRc, Timer, TimerMode, VecModel, Weak};
 
 use crate::generated::{
-    MusicAttachmentRow, MusicBeatCell, MusicBlockItemRow, MusicBlockPair, MusicBlockRow,
-    MusicExerciseRow, MusicPieceRow, MusicState, AppWindow, SelectOption,
+    AppWindow, MusicAttachmentRow, MusicBeatCell, MusicBlockItemRow, MusicBlockPair, MusicBlockRow,
+    MusicExerciseRow, MusicPieceRow, MusicState, SelectOption,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use crate::platform::{FileDrop, FileDrops, Platform, Subscription};

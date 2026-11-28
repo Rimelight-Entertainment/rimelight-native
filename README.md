@@ -26,6 +26,14 @@ vendor/
   ffmpeg-sys-next/      ← FFmpeg bindings (checked in; no clang/headers needed)
 ```
 
+## Local Development
+
+Turn on the repo's pre-commit hook once per clone. It runs `cargo fmt --check` and clippy (`-D warnings`) on staged Rust and Slint changes:
+
+```powershell
+git config core.hooksPath .githooks
+```
+
 ## License
 
 MIT License. See [LICENSE.md](LICENSE.md) for more details.

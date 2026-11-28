@@ -21,7 +21,7 @@ use rimelight_personal_core::auth::{Auth, SessionStore};
 use rimelight_personal_core::{ApiClient, InstanceConfig};
 use slint::ComponentHandle as _;
 
-use crate::generated::{ConnectionState, AppWindow, Session, SessionPhase};
+use crate::generated::{AppWindow, ConnectionState, Session, SessionPhase};
 
 /// How often the server is checked while signed in and connected, in seconds.
 const CHECK_CONNECTED: u64 = 10;

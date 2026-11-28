@@ -20,8 +20,8 @@ use rimelight_ui_kit::toast::{Record, Toast, ToastQueue, Tone, sync_model, take_
 use slint::{ComponentHandle as _, Model as _, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::generated::{
-    FocusState, Icons, OverviewState, PaletteRow, AppWindow, SidebarItem, SidebarKind,
-    SubTab, ToastEntry, ToastTone, TodosState,
+    AppWindow, FocusState, Icons, OverviewState, PaletteRow, SidebarItem, SidebarKind, SubTab,
+    ToastEntry, ToastTone, TodosState,
 };
 use crate::pages::{
     finances, focus, habits, health, housing, inbox, music, notebooks, notes, overview, projects,

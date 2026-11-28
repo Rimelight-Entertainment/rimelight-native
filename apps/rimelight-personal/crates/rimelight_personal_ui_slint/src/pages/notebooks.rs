@@ -14,7 +14,7 @@ use rimelight_personal_feature_notebooks::{
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::generated::{
-    NotebookEntryRow, NotebooksState, PageLoadState, AppWindow, TableColumn, TableRow,
+    AppWindow, NotebookEntryRow, NotebooksState, PageLoadState, TableColumn, TableRow,
 };
 
 /// The Notebooks page of the shell: one controller, wired to the shell's `NotebooksState` and its callbacks.

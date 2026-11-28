@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use rimelight_personal_feature_focus::{FocusController, FocusView, Mode};
 use slint::{ComponentHandle as _, Timer, TimerMode};
 
-use crate::generated::{FocusMode, FocusState, AppWindow};
+use crate::generated::{AppWindow, FocusMode, FocusState};
 
 /// How often the timer wakes to advance the countdown. The elapsed time is measured from the clock, so this only sets
 /// how often the card redraws.

@@ -13,7 +13,7 @@ use std::process::{Command, ExitCode};
 
 /// The workspace manifest, whose `[workspace.metadata.ffmpeg]` table holds `release`, `asset` and `sha256`. Read at
 /// compile time, so xtask and the build scripts agree.
-const MANIFEST: &str = include_str!("../../../../Cargo.toml");
+const MANIFEST: &str = include_str!("../../Cargo.toml");
 /// Where the asset is published (still rimelight-media's release, until rimelight-rs publishes its own).
 const URL_BASE: &str =
     "https://github.com/Rimelight-Entertainment/rimelight-media/releases/download";
@@ -161,11 +161,9 @@ fn sha256_of(path: &Path) -> Result<String, String> {
         .ok_or_else(|| format!("certutil printed no SHA-256 for {}", path.display()))
 }
 
-/// The monorepo root (the folder holding the workspace `Cargo.toml`): this crate is `apps/rimelight-space/xtask`.
+/// The monorepo root (the folder holding the workspace `Cargo.toml`): this crate is `xtask` at the root.
 pub fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
 }

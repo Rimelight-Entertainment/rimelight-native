@@ -1,5 +1,5 @@
 [package]
-name = "ui_gallery"
+name = "rimelight_gallery"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ publish = false
 description = "Component gallery for the Rimelight design system on the Slint interpreter: stories from rimelight_ui, rimelight_shell and rimelight_design, plus an app's own stories from a folder. Not shipped."
 
 [[bin]]
-name = "ui_gallery"
+name = "rimelight_gallery"
 path = "src/main.rs"
 
 [lints]

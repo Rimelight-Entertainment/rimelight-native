@@ -7035,6 +7035,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rimelight_gallery"
+version = "0.1.0"
+dependencies = [
+ "i-slint-backend-testing",
+ "image",
+ "rimelight_design",
+ "rimelight_shell",
+ "rimelight_ui",
+ "rimelight_ui_kit",
+ "slint",
+ "slint-interpreter",
+]
+
+[[package]]
 name = "rimelight_ios"
 version = "0.1.0"
 
@@ -8345,8 +8359,8 @@ version = "0.1.0"
 name = "space_gallery"
 version = "0.1.0"
 dependencies = [
+ "rimelight_gallery",
  "space_ui",
- "ui_gallery",
 ]
 
 [[package]]
@@ -9359,20 +9373,6 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "ui_gallery"
-version = "0.1.0"
-dependencies = [
- "i-slint-backend-testing",
- "image",
- "rimelight_design",
- "rimelight_shell",
- "rimelight_ui",
- "rimelight_ui_kit",
- "slint",
- "slint-interpreter",
 ]
 
 [[package]]

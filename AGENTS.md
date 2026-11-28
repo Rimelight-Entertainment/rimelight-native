@@ -8,7 +8,7 @@ Run all Cargo commands from the monorepo root (`rimelight-native/`):
 cargo run -p media_desktop       # Rimelight Media
 cargo run -p space_desktop       # Rimelight Space
 cargo run -p personal_desktop    # Rimelight Personal
-cargo run -p ui_gallery          # Design system component gallery
+cargo run -p rimelight_gallery   # Design system component gallery
 ```
 
 ## Layout

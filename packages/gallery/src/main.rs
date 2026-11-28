@@ -4,5 +4,5 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    ui_gallery::main_with(None)
+    rimelight_gallery::main_with(None)
 }

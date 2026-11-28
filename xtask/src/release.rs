@@ -118,10 +118,11 @@ fn version_from_manifest(text: &str) -> Option<String> {
     None
 }
 
+/// Rimelight Space's folder (`apps/rimelight-space`), which holds its `release/` files.
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+    crate::ffmpeg::workspace_root()
+        .join("apps")
+        .join("rimelight-space")
 }
 
 fn target_dir() -> PathBuf {

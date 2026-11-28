@@ -10,9 +10,9 @@
 //!
 //! The catalogue is plain, fixed-shape YAML, so a small line parser reads it and no YAML crate is needed.
 
+use rimelight_gallery::registry::{STORIES, Section};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use ui_gallery::registry::{STORIES, Section};
 
 /// Done on Slint but shown by another component's story: (component name, story id).
 const COVERED_BY: &[(&str, &str)] = &[

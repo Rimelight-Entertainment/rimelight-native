@@ -62,11 +62,7 @@ pub fn run(args: &[&str]) -> ExitCode {
 fn target_dir() -> PathBuf {
     std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("..")
-                .join("target")
-        })
+        .unwrap_or_else(|| crate::ffmpeg::workspace_root().join("target"))
 }
 
 /// Profile directories: `target/debug` and `target/<triple>/debug` (and the same for release).

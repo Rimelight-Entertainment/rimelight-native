@@ -7,7 +7,7 @@ members = [
     "apps/rimelight-space/areas/*",
     "apps/rimelight-space/backend/*",
     "apps/rimelight-space/crates/*",
-    "apps/rimelight-space/xtask",
+    "xtask",
     "apps/rimelight-personal/apps/*",
     "apps/rimelight-personal/crates/core",
     "apps/rimelight-personal/crates/rimelight_personal_nav",
@@ -39,10 +39,15 @@ slint-build = "=1.18.1"
 slint-interpreter = "=1.18.1"
 i-slint-backend-testing = "=1.18.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+ehttp = "0.7.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+# Shared packages
 rimelight_design = { git = "https://github.com/Rimelight-Entertainment/rimelight.git", rev = "d1231382d6a7101bd175b8c5016726c1ed557802" }
 rimelight_content       = { path = "packages/rimelight_content" }
 rimelight_editor        = { path = "packages/rimelight_editor" }
-rimelight_media         = { path = "packages/media/rimelight_media", features = ["slint"] }
+rimelight_media         = { path = "packages/media/rimelight_media" }
 rimelight_picture       = { path = "packages/media/rimelight_picture" }
 rimelight_platform      = { path = "packages/rimelight_platform" }
 rimelight_shell         = { path = "packages/ui/rimelight_shell" }
@@ -50,10 +55,9 @@ rimelight_sound         = { path = "packages/media/rimelight_sound" }
 rimelight_ui            = { path = "packages/ui/rimelight_ui" }
 rimelight_ui_kit        = { path = "packages/ui/rimelight_ui_kit" }
 rimelight_update        = { path = "packages/rimelight_update" }
-rimelight_gallery       = { package = "ui_gallery", path = "packages/gallery" }
-ehttp = "0.7.3"
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+rimelight_gallery       = { path = "packages/gallery" }
+
+# Rimelight Personal
 rimelight_personal_core              = { path = "apps/rimelight-personal/crates/core" }
 rimelight_personal_nav               = { path = "apps/rimelight-personal/crates/rimelight_personal_nav" }
 rimelight_personal_ui_slint          = { path = "apps/rimelight-personal/crates/rimelight_personal_ui_slint" }
@@ -99,3 +103,8 @@ opt-level = 3
 
 [profile.release.build-override]
 opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

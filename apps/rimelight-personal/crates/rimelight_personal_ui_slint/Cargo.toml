@@ -21,7 +21,7 @@ slint = { workspace = true, features = ["unstable-winit-030"] }
 rimelight_ui_kit.workspace = true
 rimelight_platform.workspace = true
 rimelight_picture.workspace = true
-rimelight_media.workspace = true
+rimelight_media = { workspace = true, features = ["slint"] }
 rimelight_personal_nav.workspace = true
 rimelight_personal_core.workspace = true
 rimelight_personal_feature_overview.workspace = true

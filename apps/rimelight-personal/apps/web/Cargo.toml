@@ -11,11 +11,10 @@ workspace = true
 
 # The same Slint app shell as apps/desktop (rimelight_personal_ui_slint). Built for the browser with `trunk build --release` from this
 # folder (index.html names the bin). No eframe, no crates/app.
-[dependencies]
-rimelight_ui_kit.workspace = true
-rimelight_personal_core.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# The shell is used only by `web_main`, which exists on wasm32 alone.
+# The shell, theme and instance config are used only by `web_main`, which exists on wasm32 alone.
 rimelight_personal_ui_slint.workspace = true
+rimelight_personal_core.workspace = true
+rimelight_ui_kit.workspace = true
 wasm-bindgen = "=0.2.130"

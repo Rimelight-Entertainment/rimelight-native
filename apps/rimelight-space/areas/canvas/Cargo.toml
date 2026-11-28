@@ -35,7 +35,7 @@ rfd = "0.15"
 
 # Canvas video (CV-V): probe, poster frame, and the SHA-256 of the upload. Desktop only.
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
-rimelight_media = { workspace = true }
+rimelight_media = { workspace = true, features = ["slint"] }
 sha2 = "0.10"
 # Canvas picture disk cache (CV.7).
 dirs = "6"

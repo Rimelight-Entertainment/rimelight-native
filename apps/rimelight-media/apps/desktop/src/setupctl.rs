@@ -15,7 +15,6 @@ pub fn show(app: &Rc<App>) -> bool {
     };
     {
         let p = app.prefs.borrow();
-        w.set_desktop(p.desktop_shortcut);
         w.set_startup(true);
         w.set_pictures(p.file_types[0]);
         w.set_video(p.file_types[1]);
@@ -44,14 +43,12 @@ fn finish(app: &Rc<App>) {
     };
     let kinds = [w.get_pictures(), w.get_video(), w.get_music(), w.get_text()];
     let startup = w.get_startup();
-    let desktop = w.get_desktop();
     let take_ps = w.get_windows_printscreen_on() && w.get_take_printscreen();
     let open_now = w.get_open_now();
     let _ = w.hide();
 
     {
         let mut p = app.prefs.borrow_mut();
-        p.desktop_shortcut = desktop;
         p.file_types = kinds;
         p.background = startup;
         if take_ps {
@@ -63,7 +60,6 @@ fn finish(app: &Rc<App>) {
         install::set_windows_printscreen(false);
         crate::app::start_hotkeys(app);
     }
-    install::set_shortcuts(desktop);
     let _ = install::register_file_types(kinds);
     install::set_run_at_login(startup.then(install::launcher_path).as_deref());
     crate::capturectl::ensure_tray(app, startup);

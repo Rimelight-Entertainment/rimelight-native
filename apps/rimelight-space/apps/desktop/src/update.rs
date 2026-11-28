@@ -25,29 +25,9 @@ const CHANNEL: &str = "stable";
 rimelight_update::update_window_gate!(space_update_slint::UpdateWindow, "Rimelight Space");
 
 /// Runs the Velopack install, update and uninstall hooks. Must be the first call in `main`: for a hook run it does its
-/// work and exits the process.
+/// work and exits the process. Velopack makes the shortcuts (see the pack command), so there is no hook work of our own.
 pub fn init() {
-    rimelight_update::init(|app| {
-        app.on_after_install_fast_callback(|_| set_shortcuts())
-            .on_before_uninstall_fast_callback(|_| rimelight_update::shortcuts::remove(APP_NAME))
-    });
-}
-
-const APP_NAME: &str = "Rimelight Space";
-
-/// The Start menu shortcut, in the "Rimelight Entertainment" folder. The target is the Velopack launcher, so it keeps
-/// working after an update.
-fn set_shortcuts() {
-    let exe = std::env::current_exe().unwrap_or_default();
-    let target = rimelight_update::shortcuts::launcher_for(&exe, "Rimelight Space.exe");
-    rimelight_update::shortcuts::set_up(
-        &rimelight_update::shortcuts::Shortcut {
-            name: APP_NAME,
-            target: &target,
-            description: "Rimelight Space",
-        },
-        false,
-    );
+    rimelight_update::init(|app| app);
 }
 
 /// The updater for this copy, or `None` when this run is not installed (a `cargo run` build).

@@ -24,7 +24,6 @@ pub struct Prefs {
     pub voice_dir: PathBuf,
     /// Where a new canvas is saved (Ctrl+S with no file yet).
     pub canvas_dir: PathBuf,
-    pub desktop_shortcut: bool,
     /// File types offered to Windows: pictures, video, music, text.
     pub file_types: [bool; 4],
     /// True when Rimelight Media turned off Windows' own Print Screen snipping (uninstall turns it back on).
@@ -71,7 +70,6 @@ impl Default for Prefs {
             recording_dir: user_folder(UserFolder::Videos, &home, "Videos").join("Captures"),
             voice_dir: user_folder(UserFolder::Music, &home, "Music").join("Recordings"),
             canvas_dir: user_folder(UserFolder::Pictures, &home, "Pictures").join("Canvas"),
-            desktop_shortcut: true,
             file_types: [true; 4],
             printscreen_changed: false,
             voice_gain_db: 0.0,
@@ -114,7 +112,6 @@ impl Prefs {
                     p.voice_dir = PathBuf::from(v)
                 }
                 "canvas_dir" if !v.is_empty() => p.canvas_dir = PathBuf::from(v),
-                "desktop_shortcut" => p.desktop_shortcut = flag(v),
                 "printscreen_changed" => p.printscreen_changed = flag(v),
                 "file_types" => {
                     let mut it = v.chars().map(|c| c == '1');
@@ -129,7 +126,7 @@ impl Prefs {
     pub fn save(&self) {
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "theme={}\nbackground={}\nsnip_copy={}\nsnip_save={}\nsnip_open={}\nrec_system_audio={}\nrec_mic={}\nrec_fps={}\nvolume={}\nscreenshot_dir={}\nrecording_dir={}\nvoice_dir={}\ncanvas_dir={}\ndesktop_shortcut={}\nprintscreen_changed={}\nfile_types={}{}{}{}\nvoice_gain_db={}\ntext_font={}\n",
+            "theme={}\nbackground={}\nsnip_copy={}\nsnip_save={}\nsnip_open={}\nrec_system_audio={}\nrec_mic={}\nrec_fps={}\nvolume={}\nscreenshot_dir={}\nrecording_dir={}\nvoice_dir={}\ncanvas_dir={}\nprintscreen_changed={}\nfile_types={}{}{}{}\nvoice_gain_db={}\ntext_font={}\n",
             self.theme,
             b(self.background),
             b(self.snip_copy),
@@ -143,7 +140,6 @@ impl Prefs {
             self.recording_dir.display(),
             self.voice_dir.display(),
             self.canvas_dir.display(),
-            b(self.desktop_shortcut),
             b(self.printscreen_changed),
             b(self.file_types[0]),
             b(self.file_types[1]),

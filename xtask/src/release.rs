@@ -196,8 +196,8 @@ fn pack(args: &[&str]) -> Result<(), String> {
         .args(["--packTitle", TITLE])
         .args(["--packAuthors", AUTHORS])
         .args(["--mainExe", MAIN_EXE])
-        // The app makes its own Start menu shortcut in the "Rimelight Entertainment" folder (rimelight_update::shortcuts).
-        .args(["--shortcuts", "None"])
+        // Velopack makes the Start menu shortcut (in the author's folder) and the Desktop shortcut.
+        .args(["--shortcuts", "Desktop,StartMenu"])
         .args(["--channel", CHANNEL])
         .arg("--packDir")
         .arg(&stage)

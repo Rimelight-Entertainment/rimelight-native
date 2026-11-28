@@ -172,8 +172,8 @@ fn pack(args: &[&str]) -> Result<(), String> {
             .arg(&icon)
             .arg("--outputDir")
             .arg(&out)
-            // The app makes its own Start menu and Desktop shortcuts (src/install.rs), so they follow the setup choices.
-            .args(["--shortcuts", "None"]),
+            // Velopack makes the Start menu shortcut (in the author's folder) and the Desktop shortcut.
+            .args(["--shortcuts", "Desktop,StartMenu"]),
     )?;
 
     let setup = out.join(format!("{PACK_ID}-win-Setup.exe"));

@@ -16,29 +16,10 @@ const CHANNEL: &str = "stable";
 // Defines `start_up_gate(Option<Arc<Updater>>) -> bool` in this module. The window is `crate::windows_ui::UpdateWindow`.
 rimelight_update::update_window_gate!(crate::windows_ui::UpdateWindow, "Rimelight Personal");
 
-/// Runs the Velopack install, update and uninstall hooks. Must be the first call in `main`.
+/// Runs the Velopack install, update and uninstall hooks. Must be the first call in `main`. Velopack makes the shortcuts
+/// (see the pack command), so there is no hook work of our own.
 pub fn init() {
-    rimelight_update::init(|app| {
-        app.on_after_install_fast_callback(|_| set_shortcuts())
-            .on_before_uninstall_fast_callback(|_| rimelight_update::shortcuts::remove(APP_NAME))
-    });
-}
-
-const APP_NAME: &str = "Rimelight Personal";
-
-/// The Start menu and Desktop shortcuts, in the "Rimelight Entertainment" folder. The target is the Velopack launcher, so
-/// the shortcut keeps working after an update.
-fn set_shortcuts() {
-    let exe = std::env::current_exe().unwrap_or_default();
-    let target = rimelight_update::shortcuts::launcher_for(&exe, "Rimelight Personal.exe");
-    rimelight_update::shortcuts::set_up(
-        &rimelight_update::shortcuts::Shortcut {
-            name: APP_NAME,
-            target: &target,
-            description: "Your personal organiser",
-        },
-        true,
-    );
+    rimelight_update::init(|app| app);
 }
 
 /// The Personal update feed: its own folder in the rimelight.com bucket (see release-personal.yml). Not the GitHub

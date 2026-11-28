@@ -471,28 +471,11 @@ pub fn launcher_path() -> PathBuf {
         .unwrap_or(exe)
 }
 
-/// The Start menu and Desktop shortcuts, in the "Rimelight Entertainment" folder (the shared code in rimelight_update).
-pub fn set_shortcuts(desktop: bool) {
-    rimelight_update::shortcuts::set_up(
-        &rimelight_update::shortcuts::Shortcut {
-            name: APP_NAME,
-            target: &launcher_path(),
-            description: "Pictures, video, music and screen capture",
-        },
-        desktop,
-    );
-}
-
-/// Removes both shortcuts, and the company folder when nothing else is in it.
-fn remove_shortcuts() {
-    rimelight_update::shortcuts::remove(APP_NAME);
-}
-
-/// After install: the shortcuts, all file types, start with Windows (so the Print Screen keys work), using the choices
-/// saved in the settings (defaults on a first install). The first-run window then lets the person change them.
+/// After install: all file types, start with Windows (so the Print Screen keys work), using the choices saved in the
+/// settings (defaults on a first install). The first-run window then lets the person change them. Velopack makes the
+/// shortcuts itself.
 pub fn after_install() {
     let p = crate::prefs::Prefs::load();
-    set_shortcuts(p.desktop_shortcut);
     let _ = register_file_types(p.file_types);
     let mut p = p;
     p.background = true;
@@ -504,7 +487,6 @@ pub fn after_install() {
 /// After an update: the same integration, kept as the person chose it.
 pub fn after_update() {
     let p = crate::prefs::Prefs::load();
-    set_shortcuts(p.desktop_shortcut);
     let _ = register_file_types(p.file_types);
     if p.background {
         set_run_at_login(Some(&launcher_path()));
@@ -519,7 +501,6 @@ pub fn unregister_all() {
     if p.printscreen_changed {
         set_windows_printscreen(true);
     }
-    remove_shortcuts();
     reg::unregister_file_types();
     set_run_at_login(None);
     set_screenclip(None);

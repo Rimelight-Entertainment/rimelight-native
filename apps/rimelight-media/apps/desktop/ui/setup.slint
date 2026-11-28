@@ -13,7 +13,6 @@ component Group inherits VerticalLayout {
 }
 
 export component SetupWindow inherits Window {
-    in-out property <bool> desktop: true;
     in-out property <bool> startup: true;
     in-out property <bool> take-printscreen: true;
     // Windows' own Print Screen snipping is on (so the option above matters).
@@ -49,11 +48,6 @@ export component SetupWindow inherits Window {
             }
         }
 
-        Group {
-            title: "SHORTCUTS";
-            Text { text: "Start menu: Rimelight > Rimelight Media (always)."; color: Tokens.text-muted; font-size: Type.caption.size; }
-            Switch { text: "Desktop shortcut"; checked <=> root.desktop; }
-        }
 
         Group {
             title: "SCREENSHOTS AND RECORDING";

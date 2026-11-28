@@ -4951,7 +4951,7 @@ checksum = "7ebb8d8732c6a6df3d8f032a82911cfc747e00efb95cc46e8d0acd5b5b88570c"
 
 [[package]]
 name = "media_desktop"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "arboard",
  "chrono",
@@ -6037,7 +6037,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "personal_desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "embed-resource",
  "rimelight_personal_core",
@@ -8337,7 +8337,7 @@ dependencies = [
 
 [[package]]
 name = "space_desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "embed-resource",
  "global-hotkey",

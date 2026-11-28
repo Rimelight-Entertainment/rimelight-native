@@ -1,78 +1,65 @@
-# Rimelight Space — Project Specification
+# Rimelight Space
 
 ## 1. High-Level Vision & Scope
 
-**Rimelight Space** is the proprietary, all-in-one Enterprise Resource Planning (ERP) and operational workstation for Rimelight Entertainment. It provides a cohesive native workspace unifying company management, creative production, game development workflows, player support, and personal productivity into a single high-performance Rust application.
+**Rimelight Space** is a native Enterprise Resource Planning (ERP) and operational workstation for Rimelight Entertainment built in Rust and Slint. It unifies company management, creative production, game development workflows, customer support, and personal productivity into a single high-performance native binary.
 
 ### Key Pillars
 
-1. **Native Multiplatform Performance:** Built in Rust with **Slint 1.18.1**, compiling to high-performance native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
-2. **Real-Time Collaboration (Loro CRDT):** Document, project, and block editing feature character-level real-time co-editing, live cursor presence, and offline resilience powered by **Loro CRDT**.
-3. **Single Source of Truth for Franchise Content:** Rimelight Space is the canonical authoring studio for all CMS content, wiki pages, screenplays, and documentation. Published content feeds directly to `rimelight.com`.
-4. **Unified Operations:** Eliminates fragmented third-party SaaS tools by unifying HR, finance, supply chain, asset tracking, project management, customer relationships, and player support into one unified database and UI.
+1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to high-performance native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
+2. **Unified Operations:** Eliminates fragmented third-party SaaS tools by unifying HR, finance, supply chain, asset tracking, project management, customer relationships, and player support into one unified database and UI.
+3. 
+4. **Shared Rimelight Design Tokens:** Employs `rimelight_design` tokens and `rimelight_shell` layouts to maintain visual harmony with the Rimelight ecosystem.
 
-## 2. System Architecture
+### 1.2 Technical Architecture
 
-```mermaid
-flowchart TB
-    subgraph Client["Client Application (Slint 1.18.1)"]
-        Shell["App Shell (rimelight_shell)"]
-        UI["Design & Components (rimelight_ui, space_ui)"]
-        Areas["Feature Areas (Personal, Projects, Company, CMS)"]
-        CRDT["Loro CRDT Engine"]
-        Shell --> UI
-        UI --> Areas
-        Areas --> CRDT
-    end
+- **Language:** Rust
+- **GUI:** Slint
+- **Decoder:** FFmpeg
+- **Asset Storage:** Cloudflare R2
+- **Database:** PostgreSQL Neon (futurely PlanetScale) + Cloudflare Hyperdrive
+- **Authentication:** Auth0
+- **API:** Hono
+- **Installer & Updater:** Velopack
 
-    subgraph Backend["Cloudflare Edge Backend"]
-        Workers["Space API on the rimelight.com Worker (TypeScript, Rimelight-Entertainment/rimelight)"]
-        Hyperdrive["Cloudflare Hyperdrive"]
-        DB[(Neon PostgreSQL)]
-        Auth["Auth0 Tenant Integration"]
-        Workers --> Hyperdrive --> DB
-        Workers --> Auth
-    end
+### 1.3 Target Platforms
 
-    Client -- "Secure HTTP / WebSockets" --> Backend
-```
+- **Desktop:**
+  - **Windows:**
+  - **MacOS:**
+  - **Linux:**
+- **Mobile:**
+  - **Android:**
+  - **IOS:**
 
-### Core Technologies
-- **Language & Toolchain:** Rust 2024 Edition, pinned compiler toolchain (`rust-toolchain.toml`).
-- **UI Framework:** Slint 1.18.1 (`slint`, `slint-build`, `i-slint-backend-testing`).
-- **Design Tokens:** `rimelight_design` (`tokens.json` compiled to `ui/tokens.slint` and Rust constants).
-- **Component Suite:** `rimelight_ui`, `rimelight_ui_kit`, `space_ui`, `rimelight_shell`.
-- **Media Engine:** `rimelight_media` and `rimelight_picture` (integrated video, audio, image decoders, and WebP pipeline).
-- **Backend Infrastructure:** The Space API is TypeScript on the rimelight.com Worker (`apps/rimelight.com/src/space/` in `Rimelight-Entertainment/rimelight`; decision 0041 removed the Rust Worker), using Cloudflare Hyperdrive for pooled PostgreSQL connections and Auth0 enterprise identity abstraction.
+## 3. Features
 
----
+### 3.1 Features
 
-## 3. Product Modules & Areas
-
-### 3.1 Personal Workplace & Communication
+#### 3.1.1 Personal Workplace & Communication
 - **Personal Tasks & Todos:** Focus modes, task queues, daily schedules, and personal calendar.
 - **Unified Chat:** Real-time team messaging, channels, direct messages, and contextual thread discussions.
 - **Personal Notes & Scratchpads:** Quick-capture rich text notes with markdown rendering.
 
-### 3.2 Projects & Issue Tracking
+#### 3.1.2 Projects & Issue Tracking
 - **Issue Tracking:** Kanban boards, sprint backlogs, task assignments, and priority triage.
 - **Milestones & Slices:** Vertical slice tracking with verifiable criteria and gate validation.
 - **Game Production Workflows:** Asset pipeline tracking linking Unreal Engine and game assets.
 
-### 3.3 Company, People & HR
+#### 3.1.3 Company, People & HR
 - **Directory & Org Chart:** Team rosters, departmental structures, reporting lines, and access roles.
 - **Time Off & Leave:** Vacation tracking, public holiday calendars, and approval workflows.
 - **Recruitment & Onboarding:** Candidate tracking, onboarding checklists, and role provisioning.
 
-### 3.4 Finance & Operations
+#### 3.1.4 Finance & Operations
 - **Corporate Accounting:** Expense tracking, invoice generation, balance ledgers, and transaction audit trails.
 - **Hardware & Asset Inventory:** Machine allocation, licenses, devkit assignments, and office procurement.
 
-### 3.5 Player Support & Community Operations
+#### 3.1.5 Player Support & Community Operations
 - **Customer CRM:** Unified support ticket inbox, game account lookups, and player feedback.
 - **Moderation Tools:** In-game audit log inspection and player dispute resolution.
 
-### 3.6 CMS Block Editor Studio
+#### 3.1.6 CMS Block Editor Studio
 *Canonical authoring tool for wiki, docs, blog, and screenplay content.*
 - **Co-Editing:** Multi-user character-level collaborative editing with cursors and presence via Loro CRDT.
 - **Adaptive Layout:** Inline WYSIWYG editing with side inspector panel (or bottom sheet on mobile).
@@ -83,32 +70,28 @@ flowchart TB
   - *Interactive Elements:* Tabs & Tab Item, Steps & Step Item, Cards & Card (with badges, icons, links).
   - *Screenplay Blocks:* Scene heading, action, character, dialogue, parenthetical, transition, and shot blocks for franchise narrative writing.
 
----
+## 3.2 Keyboard Shortcuts
 
-## 4. Workspace & Repository Structure
+| Context | Shortcut | Action |
+|---|---|---|
+| **Global** | `Print Screen` / `Win+Shift+S` | Screen snip tool |
+| | `Alt + Print Screen` | Capture active window |
+| | `Ctrl + Print Screen` | Capture entire screen |
+| | `Shift + Print Screen` | Start screen recording |
+| | `Ctrl + O` / `Ctrl + N` | Open file / New canvas |
+| | `F11` | Toggle Fullscreen |
+| **Pictures** | `Left` / `Right` | Previous / Next picture |
+| | `+` / `-` / `0` / `1` | Zoom in / out / fit / 100% |
+| | `R` / `C` / `M` / `I` | Rotate / Crop / Markup / Details panel |
+| | `Space` / `,` / `.` | Play animation / Previous frame / Next frame |
+| **Player** | `Space` | Play / Pause |
+| | `Left` / `Right` | Seek 5s (with Shift: 30s) |
+| | `Up` / `Down` | Volume up / down |
+| | `[` / `]` / `=` | Slow down / Speed up / Reset speed |
+| | `G` / `H` | Subtitle delay adjustment |
+| **Text** | `Ctrl + S` / `Ctrl + Shift + S` | Save / Save As |
+| | `Ctrl + F` | Find and Replace |
 
-```
-rimelight-space/
-├── apps/
-│   └── desktop/                 # Desktop entry application (Windows, macOS, Linux)
-├── areas/                       # Domain functional areas
-│   ├── company/                 # Company directory, organizational units, and HR
-│   ├── management/              # Executive dashboards, operations, and policy
-│   ├── personal/                # Personal tasks, schedule, and workspace
-│   └── projects/                # Issue tracking, kanban, and sprint boards
-├── backend/                     # Rust helper crates: Postgres migration SQL (db) and a jobs placeholder; the API is on rimelight.com
-├── crates/                      # Internal Rust modules
-│   ├── space_ui/                # Slint markup, themes, and UI widgets
-│   ├── space_page_kit/          # Standard page layout shells and navigation
-│   └── space_core/              # Domain models, local storage, and API clients
-├── release/                     # Velopack installer configurations and release scripts
-├── xtask/                       # Monorepo automation tasks (gates, formatting, checks)
-├── AGENTS.md                    # Agent instructions: strict "build once" rule and gates
-├── README.md                    # Local development quickstart and build commands
-└── PROJECT.md                   # Comprehensive technical manual & architecture (this file)
-```
-
----
 
 ## 5. Development Conventions & Standards
 
@@ -122,27 +105,11 @@ rimelight-space/
 - **Slint Files:** `PascalCase.slint` (e.g., `IssueCard.slint`, `ProjectBoard.slint`).
 - **Rust Modules:** Standard `snake_case`.
 
----
-
 ## Status
 
 **Status:** v3, 2026-11-15. Replaces the phase 0 step list (v2, 2026-11-09). Owner: Daniel.
 
 Rimelight Space is the internal, proprietary ERP for Rimelight Entertainment: one Rust application covering personal work, chat, projects, company, people, finance, customers, operations, analytics and admin.
-
----
-
-### 1. How agents work
-
-1. Read sections 2 and 3 once. They are the constraints every slice works under.
-2. Work on one **slice** at a time (section 4), in order. A slice is a feature built end to end, not a layer.
-3. A slice is done when its **gate** passes and its row in section 4 says done. The gate is: the slice's own tests pass, `cargo xtask gate quick` passes, and the owner has seen the feature running (desktop light and dark, and phone width). Never mark a slice done on reasoning alone.
-4. Build only the shared components and templates a slice needs. Extract a shared piece when a second slice needs it, not before. Components go in `rimelight_ui`, feature pages in its area modules (decision 0011).
-5. If a slice forces a choice this plan does not make, add an entry to section 15 with status `proposed`. Do not silently deviate.
-6. Do not expand scope. Section 5 lists what is out of scope for now.
-7. Commit one local commit per finished slice, with the slice ID first in the message (for example `S1: Projects issues list`). Never push unless the owner says so.
-
----
 
 ### 2. Locked decisions
 

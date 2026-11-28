@@ -1,12 +1,12 @@
-﻿# ── Rust ──────────────────────────────────────────────────────────────────────
+﻿# Rust
 /target/
 **/*.rs.bk
 
-# ── FFmpeg (fetched per-machine by `cargo xtask ffmpeg`) ─
+# FFmpeg
 ffmpeg/
 **/ffmpeg/
 
-# ── Build output / local dev data ─────────────────────────────────────────────
+# Outputs
 /shots/
 /publish/
 /releases/
@@ -17,7 +17,7 @@ ffmpeg/
 /target-check/
 .data/
 
-# ── Android / Gradle ──────────────────────────────────────────────────────────
+# Android / Gradle
 .gradle/
 local.properties
 **/local.properties
@@ -30,16 +30,16 @@ apps/android/app/src/main/jniLibs/
 *.apk
 *.aab
 
-# ── Apple ─────────────────────────────────────────────────────────────────────
+# Apple
 apps/ios/build/
 DerivedData/
 *.xcuserstate
 
-# ── Web ───────────────────────────────────────────────────────────────────────
+# Web
 node_modules/
 apps/web/dist/
 
-# ── Environment & secrets ─────────────────────────────────────────────────────
+# Environment & Secrets
 .env
 .env.*
 !.env.example
@@ -49,7 +49,7 @@ apps/web/dist/
 *.pem
 *.key
 
-# ── Editors & OS ──────────────────────────────────────────────────────────────
+# Editors & OS
 .idea/
 .vscode/
 .zed/
@@ -57,20 +57,19 @@ apps/web/dist/
 Thumbs.db
 desktop.ini
 
-# ── Agents ────────────────────────────────────────────────────────────────────
+# Agents
 .claude/
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
+# Logs
 *.log
 *.cpuprofile
 logs/
 
-# ── Cloudflare ────────────────────────────────────────────────────────────────
+# Cloudflare
 .cloudflare/
 .cache/
 
-# ── Samples: tracked explicitly (rimelight-media) ─────────────────────────────
-# All sample files are plain git files (see apps/rimelight-media/apps/desktop/samples/README.md).
+# Samples
 !apps/rimelight-media/apps/desktop/samples/
 !apps/rimelight-media/apps/desktop/samples/**
 

@@ -1,52 +1,35 @@
-# Rimelight Media — Project Specification
+# Rimelight Media
 
 ## 1. High-Level Vision & Scope
 
-**Rimelight Media** is a compact, ultra-fast Windows utility and media player designed to replace bloated default and third-party desktop tools. It combines viewing, playing, markup, editing, screen capture, camera capture, and text editing into a single lightweight native binary.
+**Rimelight Media** is a native file utility and media player built in Rust and Slint. It combines viewing, playing, markup, editing, screen capture, camera capture, and text editing into a single high-performance native binary.
 
-## 1.1 Technical Architecture
+### Key Pillars
 
-```mermaid
-flowchart TD
-    subgraph UI["User Interface (Slint)"]
-        Shell["Window Shell & Navigation"]
-        Tabs["Image | Video | Audio | Text | Canvas | Capture | Camera"]
-        Shell --> Tabs
-    end
+1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to high-performance native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
+2. **Unified Operations:** Eliminates fragmented third-party SaaS tools by unifying HR, finance, supply chain, asset tracking, project management, customer relationships, and player support into one unified database and UI.
+3. 
+4. **Shared Rimelight Design Tokens:** Employs `rimelight_design` tokens and `rimelight_shell` layouts to maintain visual harmony with the Rimelight ecosystem.
 
-    subgraph Core["Native Engine (Rust)"]
-        Decoders["Image Decoders (image, ravif, zune, rawloader)"]
-        Media["FFmpeg C Engine (trimmed LGPL DLLs)"]
-        AudioOut["Audio Output (cpal)"]
-        Win32["Windows OS Hooks (Global Hotkeys, Shell)"]
-    end
+### 1.2 Technical Architecture
 
-    subgraph Distribution["Packaging & Updates"]
-        Velo["Velopack (RimelightMedia-win-Setup.exe)"]
-        GH["GitHub Releases Auto-Update"]
-    end
-
-    UI --> Core
-    Core --> Distribution
-```
-
-### 1.3 Architecture
-- **Language:** Rust
+- **Language:** Rust 2024
 - **GUI:** Slint
+- **Decoder:** FFmpeg
+- **Installer & Updater:** Velopack
 
-- **FFmpeg Integration:** Custom trimmed LGPL FFmpeg build (approx. 17 MB DLLs) fetched by `cargo xtask ffmpeg` into the workspace's `ffmpeg/current`. Decodes H.264, HEVC, AV1, VP9, MP3, FLAC, AAC, WAV, OGG, Opus without requiring external codecs.
-- **Installer & Auto-Updates:** Packaged with **Velopack**. Installs per-user (`%LOCALAPPDATA%\RimelightMedia`) without UAC prompts and automatically updates in the background.
-
-### 1.4 Target Platforms
+### 1.3 Target Platforms
 
 - **Desktop:**
   - **Windows:**
   - **MacOS:**
   - **Linux:**
 
-## 3. Comprehensive Feature Catalog
+## 3. Features
 
-### 3.1 Pictures (Image Viewer & Editor)
+### 3.1 Features
+
+#### 3.1.1 Pictures (Image Viewer & Editor)
 - **Format Support:** PNG, JPEG, WebP, SVG, GIF, BMP, ICO, HEIC/HEIF, AVIF, and Camera RAW (DNG, CR2/CR3, NEF, ARW, RAF, ORF, RW2).
 - **Viewing Modes:** Dynamic zoom/pan, folder browsing, multi-file selection side-by-side comparison grid.
 - **Animation Controls:** Frame stepping, playback speed, and pause for animated GIF and WebP.
@@ -55,33 +38,33 @@ flowchart TD
   - Vector markup: Pen, highlighter, arrows, lines, rectangles, ellipses, filled polygons, text annotations, eyedropper, and paint bucket.
   - Image insertion: Paste clipboard images directly into the active frame.
 
-### 3.2 Canvas (Paint Replacement)
+#### 3.1.2 Canvas (Paint Replacement)
 - **Workspace:** Blank drawing canvas with presets (window match, 1080p, A4, custom size; opaque white or transparent).
 - **Tools:** Rectangle select (cut, copy, crop, delete), freehand drawing, stamp tools, color pickers, and undo/redo history.
 - **Storage:** Automatically exports to `Pictures\Canvas`.
 
-### 3.3 Video & Music Player
+#### 3.1.3 Video & Music Player
 - **Containers & Codecs:** MP4, MKV, WebM, MOV, AVI, MPEG; audio: MP3, FLAC, WAV, OGG, Opus, M4A.
 - **Playback Capabilities:** Subtitle support (embedded text/bitmap subtitles, external SRT, VTT, ASS) with size and timing offset adjustment. Variable playback speeds (0.25x to 3.0x).
 - **Waveform Seek Bar:** Visual audio waveform timeline with drag handles for in-app clip trimming.
 - **Network Streaming:** DLNA casting support to smart TVs and networked speakers.
 
-### 3.4 Text (Notepad Replacement)
+#### 3.1.4 Text (Notepad Replacement)
 - **Supported Formats:** TXT, Markdown (`.md`), JSON, TOML, YAML, INI, CSV, XML, and log files.
 - **Specialized Modes:**
   - Markdown: Raw edit mode, live preview mode, and split view.
   - JSON: Tree view inspector, formatter, minifier, key sorter, and syntax validator with line/column pointers.
 - **Encoding & Line Endings:** Retains file encoding (UTF-8, UTF-8 BOM, UTF-16) and line endings (CRLF vs LF).
 
-### 3.5 Screen Capture & Recording
+#### 3.1.5 Screen Capture & Recording
 - **Global Hotkeys:** `Print Screen` or `Win+Shift+S` to capture an area, active window, or full screen.
 - **Screen Recording:** High-frame-rate screen recording to MP4 with system audio loopback and/or microphone input.
 
-### 3.6 Camera & Voice Recorder
+#### 3.1.6 Camera & Voice Recorder
 - **Webcam Tool:** Capture stills and video from any connected webcam with mirror, grid, and timer modes (saved to `Pictures\Camera Roll`).
 - **Voice Recorder:** Selectable microphone input, pause/resume recording, audio waveform markers, and direct export to M4A, WAV, or FLAC.
 
-## 4. Keyboard Shortcuts
+## 3.2 Keyboard Shortcuts
 
 | Context | Shortcut | Action |
 |---|---|---|

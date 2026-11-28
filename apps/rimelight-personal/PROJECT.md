@@ -1,157 +1,118 @@
-# Rimelight Personal — Project Specification
-
-> **Status:** Single Source of Truth & Authoritative Technical Manual  
-> **Project Name:** Rimelight Personal (formerly `rimelight-personal`)  
-> **Primary Technology:** Rust 2024 (1.100.0) | Slint | Cloudflare D1 + Access | WebAssembly  
-> **Backend Host:** set per instance with `RIMELIGHT_API_BASE` (see README.md). The current deployment is `idantity.me/api/personal` (Cloudflare Worker + D1), which moves out in R5.
-
----
+# Rimelight Personal
 
 ## 1. High-Level Vision & Scope
 
-**Rimelight Personal** is a native multiplatform personal productivity suite and life operating system built in Rust and Slint. It is the official native replacement for the legacy web app `personal.idantity.me`.
+**Rimelight Personal** is a native multiplatform personal productivity suite and life operating system built in Rust and Slint. into a single high-performance native binary.
 
-### Key Architectural Pillars
+### Key Pillars
 
-1. **Native Performance & Fluidity:** Replaces client-side web rendering with a high-performance native desktop client (Windows, macOS, Linux) and WebAssembly target powered by **Slint**.
+1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to high-performance native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
 2. **Unified Life Dashboard:** Aggregates 13 distinct life domains (tasks, calendar, finances, notes, health, housing, habits, and media) into a unified personal workstation.
-3. **Edge Database & Serverless Sync:** Connects to Cloudflare D1 via the personal backend at `idantity.me/api/personal`, authenticated securely through Cloudflare Access.
-4. **Shared Rimelight Design Tokens:** Employs `rimelight_design` tokens and `rimelight_shell` layouts to maintain visual harmony with Rimelight Space and the web ecosystem.
+3. **User-owned Data:** Connects to a user's Cloudflare account and infrastructure, authenticated securely through Cloudflare Access.
+4. **Shared Rimelight Design Tokens:** Employs `rimelight_design` tokens and `rimelight_shell` layouts to maintain visual harmony with the Rimelight ecosystem.
 
----
+### 1.2 Technical Architecture
 
-## 2. Technical Architecture
+- **Language:** Rust 2024
+- **GUI:** Slint
+- **Decoder:** FFmpeg
+- **Asset Storage:** Cloudflare R2
+- **Database:** Cloudflare D1
+- **Authentication:** Cloudflare Access
+- **API:** Hono
+- **Installer & Updater:** Velopack
 
-```mermaid
-flowchart TD
-    subgraph Client["Rimelight Personal Native Client"]
-        Nav["Sidebar & Router (rimelight_personal_nav)"]
-        UI["App Shell (rimelight_personal_ui_slint, rimelight_shell)"]
-        Features["13 Feature Modules (crates/features/*)"]
-        Core["API Client & Local Storage (crates/core)"]
-        Nav --> UI
-        UI --> Features
-        Features --> Core
-    end
+### 1.3 Target Platforms
 
-    subgraph Backend["Personal Edge Backend (idantity.me)"]
-        Access["Cloudflare Access (Zero Trust)"]
-        Worker["Personal API Worker (/api/personal/*)"]
-        D1[(Cloudflare D1 SQLite Database)]
-        Access --> Worker --> D1
-    end
+- **Desktop:**
+  - **Windows:**
+  - **MacOS:**
+  - **Linux:**
+- **Mobile:**
+  - **Android:**
+  - **IOS:**
 
-    Core -- "Authenticated HTTPS (Bearer Token)" --> Access
-```
+## 3. Features
 
-### Core Technologies
-- **Rust Toolchain:** Pinned to `1.100.0` via `rust-toolchain.toml` (2024 edition).
-- **UI Framework:** Slint 1.18.1 compiled via `crates/rimelight_personal_ui_slint`.
-- **Backend Host:** Hosted within `idantity.me` worker at `/api/personal/*` querying Cloudflare D1 SQLite database with Drizzle ORM migrations.
-- **Authentication:** Cloudflare Access policy validation (`POLICY_AUD` and secret tokens).
+### 3.1 Features
 
----
-
-## 3. Comprehensive Feature Catalog (13 Core Modules)
-
-### 3.1 Overview (`/`)
+#### 3.1.1 Overview (`/`)
 * **Unified Command Center:** Dynamic hero dashboard bringing all active modules together.
 * **Quick Task Input:** Instant task capture submitting to the daily todo queue.
 * **Daily Agenda:** Filtered list of tasks due today with one-click completion toggles.
 * **Financial Summary:** Liquid balances, monthly fixed bills total, active subscription counts, and debt ledger ("I owe" / "Owed to me").
 * **Module Shortcuts:** Fast-action widgets for active fasting timers, workout logs, habits, and pinned notes.
 
-### 3.2 Todos (`/todos`)
+#### 3.1.2 Todos (`/todos`)
 * **Task Management:** Full task creation with title, priority (low, medium, high, urgent), categories, and scheduled due dates.
 * **Filter Views:** Dedicated views for Today, Upcoming, Completed, and Categorized tasks.
 * **Batch Operations:** Multi-select toolbar supporting batch completion and deletion.
 
-### 3.3 Focus (`/focus`)
+#### 3.1.3 Focus (`/focus`)
 * **Productivity Timer:** Pomodoro and interval focus timer with configurable work/break cycles.
 * **Ambient Audio:** Integrated background ambient noise player for deep work sessions.
 
-### 3.4 Notes (`/notes`)
+#### 3.1.4 Notes (`/notes`)
 * **Organization:** Tabbed categorization (Active, Archived, Trash) with real-time text and tag search.
 * **Rich Editor:** Debounced autosave, color coding, tag chip management, and quick note modals.
 * **Pinned Notes:** Dedicated top tier for frequently referenced documentation.
 
-### 3.5 Habits (`/habits`)
+#### 3.1.5 Habits (`/habits`)
 * **Calendar Mode:** 12-month visual grid tracking completion days across custom categories.
 * **Streaks Mode:** 52-week activity heatmap (365 days) displaying current streaks, historical best streaks, and annual completion percentage.
 
-### 3.6 Watchlist (`/watchlist`)
+#### 3.1.6 Watchlist (`/watchlist`)
 * **Media Catalog:** Tracking for Movies, TV Shows, Anime, and Books.
 * **Statuses:** Categorized into Want to Watch/Read, In Progress, Completed, and Dropped.
 
-### 3.7 Music (`/music`)
+#### 3.1.7 Music (`/music`)
 * **Audio Player:** Album drop zone, playlist queue, local audio playback, and metadata tags.
 
-### 3.8 Notebooks (`/notebooks`)
+### 3.1.8 Notebooks (`/notebooks`)
 * **Hierarchical Documentation:** Structured multi-page notebooks divided into volumes and chapters for deep writing.
 
-### 3.9 Projects (`/projects`)
+#### 3.1.9 Projects (`/projects`)
 * **Kanban Boards:** Customizable columns, drag-and-drop card movements, task checklists, and sprint tracking.
 
-### 3.10 Finances (`/finances`)
+#### 3.1.10 Finances (`/finances`)
 * **Accounting:** Multi-account balances (checking, savings, investments), transaction logs, income vs expenses breakdown.
 * **Currency Support:** Primary tracking in BRL with automatic exchange rate conversion via Frankfurter API.
 * **Recurring Obligations:** Scheduled bill reminders and active subscription renewals.
 
-### 3.11 Housing (`/housing`)
+#### 3.1.11 Housing (`/housing`)
 * **Household Inventory:** Grocery lists, out-of-stock alerts, household supplies tracking.
 * **Home Maintenance:** Recurring chore schedules, appliance warranties, and home repair logs.
 
-### 3.12 Health (`/health`)
+#### 3.1.12 Health (`/health`)
 * **Biometrics:** Weight, body fat, and physical measurement logging over time with progress charts.
 * **Intermittent Fasting:** Live fasting timer tracking hours elapsed and target fasting windows.
 * **Workouts:** Routine templates and exercise set/rep/weight logging.
 
-### 3.13 Inbox & Storage (`/inbox`, `/storage`)
+#### 3.1.13 Inbox & Storage (`/inbox`, `/storage`)
 * **Unified Communications:** Cloudflare Email Routing integration directing incoming emails (`daniel@`, `hello@`, `admin@`) into a triage inbox.
 * **Cloud Storage Explorer:** File and document management with category tagging and file upload pipelines.
 
----
+## 3.2 Keyboard Shortcuts
 
-## 4. Workspace Layout & Crates
-
-```
-rimelight-personal/
-├── apps/
-│   ├── desktop/                 # Native Windows/desktop Slint entry point
-│   └── web/                     # WebAssembly entry point
-├── crates/
-│   ├── core/                    # API client, SQLite offline cache, and domain types
-│   ├── rimelight_personal_nav/            # Navigation model, route definitions, and sidebar state
-│   ├── rimelight_personal_ui_slint/       # Slint compilation target and widget glue
-│   └── features/                # 14 modular domain crates
-│       ├── overview/            # Dashboard widgets
-│       ├── todos/               # Task management logic
-│       ├── focus/               # Timer and soundscapes
-│       ├── notes/               # Notes editor and storage
-│       ├── habits/              # Habit tracker and heatmaps
-│       ├── watchlist/           # Media tracker
-│       ├── music/               # Audio playback
-│       ├── notebooks/           # Notebook document hierarchy
-│       ├── projects/            # Kanban boards
-│       ├── finances/            # Financial ledgers and rates
-│       ├── housing/             # Chores and groceries
-│       ├── health/              # Fasting and workouts
-│       ├── inbox/               # Email triage
-│       └── storage/             # Cloud storage client
-├── AGENTS.md                    # Agent operating rules & "build once" constraint
-├── README.md                    # Local development quickstart
-└── PROJECT.md                   # Comprehensive technical manual & feature specs (this file)
-```
-
----
-
-## 5. Development Standards & Conventions
-
-1. **Slint Isolation:** Slint markup compiles exclusively inside `crates/rimelight_personal_ui_slint` and feature crates. Components must adhere to tokens in `rimelight_design`.
-2. **Build Discipline:** Adhere strictly to the "build ONCE at the end" rule. Write Rust feature logic across crates in batches before initiating cargo compilation.
-3. **Zero Hardcoded Personal Secrets:** Email addresses and personal identities must be sourced dynamically from authenticated session tokens (`locals.user.email`), never hardcoded in client source.
-
----
+| Context | Shortcut | Action |
+|---|---|---|
+| **Global** | `Print Screen` / `Win+Shift+S` | Screen snip tool |
+| | `Alt + Print Screen` | Capture active window |
+| | `Ctrl + Print Screen` | Capture entire screen |
+| | `Shift + Print Screen` | Start screen recording |
+| | `Ctrl + O` / `Ctrl + N` | Open file / New canvas |
+| | `F11` | Toggle Fullscreen |
+| **Pictures** | `Left` / `Right` | Previous / Next picture |
+| | `+` / `-` / `0` / `1` | Zoom in / out / fit / 100% |
+| | `R` / `C` / `M` / `I` | Rotate / Crop / Markup / Details panel |
+| | `Space` / `,` / `.` | Play animation / Previous frame / Next frame |
+| **Player** | `Space` | Play / Pause |
+| | `Left` / `Right` | Seek 5s (with Shift: 30s) |
+| | `Up` / `Down` | Volume up / down |
+| | `[` / `]` / `=` | Slow down / Speed up / Reset speed |
+| | `G` / `H` | Subtitle delay adjustment |
+| **Text** | `Ctrl + S` / `Ctrl + Shift + S` | Save / Save As |
+| | `Ctrl + F` | Find and Replace |
 
 ## Status
 
@@ -159,7 +120,28 @@ rimelight-personal/
 > **Target Alignment:** Mirrors the modules defined in PROJECT.md. PROJECT.md, README.md and AGENTS.md still describe the idantity.me backend and get rewritten in step R1.6.  
 > **Status:** Plan drafted, nothing started. Build rule applies: every step below is written without building; one build and test pass runs at the end of each batch (AGENTS.md).
 
----
+### Feature Completion
+
+| Module | Feature | Status | Implementation Details & Next Steps |
+|---|---|---|---|
+| **Installer** | Velopack Auto-Update | ✅ Done | Per-user setup, background delta updates, file associations. |
+| **Pictures** | Basic Image Viewer | ✅ Done | Zoom, pan, multi-format decoders, animated GIF/WebP playback. |
+| | Side-by-Side Comparison | ✅ Done | Multi-image selection compare grid. |
+| | Vector Markup & Editing | ✅ Done | Pen, highlighter, shapes, crop, rotation, image paste. |
+| | Camera RAW Support | 🟨 Partial | Reads common camera RAW formats (DNG, CR2/3, NEF); add thumbnail cache. |
+| **Canvas** | Paint Replacement | ✅ Done | Blank canvas, drawing tools, rectangle selection, PNG export. |
+| **Video/Audio** | FFmpeg Player Engine | ✅ Done | Hardware-accelerated decode, multi-audio tracks, subtitles. |
+| | Waveform Trimming | ✅ Done | Seek bar with waveform visualization and trim handles. |
+| | Details Panels | 🟨 In Review | Video, audio, and text metadata panels built; pending smoke verification on Windows. |
+| | Playlists | 🟨 In Review | Audio and video queue management built; pending verification. |
+| **Text** | Notepad Replacement | ✅ Done | Text editing, encoding preservation, line ending handling. |
+| | Markdown Split View | ✅ Done | Live preview pane alongside raw source. |
+| | JSON Inspector | ✅ Done | Formatter, minifier, key sorter, syntax validator. |
+| **Capture** | Global Screen Snip | ✅ Done | `Win+Shift+S` hook, area selection, direct markup opening. |
+| | Screen Recorder | 🟨 In Review | Audio loopback and microphone MP4 recording. |
+| **Camera** | Webcam Stills & Video | ✅ Done | Camera roll integration, grid, timer, and resolution selection. |
+| **Voice** | Voice Recorder | ✅ Done | Microphone recording to M4A/WAV/FLAC with waveform markers. |
+
 
 ### 0. Product direction (owner decisions, 2026-11-24)
 

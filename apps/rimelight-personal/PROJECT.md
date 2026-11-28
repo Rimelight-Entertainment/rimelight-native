@@ -9,7 +9,7 @@
 1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to high-performance native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
 2. **Unified Life Dashboard:** Aggregates 13 distinct life domains (tasks, calendar, finances, notes, health, housing, habits, and media) into a unified personal workstation.
 3. **User-owned Data:** Connects to a user's Cloudflare account and infrastructure, authenticated securely through Cloudflare Access.
-4. **Shared Rimelight Design Tokens:** Maintains visual consistentency with the Rimelight ecosystem.
+4. **Shared Rimelight Design Tokens:** Maintains visual consistency with the Rimelight ecosystem.
 
 ### 1.2 Technical Architecture
 
@@ -32,7 +32,12 @@
   - **Android:**
   - **IOS:**
 
-### 1.4 Out of Scope
+- ### 1.4 Target Languages
+
+- English (`en`)
+- Brazilian Portuguese (`pt-BR`)
+
+### 1.5 Out of Scope
 
 - Offline Support
 
@@ -108,8 +113,8 @@
 > **Target Alignment:** Mirrors the modules defined in PROJECT.md. PROJECT.md, README.md and AGENTS.md still describe the idantity.me backend and get rewritten in step R1.6.  
 > **Status:** Plan drafted, nothing started. Build rule applies: every step below is written without building; one build and test pass runs at the end of each batch (AGENTS.md).
 
-### 3.5 Open questions
+### 3.3 Open questions
 
 | # | Question | Notes |
-|---|---|
+|---|---|---|
 | Q1 |  |  |

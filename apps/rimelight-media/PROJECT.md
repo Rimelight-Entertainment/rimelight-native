@@ -9,7 +9,7 @@
 1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to high-performance native desktop clients (Windows, macOS, Linux).
 2. **One App for Everyday Files:** Replaces the separate built-in photo viewer, media player, Paint, Notepad, Snipping Tool, Camera and Voice Recorder with one consistent app.
 3. 
-4. **Shared Rimelight Design Tokens:** Maintains visual consistentency with the Rimelight ecosystem.
+4. **Shared Rimelight Design Tokens:** Maintains visual consistency with the Rimelight ecosystem.
 
 ### 1.2 Technical Architecture
 
@@ -25,7 +25,12 @@
   - **MacOS:**
   - **Linux:**
 
-### 1.4 Out of Scope
+### 1.4 Target Languages
+
+- English (`en`)
+- Brazilian Portuguese (`pt-BR`)
+
+### 1.5 Out of Scope
 
 - Mobile Releases
 
@@ -113,3 +118,9 @@
 | | Screen Recorder | 🟨 In Review | Audio loopback and microphone MP4 recording. |
 | **Camera** | Webcam Stills & Video | ✅ Done | Camera roll integration, grid, timer, and resolution selection. |
 | **Voice** | Voice Recorder | ✅ Done | Microphone recording to M4A/WAV/FLAC with waveform markers. |
+
+### 3.3 Open questions
+
+| # | Question | Notes |
+|---|---|---|
+| Q1 |  |  |

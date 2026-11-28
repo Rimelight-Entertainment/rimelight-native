@@ -2,14 +2,14 @@
 
 ## 1. Vision & Scope
 
-**Rimelight Space** is a native Enterprise Resource Planning ERP and operational workstation for Rimelight Entertainment, built in Rust and Slint. It unifies company management, creative production, game development workflows, customer support and work productivity into a single high-performance native binary.
+**Rimelight Space** is a native Enterprise Resource Planning (ERP) and operational workstation for Rimelight Entertainment, built in Rust and Slint. It unifies company management, creative production, game development workflows, customer support and work productivity into a single high-performance native binary.
 
 ### 1.1 Key Pillars
 
 1. **Native Multiplatform Performance:** Built in Rust and Slint, compiling to native desktop clients (Windows, macOS, Linux) and mobile (Android, iOS), alongside a WebAssembly target.
 2. **Unified Operations:** Replaces fragmented third-party SaaS tools by unifying HR, finance, supply chain, asset tracking, project management, customer relationships and player support in one database and UI.
 3. **Enterprise-Grade from the Start:** Built for 250+ users, with a relationship-based policy engine, audit trails and a documented public API.
-4. **Shared Rimelight Design Tokens:** Maintains visual consistentency with the Rimelight ecosystem.
+4. **Shared Rimelight Design Tokens:** Maintains visual consistency with the Rimelight ecosystem.
 
 ### 1.2 Technical Architecture
 
@@ -34,9 +34,10 @@
 
 ### 1.4 Target Languages
 
+- English (`en`)
+- Brazilian Portuguese (`pt-BR`)
 
-
-### 1.4 Out of Scope
+### 1.5 Out of Scope
 
 - Offline Support
 
@@ -84,9 +85,9 @@
 |---|---|---|
 | **Global** | `` | |
 
-## 4. Status
+## 3. Status
 
-### 4.1 Slices
+### 3.1 Slices
 
 | ID | Slice | Status | Summary |
 |---|---|---|---|
@@ -107,14 +108,19 @@
 | S3 | Calendar | planned | Month and week views, day picker, project and leave overlays |
 | S4 | Chat | planned | Channel, chat and room lists, thread view, unread badges |
 | S5 | Projects > Overview, sprints, timeline | planned | Project overview, sprint list, timeline view |
-Company
-Finance
-Customers
-Operations
-Analytics
-Admin
-Mail
-public API
+
+Not yet scheduled:
+
+- Company
+- Finance
+- Customers
+- Operations
+- Analytics
+- Admin
+- Mail
+- Public API
+
+### 3.2 Product decisions
 
 | Topic | Decision |
 |---|---|
@@ -122,5 +128,10 @@ public API
 | Company context | Game studio. Company formally starts after the owner's move to the UK. Single country, single legal entity (UK) |
 | Relation to rimelight.com | Separate database and backend, shared sign-in. rimelight.com renders the public pages (careers, support form, share links) by calling the Rimelight Space API. No access to rimelight.com's store or forum data. Space owns all CMS content and rimelight.com renders the published part |
 | AI | None for now. Leave a seam |
-| Languages | English and Brazilian Portuguese (`pt-BR`) |
 | Accessibility | Keyboard navigation and WCAG AA contrast in both themes, reduced motion, scalable text. Screen readers where Slint supports them (decision 0007) |
+
+### 3.3 Open questions
+
+| # | Question | Notes |
+|---|---|---|
+| Q1 |  |  |

@@ -86,7 +86,7 @@ ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next" }
 debug = "line-tables-only"
 
 [profile.dev.package."*"]
-opt-level = 3
+opt-level = 1
 debug = false
 
 [profile.dev.build-override]

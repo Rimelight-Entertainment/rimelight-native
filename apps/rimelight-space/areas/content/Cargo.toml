@@ -14,17 +14,12 @@ slint = { workspace = true }
 serde_json = "1"
 space_client = { path = "../../crates/space_client" }
 space_page_kit = { path = "../../crates/space_page_kit" }
-space_nav = { path = "../../crates/space_nav" }
-space_i18n = { path = "../../crates/space_i18n" }
 # The shared toast queue and select rules (rimelight-rs rimelight_ui_kit).
 rimelight_ui_kit = { workspace = true }
 # The shared block editor (rimelight-rs rimelight_editor): the controller, the view rows and the wire macro.
 rimelight_editor = { workspace = true }
 # The block and document model (rimelight-rs rimelight_content): EditorDoc, SyncSession, the registry.
 rimelight_content = { workspace = true }
-# The native web views the app supplies for web-only blocks (rimelight-rs rimelight_platform). The app owns the window; this crate
-# only names the host trait through rimelight_editor.
-rimelight_platform = { workspace = true }
 
 # The native file dialogs (media upload and picker): desktop only, as the canvas area does.
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dependencies]

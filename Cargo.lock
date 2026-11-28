@@ -8242,13 +8242,10 @@ dependencies = [
  "rfd",
  "rimelight_content",
  "rimelight_editor",
- "rimelight_platform",
  "rimelight_ui_kit",
  "serde_json",
  "slint",
  "space_client",
- "space_i18n",
- "space_nav",
  "space_page_kit",
 ]
 
